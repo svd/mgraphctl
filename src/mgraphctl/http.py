@@ -30,6 +30,12 @@ LONG = httpx.Timeout(connect=10, read=300, write=300, pool=10)
 BATCH_CHUNK = 20
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 LOG_BODY_LIMIT = 2048
+# Replaying these is safe: the server either ignores the repeat or applies the same state.
+IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "DELETE", "PUT"})
+# These fail before the request can have reached the server, so any method may be replayed.
+CONNECT_PHASE_ERRORS = (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)
+# Consecutive upload rounds that may fail to advance the offset before we call the session lost.
+UPLOAD_STALL_LIMIT = 3
 
 Expect = Literal["json", "bytes", "text", "none", "response"]
 
@@ -92,6 +98,10 @@ class SearchResult:
 
 def _strip_query(url: str) -> str:
     return url.split("?", 1)[0]
+
+
+def _network_error(exc: Exception) -> MsgraphError:
+    return MsgraphError("NETWORK", f"{type(exc).__name__}: {exc}", hint=errors.HINTS["NETWORK"])
 
 
 def _file_step(path: Path) -> dict:
@@ -225,7 +235,6 @@ class GraphClient:
         client: httpx.Client,
         request: httpx.Request,
         *,
-        retry_transport_errors: bool,
         stream: bool = False,
     ) -> httpx.Response:
         attempt, refreshed = 0, False
@@ -234,13 +243,14 @@ class GraphClient:
             started = time.monotonic()
             try:
                 response = client.send(request, stream=stream)
-            except (httpx.ConnectError, httpx.ReadTimeout) as exc:
-                if not retry_transport_errors or attempt >= config.MAX_ATTEMPTS:
-                    raise MsgraphError(
-                        "NETWORK",
-                        f"{type(exc).__name__}: {exc}",
-                        hint=errors.HINTS["NETWORK"],
-                    ) from exc
+            except httpx.TransportError as exc:
+                # A non-idempotent write that failed after the request may have reached the
+                # server must not be replayed: /sendMail would send the mail twice.
+                retryable = request.method in IDEMPOTENT_METHODS or isinstance(
+                    exc, CONNECT_PHASE_ERRORS
+                )
+                if not retryable or attempt >= config.MAX_ATTEMPTS:
+                    raise _network_error(exc) from exc
                 delay = self._backoff(attempt, None)
                 self._log_retry(delay, type(exc).__name__)
                 self.sleep(delay)
@@ -340,12 +350,7 @@ class GraphClient:
             text_body=text_body,
             accept="*/*" if expect == "bytes" else "application/json",
         )
-        response = self._send(
-            self._api,
-            request,
-            retry_transport_errors=(method == "GET"),
-            stream=(expect == "response"),
-        )
+        response = self._send(self._api, request, stream=(expect == "response"))
         if expect == "response":
             if response.status_code >= 400:
                 response.read()
@@ -524,6 +529,7 @@ class GraphClient:
             )
         total = file.stat().st_size
         offset = 0
+        stalled = 0
         last: Any = {}
         with file.open("rb") as handle:
             while offset < total:
@@ -541,7 +547,7 @@ class GraphClient:
                     },
                     timeout=LONG,
                 )
-                response = self._send(self._plain, request, retry_transport_errors=True)
+                response = self._send(self._plain, request)
                 if response.status_code == 404:
                     raise MsgraphError(
                         "UPLOAD_SESSION_LOST",
@@ -552,14 +558,37 @@ class GraphClient:
                     raise self._error(response)
                 last = response.json() if response.content else {}
                 ranges = last.get("nextExpectedRanges") if isinstance(last, dict) else None
-                offset = int(str(ranges[0]).split("-")[0]) if ranges else end + 1
+                previous = offset
+                offset = self._next_offset(ranges, file) if ranges else end + 1
+                # A server that keeps asking for the same range would loop forever.
+                stalled = stalled + 1 if offset <= previous else 0
+                if stalled >= UPLOAD_STALL_LIMIT:
+                    raise MsgraphError(
+                        "UPLOAD_SESSION_LOST",
+                        f"the upload of {file.name} stopped advancing at byte {offset} "
+                        f"after {stalled} rounds",
+                        hint=errors.HINTS["UPLOAD_SESSION_LOST"],
+                    )
         return last if isinstance(last, dict) else {}
+
+    @staticmethod
+    def _next_offset(ranges: Any, file: Path) -> int:
+        """First byte of the server's next expected range, or the session is unusable."""
+        try:
+            return int(str(ranges[0]).split("-", 1)[0])
+        except (IndexError, KeyError, TypeError, ValueError) as exc:
+            raise MsgraphError(
+                "UPLOAD_SESSION_LOST",
+                f"the upload session for {file.name} returned an unreadable "
+                f"nextExpectedRanges: {ranges!r}",
+                hint=errors.HINTS["UPLOAD_SESSION_LOST"],
+            ) from exc
 
     def download(self, path_or_url: str, dest: Path, *, beta: bool | None = None) -> DownloadResult:
         request = self._build(
             self._api, "GET", self.url(path_or_url, beta=beta), accept="*/*", timeout=LONG
         )
-        response = self._send(self._api, request, retry_transport_errors=True, stream=True)
+        response = self._send(self._api, request, stream=True)
         try:
             if response.status_code in REDIRECT_STATUSES:
                 location = response.headers.get("Location")
@@ -568,9 +597,7 @@ class GraphClient:
                     raise self._error(response)
                 response.close()
                 request = self._build(self._plain, "GET", location, accept="*/*", timeout=LONG)
-                response = self._send(
-                    self._plain, request, retry_transport_errors=True, stream=True
-                )
+                response = self._send(self._plain, request, stream=True)
             if response.status_code >= 400:
                 response.read()
                 raise self._error(response)
@@ -584,6 +611,9 @@ class GraphClient:
                     for block in response.iter_bytes():
                         handle.write(block)
                         written += len(block)
+            except httpx.TransportError as exc:
+                part.unlink(missing_ok=True)
+                raise _network_error(exc) from exc
             except BaseException:
                 part.unlink(missing_ok=True)
                 raise

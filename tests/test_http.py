@@ -121,8 +121,9 @@ def test_paginate_page_size_none_sends_no_top(client):
 
 
 def test_paginate_rejects_limit_below_one(client):
-    with pytest.raises(errors.UsageError):
+    with pytest.raises(errors.UsageError) as info:
         client.paginate("/me/messages", limit=0, all_=False, cap=500, page_size=25)
+    assert info.value.code == "USAGE" and info.value.exit_code == 2
 
 
 @respx.mock
@@ -158,11 +159,40 @@ def test_transport_error_retried_for_get_only(client):
     assert client.get("/me") == {"id": "1"}
     assert get_route.call_count == 2 and len(client.sleeps) == 1
 
-    post_route = respx.post(f"{V1}/me/sendMail").mock(side_effect=httpx.ConnectError("x"))
+    # A POST that failed after the request may have reached Graph is never replayed.
+    post_route = respx.post(f"{V1}/me/sendMail").mock(side_effect=httpx.ReadError("x"))
     with pytest.raises(errors.MsgraphError) as info:
         client.post("/me/sendMail", json={"message": {}}, expect="none")
     assert info.value.code == "NETWORK" and info.value.exit_code == 1
     assert post_route.call_count == 1
+
+
+@respx.mock
+def test_connect_timeout_on_get_is_retried(client):
+    route = respx.get(f"{V1}/me").mock(
+        side_effect=[httpx.ConnectTimeout("slow"), httpx.Response(200, json={"id": "1"})]
+    )
+    assert client.get("/me") == {"id": "1"}
+    assert route.call_count == 2 and len(client.sleeps) == 1
+
+
+@respx.mock
+def test_read_timeout_on_post_is_not_retried(client):
+    route = respx.post(f"{V1}/me/sendMail").mock(side_effect=httpx.ReadTimeout("slow"))
+    with pytest.raises(errors.MsgraphError) as info:
+        client.post("/me/sendMail", json={"message": {}}, expect="none")
+    assert info.value.code == "NETWORK" and info.value.exit_code == 1
+    assert route.call_count == 1 and client.sleeps == []
+
+
+@respx.mock
+def test_connect_timeout_on_post_is_retried(client):
+    # Connect-phase failures cannot have reached Graph, so even a write is safe to replay.
+    route = respx.post(f"{V1}/me/sendMail").mock(
+        side_effect=[httpx.ConnectTimeout("slow"), httpx.Response(202)]
+    )
+    assert client.post("/me/sendMail", json={"message": {}}, expect="none") is None
+    assert route.call_count == 2 and len(client.sleeps) == 1
 
 
 @respx.mock
@@ -393,6 +423,43 @@ def test_upload_session_404_is_lost(client, tmp_path):
             "/me/drive/root:/small.bin:/createUploadSession", {}, src, chunk_size=1000
         )
     assert info.value.code == "UPLOAD_SESSION_LOST" and info.value.exit_code == 1
+
+
+@respx.mock
+def test_upload_session_stalled_ranges_is_lost(client, tmp_path):
+    src = tmp_path / "big.bin"
+    src.write_bytes(b"s" * 700_000)
+    respx.post(f"{V1}/me/drive/root:/big.bin:/createUploadSession").mock(
+        return_value=httpx.Response(200, json={"uploadUrl": "https://upload.example.com/s7"})
+    )
+    # The server keeps asking for a range that never advances past the first chunk.
+    puts = respx.put("https://upload.example.com/s7").mock(
+        return_value=httpx.Response(202, json={"nextExpectedRanges": ["0-"]})
+    )
+    with pytest.raises(errors.MsgraphError) as info:
+        client.upload_session(
+            "/me/drive/root:/big.bin:/createUploadSession", {}, src, chunk_size=327_680
+        )
+    assert info.value.code == "UPLOAD_SESSION_LOST" and info.value.exit_code == 1
+    assert puts.call_count == 3
+
+
+@respx.mock
+def test_upload_session_unreadable_range_is_lost(client, tmp_path):
+    src = tmp_path / "big.bin"
+    src.write_bytes(b"u" * 700_000)
+    respx.post(f"{V1}/me/drive/root:/big.bin:/createUploadSession").mock(
+        return_value=httpx.Response(200, json={"uploadUrl": "https://upload.example.com/s8"})
+    )
+    puts = respx.put("https://upload.example.com/s8").mock(
+        return_value=httpx.Response(202, json={"nextExpectedRanges": ["not-a-number-"]})
+    )
+    with pytest.raises(errors.MsgraphError) as info:
+        client.upload_session(
+            "/me/drive/root:/big.bin:/createUploadSession", {}, src, chunk_size=327_680
+        )
+    assert info.value.code == "UPLOAD_SESSION_LOST" and info.value.exit_code == 1
+    assert puts.call_count == 1
 
 
 @respx.mock
