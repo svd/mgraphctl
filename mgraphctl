@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! command -v uv >/dev/null 2>&1; then
+  echo "mgraphctl: 'uv' is not installed. Install it: curl -LsSf https://astral.sh/uv/install.sh | sh  (macOS: brew install uv)" >&2
+  exit 1
+fi
+export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-${CLAUDE_PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/mgraphctl}/venv}"
+export UV_NO_PROGRESS=1
+export PYTHONDONTWRITEBYTECODE=1
+[ -d "$UV_PROJECT_ENVIRONMENT" ] || echo "mgraphctl: first run, installing Python environment (10-40 s)..." >&2
+exec uv run --project "$here" --frozen --no-dev mgraphctl "$@"

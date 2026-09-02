@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "name": "mgraphctl",
+  "version": "0.1.0",
+  "description": "Work with Microsoft 365 — Outlook mail and calendar, Teams chats and channels, presence, meetings and transcripts, SharePoint, OneDrive, OneNote, Planner, To Do, people and org chart — through the Microsoft Graph API (Python CLI run with uv).",
+  "author": {
+    "name": "Sviatoslav Sviridov",
+    "email": "sviridov@gmail.com"
+  },
+  "keywords": ["microsoft-365", "graph-api", "outlook", "teams", "sharepoint", "onedrive", "python", "uv"]
+}
