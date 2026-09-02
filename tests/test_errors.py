@@ -1,4 +1,13 @@
-from mgraphctl import errors
+from mgraphctl import config, errors
+
+
+def test_hints_resolve_shim_path_lazily(monkeypatch):
+    before = errors.HINTS["NOT_LOGGED_IN"]
+    monkeypatch.setattr(config, "shim_path", lambda: "/patched/mgraphctl")
+    after = errors.HINTS["NOT_LOGGED_IN"]
+    assert after != before
+    assert "/patched/mgraphctl login" in after
+    assert "/patched/mgraphctl" in errors.hint_for("NOT_LOGGED_IN", None)
 
 
 def test_hierarchy_exit_codes():

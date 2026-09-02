@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from typing import Any
 
 from mgraphctl import config
@@ -187,17 +187,36 @@ def _build_hints() -> dict[str, str]:
     }
 
 
-# Static snapshot for membership checks and direct lookups; hint_for() rebuilds this fresh
-# on every call so a patched config.shim_path() is honoured immediately.
-HINTS: dict[str, str] = _build_hints()
+class _HintsMapping(Mapping[str, str]):
+    """A `code -> hint text` mapping that resolves `config.shim_path()` fresh on every access.
+
+    Every read (`HINTS[code]`, `code in HINTS`, `HINTS.get(code)`, iteration, `.items()`, ...)
+    rebuilds the underlying dict from the *current* `config.shim_path()`, so a test that patches
+    `config.shim_path` after import still sees up-to-date hint text through `errors.HINTS`
+    directly, not just through `hint_for()`.
+    """
+
+    def __getitem__(self, key: str) -> str:
+        return _build_hints()[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(_build_hints())
+
+    def __len__(self) -> int:
+        return len(_build_hints())
+
+    def __repr__(self) -> str:
+        return repr(_build_hints())
+
+
+HINTS: Mapping[str, str] = _HintsMapping()
 
 
 def hint_for(code: str, status: int | None) -> str | None:
-    hints = _build_hints()
-    if code in hints:
-        return hints[code]
+    if code in HINTS:
+        return HINTS[code]
     key = _STATUS_HINT_KEYS.get(status) if status is not None else None
-    return hints.get(key) if key else None
+    return HINTS.get(key) if key else None
 
 
 def _parse_error_dict(data: Any) -> tuple[str | None, str | None, str | None]:
