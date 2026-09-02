@@ -2,6 +2,7 @@
 
 import base64
 import json
+import pathlib
 import stat
 import time
 
@@ -53,6 +54,12 @@ class FakeApp:
         return self.accounts
 
     def acquire_token_silent(self, scopes, account, force_refresh=False, **kw):
+        raise AssertionError(
+            "auth must call acquire_token_silent_with_error: the plain variant hides the"
+            " error dict, so consent and correlation ids would be lost"
+        )
+
+    def acquire_token_silent_with_error(self, scopes, account, force_refresh=False, **kw):
         self.calls.append(("silent", list(scopes), force_refresh))
         return self.silent
 
@@ -251,6 +258,33 @@ def test_cache_saved_0600_atomically(fake, monkeypatch, tmp_path, caplog):
     with caplog.at_level("DEBUG", logger="mgraphctl.auth"):
         auth.save_cache()
     assert any("could not save the token cache" in r.message for r in caplog.records)
+    # A failed write must stay pending so the next save retries it.
+    assert cache.has_state_changed is True
+
+
+def test_cache_save_uses_a_unique_temp_file(fake, monkeypatch, tmp_path):
+    cache = msal.SerializableTokenCache()
+    cache.deserialize(json.dumps({"AccessToken": {}, "Account": {}}))
+    auth._cache = cache
+    path = tmp_path / ".mgraphctl" / "token_cache.json"
+    path.parent.mkdir(parents=True)
+
+    seen = []
+    real_mkstemp = auth.tempfile.mkstemp
+
+    def spy(**kw):
+        fd, name = real_mkstemp(**kw)
+        seen.append(name)
+        return fd, name
+
+    monkeypatch.setattr(auth.tempfile, "mkstemp", spy)
+    for _ in range(2):
+        cache.has_state_changed = True
+        auth.save_cache()
+    assert len(set(seen)) == 2, "each save must use its own temp file"
+    assert all(pathlib.Path(name).parent == path.parent for name in seen)
+    assert not list(path.parent.glob("*.tmp"))
+    assert path.read_text() == cache.serialize()
 
 
 def test_logout_removes_cache_only(fake, tmp_path):

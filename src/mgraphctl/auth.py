@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import time
 from collections.abc import Iterable
 from pathlib import Path
@@ -71,21 +72,28 @@ def save_cache() -> None:
     if cache is None or not cache.has_state_changed:
         return
     path = config.settings().token_cache
-    tmp = path.with_name(path.name + ".tmp")
+    tmp: str | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.parent.chmod(0o700)
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        # A unique temp file in the same directory: two concurrent invocations must not
+        # write through one another's half-finished file before os.replace lands.
+        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f"{path.name}.", suffix=".tmp")
         try:
+            os.fchmod(fd, 0o600)
             os.write(fd, cache.serialize().encode())
         finally:
             os.close(fd)
         os.replace(tmp, path)
+        tmp = None
         path.chmod(0o600)
     except OSError as exc:
         log.debug("could not save the token cache: %s", exc)
-        with contextlib.suppress(OSError):
-            tmp.unlink(missing_ok=True)
+        # serialize() already cleared the flag; set it again so the next save retries.
+        cache.has_state_changed = True
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp)
 
 
 def logout() -> Path | None:
@@ -126,7 +134,9 @@ def acquire_silent(*, force_refresh: bool = False) -> dict:
     accounts = a.get_accounts()
     if not accounts:
         raise AuthError("NOT_LOGGED_IN", "no cached sign-in", hint=errors.HINTS["NOT_LOGGED_IN"])
-    result = a.acquire_token_silent(
+    # ...with_error, not acquire_token_silent: the plain variant collapses every refresh
+    # failure into None, which would make the CONSENT_REQUIRED branch unreachable (spec §4.2).
+    result = a.acquire_token_silent_with_error(
         config.msal_scopes(s.scopes), account=accounts[0], force_refresh=force_refresh
     )
     if not result or "error" in result:
