@@ -107,6 +107,10 @@ def api(
     payload = _body(body)
     verb = method.upper()
     use_beta = True if beta else None
+    if all_ and (raw or output is not None):
+        raise UsageError("USAGE", "--all cannot be combined with --raw or --output")
+    if output is not None and not raw:
+        raise UsageError("USAGE", "--output writes the bytes of a --raw response; add --raw")
     if dry_run:
         planned = dict(headers)
         if payload is not None:
@@ -143,7 +147,9 @@ def api(
         return WriteResult(obj=None, message="OK")
     if "json" in content_type:
         return _document(jsonlib.loads(data))
-    return TextResult(text=data.decode("utf-8", errors="replace"), json_obj=None)
+    text_body = data.decode("utf-8", errors="replace")
+    # A non-JSON body is still the answer: --json emits it as a JSON string, never null.
+    return TextResult(text=text_body, json_obj=text_body)
 
 
 def register(root: typer.Typer) -> None:

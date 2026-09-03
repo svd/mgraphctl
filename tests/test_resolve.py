@@ -50,6 +50,13 @@ LONG = "A" * 40
         ("todo_list", "Groceries", False),
         ("calendar", LONG, True),
         ("calendar", "Team calendar", False),
+        # `id:` forces the id reading for every kind (spec §6.6 prose).
+        ("mail_folder", "id:Projects", True),
+        ("team", "id:Platform", True),
+        ("user", "id:Ada Example", True),
+        ("planner", "id:short", True),
+        ("calendar", "id:Team calendar", True),
+        ("drive_item", "id:x", True),
     ],
 )
 def test_looks_like_id(kind, value, expected):

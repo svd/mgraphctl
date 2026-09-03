@@ -290,7 +290,7 @@ class GraphClient:
 
     def _log_retry(self, delay: float, reason: str) -> None:
         if self.debug >= 1:
-            log.debug("DEBUG retry in %.1fs after %s", delay, reason)
+            log.debug("retry in %.1fs after %s", delay, reason)
 
     def _log(
         self,
@@ -307,20 +307,17 @@ class GraphClient:
         # Pre-authenticated URLs (download targets, uploadUrl) carry a token in the query.
         url = _strip_query(str(request.url)) if client is self._plain else str(request.url)
         elapsed = int((time.monotonic() - started) * 1000)
-        line = (
-            f"DEBUG {request.method} {url} -> {response.status_code} "
-            f"{elapsed}ms [attempt {attempt}]"
-        )
+        line = f"{request.method} {url} -> {response.status_code} {elapsed}ms [attempt {attempt}]"
         request_id = response.headers.get("request-id")
         if request_id:
             line = f"{line} [{request_id}]"
         log.debug("%s", line)
         prefer = request.headers.get("Prefer")
         if prefer:
-            log.debug("DEBUG Prefer: %s", prefer)
+            log.debug("Prefer: %s", prefer)
         if self.debug >= 2 and not streaming and response.content:
             body = response.text[:LOG_BODY_LIMIT]
-            log.debug("DEBUG body: %s", _TOKEN_IN_BODY.sub(r'\1***"', body))
+            log.debug("body: %s", _TOKEN_IN_BODY.sub(r'\1***"', body))
 
     # -- single requests --------------------------------------------------------
 

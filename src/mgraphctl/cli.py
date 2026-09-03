@@ -8,6 +8,7 @@ import functools
 import inspect
 import logging
 import sys
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Any, TypeVar
@@ -21,6 +22,9 @@ from mgraphctl.http import GraphClient
 
 log = logging.getLogger("mgraphctl")
 F = TypeVar("F", bound=Callable[..., Any])
+
+# Exceptions typer and Click use for control flow; they must reach Click's own handler.
+CONTROL_FLOW = (typer.Exit, typer.Abort, typer.TyperException)
 
 
 @dataclass
@@ -39,17 +43,41 @@ AllFlag = Annotated[bool, typer.Option("--all", help="Fetch every page up to the
 
 
 class MsgraphGroup(typer.core.TyperGroup):
-    """Maps MsgraphError to the stderr block plus an exit code, and flushes the cache (§6.5)."""
+    """Maps every failure to the §6.5 stderr block plus an exit code, and flushes the cache."""
 
     def invoke(self, ctx: typer.Context) -> Any:
         try:
             return super().invoke(ctx)
         except MsgraphError as exc:
-            sys.stdout.flush()
-            sys.stderr.write(format_error(exc))
-            ctx.exit(exc.exit_code)
+            self._fail(ctx, format_error(exc), exc.exit_code)
+        except CONTROL_FLOW:
+            raise  # --help, --version, Click parse errors: Click renders and exits on its own.
+        except OSError as exc:
+            self._fail(ctx, format_error(MsgraphError("IO", _io_detail(exc))), 1)
+        except Exception as exc:
+            block = format_error(MsgraphError("INTERNAL", f"{type(exc).__name__}: {exc}"))
+            if _debug_level(ctx) >= 1:
+                block += "".join(traceback.format_exception(exc))
+            self._fail(ctx, block, 1)
         finally:
             auth.save_cache()
+
+    @staticmethod
+    def _fail(ctx: typer.Context, block: str, exit_code: int) -> None:
+        sys.stdout.flush()
+        sys.stderr.write(block)
+        ctx.exit(exit_code)
+
+
+def _io_detail(exc: OSError) -> str:
+    detail = exc.strerror or str(exc)
+    return f"{detail}: {exc.filename}" if exc.filename else detail
+
+
+def _debug_level(ctx: typer.Context) -> int:
+    """The `--debug` count, or 0 when the root callback has not run yet."""
+    g = ctx.find_root().obj
+    return g.debug if isinstance(g, Globals) else 0
 
 
 def _noargs_help(ctx: typer.Context) -> None:
@@ -134,11 +162,11 @@ def _version_cb(value: bool) -> None:
 
 
 def _configure_logging(level: int) -> None:
-    """Bind logging to the current stderr; `http.py` writes its own DEBUG prefix (§5.7)."""
+    """Bind logging to the current stderr and prefix every line with DEBUG (§5.7)."""
     logging.basicConfig(
         stream=sys.stderr,
         level=logging.DEBUG if level else logging.WARNING,
-        format="%(message)s",
+        format="DEBUG %(message)s",
         force=True,
     )
     logging.getLogger("msal").setLevel(logging.INFO if level else logging.WARNING)

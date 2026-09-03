@@ -45,9 +45,8 @@ def _is_opaque(value: str) -> bool:
     return len(value) >= _OPAQUE_MIN and " " not in value
 
 
-def looks_like_id(value: str, kind: str) -> bool:
-    """Whether `value` is already an id of `kind`, rather than a name to look up (§6.6)."""
-    bare, forced = split_id_prefix(value)
+def _matches_shape(value: str, kind: str) -> bool:
+    """Whether an unprefixed `value` has the id shape of `kind` (the §6.6 table)."""
     match kind:
         case "guid" | "team" | "group":
             return bool(GUID_RE.match(value))
@@ -62,7 +61,7 @@ def looks_like_id(value: str, kind: str) -> bool:
         case "drive":
             return value.startswith("b!")
         case "drive_item":
-            return forced or (bool(_DRIVE_ITEM_RE.fullmatch(bare)) and "." not in bare)
+            return bool(_DRIVE_ITEM_RE.fullmatch(value)) and "." not in value
         case "onenote":
             return "!" in value or bool(_ONENOTE_PREFIX_RE.match(value))
         case "planner":
@@ -73,6 +72,18 @@ def looks_like_id(value: str, kind: str) -> bool:
             return _is_opaque(value)
         case _:
             raise ValueError(f"unknown id kind {kind!r}")
+
+
+def looks_like_id(value: str, kind: str) -> bool:
+    """Whether `value` is already an id of `kind`, rather than a name to look up (§6.6).
+
+    An explicit `id:` prefix forces the id reading for every kind; callers strip it with
+    `split_id_prefix`. The shape check still runs first, so an unknown kind is still a
+    programming error rather than a silent True.
+    """
+    bare, forced = split_id_prefix(value)
+    shaped = _matches_shape(bare, kind)
+    return forced or shaped
 
 
 def _value_of(candidate: dict, key: str | Callable[[dict], str | None]) -> str | None:

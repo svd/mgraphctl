@@ -127,3 +127,30 @@ def test_api_bad_query_format(invoke, graph):
     r = invoke("api", "GET", "/me", "--query", "nokey")
     assert r.exit_code == 2 and graph.calls.call_count == 0
     assert r.stderr.startswith("error[USAGE]:")
+
+
+@covers("api")
+def test_api_non_json_body_json_mode_is_the_body_string(invoke, graph):
+    graph.get(f"{GRAPH}/v1.0/me/drive/root:/notes.txt:/content").mock(
+        return_value=httpx.Response(200, text="hello\n", headers={"content-type": "text/plain"})
+    )
+    r = invoke("api", "GET", "/me/drive/root:/notes.txt:/content", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(r.stdout) == "hello\n"
+
+
+@covers("api")
+def test_api_all_conflicts_with_raw_and_output(invoke, graph, tmp_path):
+    r = invoke("api", "GET", "/me/messages", "--all", "--raw")
+    assert r.exit_code == 2 and r.stdout == "" and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: --all cannot be combined with --raw or --output")
+    r = invoke("api", "GET", "/me/messages", "--all", "--output", str(tmp_path / "f.bin"))
+    assert r.exit_code == 2 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: --all cannot be combined with --raw or --output")
+
+
+@covers("api")
+def test_api_output_needs_raw(invoke, graph, tmp_path):
+    r = invoke("api", "GET", "/me", "--output", str(tmp_path / "f.bin"))
+    assert r.exit_code == 2 and r.stdout == "" and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: --output writes the bytes of a --raw response")

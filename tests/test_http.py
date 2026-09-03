@@ -747,7 +747,7 @@ def test_debug_log_redacts(caplog, monkeypatch):
     ):
         c.get("/me")
     assert re.search(
-        r"DEBUG GET https://graph\.microsoft\.com/v1\.0/me -> 200 \d+ms \[attempt 1\]", caplog.text
+        r"GET https://graph\.microsoft\.com/v1\.0/me -> 200 \d+ms \[attempt 1\]", caplog.text
     )
     body_lines = [m for m in caplog.messages if "access_token" in m]
     assert body_lines and '"access_token": "***"' in body_lines[0]

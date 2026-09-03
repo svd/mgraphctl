@@ -71,6 +71,8 @@ def test_debug_logs_to_stderr(invoke, graph):
     r = invoke("--debug", "me", "--json")
     assert r.exit_code == 0 and json.loads(r.stdout)["id"] == "1"
     assert "GET https://graph.microsoft.com/v1.0/me" in r.stderr and "Bearer" not in r.stderr
+    request_lines = [ln for ln in r.stderr.splitlines() if "/v1.0/me" in ln]
+    assert request_lines and all(ln.startswith("DEBUG ") for ln in request_lines)
 
 
 def test_registry_lists_every_noun():
@@ -114,3 +116,69 @@ def test_register_all_skips_a_missing_noun_but_not_a_broken_import(monkeypatch):
     monkeypatch.setattr(commands.importlib, "import_module", explode)
     with pytest.raises(ModuleNotFoundError):
         commands.register_all(root)
+
+
+def test_local_io_error_is_an_error_block_not_a_traceback(invoke, graph):
+    r = invoke("api", "POST", "/x", "--body", "@/nonexistent.json")
+    assert r.exit_code == 1 and r.stdout == "" and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[IO]: ")
+    assert "/nonexistent.json" in r.stderr and "Traceback" not in r.stderr
+
+
+def test_unexpected_exception_is_an_error_block_and_a_traceback_only_with_debug(
+    invoke, monkeypatch
+):
+    from mgraphctl.graph import users
+
+    def boom(client, **kwargs):
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(users, "get_me", boom)
+    r = invoke("me")
+    assert r.exit_code == 1 and r.stdout == ""
+    assert r.stderr.startswith("error[INTERNAL]: RuntimeError: kaboom\n")
+    assert "Traceback" not in r.stderr
+    r = invoke("--debug", "me")
+    assert r.exit_code == 1 and r.stderr.startswith("error[INTERNAL]: RuntimeError: kaboom\n")
+    assert "Traceback (most recent call last)" in r.stderr
+
+
+def test_page_bounds_defaults_and_conflict():
+    from mgraphctl.cli import page_bounds
+    from mgraphctl.errors import UsageError
+
+    assert page_bounds(None, False, default=10) == (10, False)
+    assert page_bounds(5, False, default=10) == (5, False)
+    assert page_bounds(None, True, default=10) == (10, True)
+    with pytest.raises(UsageError) as excinfo:
+        page_bounds(5, True, default=10)
+    assert excinfo.value.exit_code == 2
+
+
+@pytest.mark.scopes(["User.Read"])
+def test_gate_checks_the_token_against_the_scopes_it_is_given():
+    from mgraphctl.cli import gate
+    from mgraphctl.errors import AuthError
+
+    assert gate([]) is None and gate(["User.Read"]) is None
+    with pytest.raises(AuthError) as excinfo:
+        gate(["Mail.ReadWrite"])
+    assert excinfo.value.code == "MISSING_SCOPE" and excinfo.value.exit_code == 3
+
+
+def test_limit_option_rejects_zero():
+    import typer
+    from typer.testing import CliRunner
+
+    from mgraphctl.cli import LimitOpt
+
+    probe = typer.Typer()
+
+    @probe.command()
+    def run(limit: LimitOpt = None) -> None:
+        typer.echo(str(limit))
+
+    runner = CliRunner()
+    assert runner.invoke(probe, ["--limit", "0"], catch_exceptions=False).exit_code == 2
+    ok = runner.invoke(probe, ["--limit", "3"], catch_exceptions=False)
+    assert ok.exit_code == 0 and ok.stdout.strip() == "3"
