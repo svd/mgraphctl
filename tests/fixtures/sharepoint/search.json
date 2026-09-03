@@ -1,0 +1,59 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/sites/contoso.example,11111111-1111-1111-1111-111111111111,22222222-2222-2222-2222-222222222222",
+    "query": {"$select": "id,displayName,name,webUrl,description"},
+    "status": 200,
+    "json": {
+      "id": "contoso.example,11111111-1111-1111-1111-111111111111,22222222-2222-2222-2222-222222222222",
+      "displayName": "Eng",
+      "name": "Eng",
+      "webUrl": "https://contoso.example/sites/Eng",
+      "description": "Engineering"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/sites/contoso.example,11111111-1111-1111-1111-111111111111,22222222-2222-2222-2222-222222222222/drive/root/search(q='x')",
+    "query": {
+      "$select": "id,name,size,lastModifiedDateTime,file,folder,webUrl,parentReference",
+      "$top": "25"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "s1", "name": "a.docx", "size": 10, "lastModifiedDateTime": "2026-08-01T00:00:00Z", "file": {}}
+      ]
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1.0/search/query",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "searchTerms": ["x"],
+          "hitsContainers": [
+            {
+              "hits": [
+                {
+                  "hitId": "h1",
+                  "resource": {
+                    "id": "g1",
+                    "name": "b.docx",
+                    "size": 20,
+                    "lastModifiedDateTime": "2026-08-02T00:00:00Z",
+                    "file": {}
+                  }
+                }
+              ],
+              "total": 1,
+              "moreResultsAvailable": false
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
