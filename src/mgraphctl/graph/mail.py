@@ -5,12 +5,19 @@ Pure: client and parameters in, Graph dicts / `PageResult` / `Plan` out. Nothing
 
 from __future__ import annotations
 
+import sys
+from base64 import b64encode
+from dataclasses import dataclass, field
 from datetime import datetime
+from math import ceil
+from mimetypes import guess_type
 from pathlib import Path
+from typing import Any
 
-from mgraphctl import odata, resolve
+from mgraphctl import config, odata, resolve
+from mgraphctl.errors import UsageError
 from mgraphctl.html import to_markdown
-from mgraphctl.http import DownloadResult, GraphClient, PageResult
+from mgraphctl.http import DownloadResult, GraphClient, PageResult, Plan, PlannedRequest
 from mgraphctl.render import Column, fmt_dt, fmt_person, kql_date, truncate
 
 LIST_SELECT = (
@@ -27,6 +34,12 @@ PAGE_SEARCH, PAGE_FILTER, CAP_LIST = 25, 50, 500
 PAGE_FOLDERS, CAP_FOLDERS, PAGE_FOLDER_RESOLVE = 100, 500, 200
 
 JSON = {"Content-Type": "application/json"}
+FILE_ATTACHMENT = "#microsoft.graph.fileAttachment"
+MAX_ATTACHMENT = 157_286_400  # 150 MB, Outlook's own ceiling
+IMPORTANCE = ("low", "normal", "high")
+DRAFT_ID = "{draftId}"  # the placeholder a dry run shows instead of an id it cannot know yet
+INLINE_NOTE = "inline path: attachments total <= 2.5 MiB"
+DRAFT_NOTE = "draft path: attachments total > 2.5 MiB"
 
 
 # --------------------------------------------------------------------------- folders
@@ -260,3 +273,263 @@ def download_attachment(
 ) -> DownloadResult:
     path = odata.p("me", "messages", message_id, "attachments", attachment_id) + "/$value"
     return client.download(path, dest)
+
+
+# --------------------------------------------------------------------------- composing
+
+
+@dataclass(frozen=True)
+class SendParams:
+    """Everything `mail send` and `mail drafts create` need to build a message."""
+
+    to: list[str]
+    body: str
+    cc: list[str] = field(default_factory=list)
+    bcc: list[str] = field(default_factory=list)
+    subject: str | None = None
+    html: bool = False
+    attachments: list[Path] = field(default_factory=list)
+    importance: str = "normal"
+    save_to_sent: bool = True
+
+
+def read_body(body: str | None, body_file: str | None) -> str:
+    """The message body from `--body`, `--body-file FILE`, or `--body-file -` (stdin)."""
+    if (body is None) == (body_file is None):
+        raise UsageError("USAGE", "give exactly one of --body or --body-file")
+    if body is not None:
+        return body
+    return sys.stdin.read() if body_file == "-" else Path(body_file).read_text()
+
+
+def _recipients(addresses: list[str]) -> list[dict]:
+    return [{"emailAddress": {"address": a}} for a in addresses]
+
+
+def attachment_sizes(params: SendParams) -> list[int]:
+    """Each attachment's size on disk, rejecting anything Outlook will not take."""
+    sizes = []
+    for file in params.attachments:
+        size = file.stat().st_size
+        if size > MAX_ATTACHMENT:
+            raise UsageError(
+                "USAGE",
+                f"{file.name} is {size} bytes; Outlook attachments stop at 150 MB",
+            )
+        sizes.append(size)
+    return sizes
+
+
+def needs_draft_path(params: SendParams) -> bool:
+    """Whether the attachments are too big for one `/me/sendMail` request (spec §8.2)."""
+    return sum(attachment_sizes(params)) > config.MAIL_INLINE_TOTAL
+
+
+def _content_type(file: Path) -> str:
+    return guess_type(file.name)[0] or "application/octet-stream"
+
+
+def _file_attachment(file: Path, *, for_plan: bool) -> dict:
+    """A `fileAttachment`; a dry run shows the `$file` stand-in instead of the base64 bytes."""
+    content_type = _content_type(file)
+    if for_plan:
+        content: Any = {
+            "$file": str(file),
+            "bytes": file.stat().st_size,
+            "contentType": content_type,
+        }
+    else:
+        content = b64encode(file.read_bytes()).decode("ascii")
+    return {
+        "@odata.type": FILE_ATTACHMENT,
+        "name": file.name,
+        "contentType": content_type,
+        "contentBytes": content,
+    }
+
+
+def build_message(params: SendParams, *, for_plan: bool) -> dict:
+    """The Graph `message` body. Attachments ride along only on the inline path."""
+    message: dict[str, Any] = {
+        "subject": params.subject or "(no subject)",
+        "body": {
+            "contentType": "HTML" if params.html else "Text",
+            "content": params.body,
+        },
+        "toRecipients": _recipients(params.to),
+        "importance": params.importance,
+    }
+    if params.cc:
+        message["ccRecipients"] = _recipients(params.cc)
+    if params.bcc:
+        message["bccRecipients"] = _recipients(params.bcc)
+    if params.attachments and not needs_draft_path(params):
+        message["attachments"] = [
+            _file_attachment(f, for_plan=for_plan) for f in params.attachments
+        ]
+    return message
+
+
+def _message_base(message_id: str) -> str:
+    """`/me/messages/<id>`, leaving the dry run's `{draftId}` placeholder unencoded."""
+    if message_id == DRAFT_ID:
+        return "/me/messages/" + DRAFT_ID
+    return odata.p("me", "messages", message_id)
+
+
+def _attachment_steps(client: GraphClient, base: str, files: list[Path], *, for_plan: bool) -> Plan:
+    """One step per attachment: a POST for small files, an upload session for big ones."""
+    steps: Plan = []
+    for file in files:
+        size = file.stat().st_size
+        if size < config.MAIL_SMALL_ATTACHMENT:
+            steps.append(
+                PlannedRequest(
+                    "POST",
+                    client.url(base + "/attachments"),
+                    dict(JSON),
+                    _file_attachment(file, for_plan=for_plan),
+                )
+            )
+            continue
+        item = {"AttachmentItem": {"attachmentType": "file", "name": file.name, "size": size}}
+        steps.append(
+            PlannedRequest(
+                "POST",
+                client.url(base + "/attachments/createUploadSession"),
+                dict(JSON),
+                item,
+                file=file,
+                chunk_size=config.CHUNK_OUTLOOK,
+                note=f"upload {size} bytes in {ceil(size / config.CHUNK_OUTLOOK)} chunks",
+            )
+        )
+    return steps
+
+
+def _send_step(client: GraphClient, base: str) -> PlannedRequest:
+    return PlannedRequest("POST", client.url(base + "/send"), {}, None, expect="none")
+
+
+def plan_send(client: GraphClient, params: SendParams, *, for_plan: bool = False) -> Plan:
+    """`mail send`: one `/me/sendMail`, or draft → attachments → send (spec §8.2)."""
+    if not needs_draft_path(params):
+        payload = {
+            "message": build_message(params, for_plan=for_plan),
+            "saveToSentItems": params.save_to_sent,
+        }
+        return [
+            PlannedRequest(
+                "POST",
+                client.url("/me/sendMail"),
+                dict(JSON),
+                payload,
+                note=INLINE_NOTE,
+                expect="none",
+            )
+        ]
+    base = _message_base(DRAFT_ID)
+    steps = [
+        PlannedRequest(
+            "POST",
+            client.url("/me/messages"),
+            dict(JSON),
+            build_message(params, for_plan=for_plan),
+            note=DRAFT_NOTE,
+        )
+    ]
+    steps += _attachment_steps(client, base, params.attachments, for_plan=for_plan)
+    steps.append(_send_step(client, base))
+    return steps
+
+
+def run_send(client: GraphClient, params: SendParams) -> dict:
+    """Send for real, threading the new draft's id through the later steps."""
+    if not needs_draft_path(params):
+        client.execute(plan_send(client, params)[0])
+        return {"status": "sent"}
+    draft = run_create_draft(client, params)
+    base = _message_base(draft["id"])
+    client.execute(_send_step(client, base))
+    return {"status": "sent", "draftId": draft["id"]}
+
+
+def plan_create_draft(client: GraphClient, params: SendParams, *, for_plan: bool = False) -> Plan:
+    steps = [
+        PlannedRequest(
+            "POST",
+            client.url("/me/messages"),
+            dict(JSON),
+            build_message(params, for_plan=for_plan),
+        )
+    ]
+    if needs_draft_path(params):
+        steps += _attachment_steps(
+            client, _message_base(DRAFT_ID), params.attachments, for_plan=for_plan
+        )
+    return steps
+
+
+def run_create_draft(client: GraphClient, params: SendParams) -> dict:
+    draft = client.execute(plan_create_draft(client, params)[0])
+    if needs_draft_path(params):
+        base = _message_base(draft["id"])
+        for step in _attachment_steps(client, base, params.attachments, for_plan=False):
+            client.execute(step)
+    return draft
+
+
+def plan_send_draft(client: GraphClient, message_id: str) -> Plan:
+    return [_send_step(client, _message_base(message_id))]
+
+
+def plan_reply(
+    client: GraphClient,
+    message_id: str,
+    *,
+    body: str,
+    html: bool,
+    reply_all: bool,
+    extra_to: list[str],
+) -> Plan:
+    verb = "replyAll" if reply_all else "reply"
+    payload: dict[str, Any] = (
+        {"message": {"body": {"contentType": "HTML", "content": body}}}
+        if html
+        else {"comment": body}
+    )
+    if extra_to:
+        payload.setdefault("message", {})["toRecipients"] = _recipients(extra_to)
+    return [
+        PlannedRequest(
+            "POST",
+            client.url(_message_base(message_id) + f"/{verb}"),
+            dict(JSON),
+            payload,
+            expect="none",
+        )
+    ]
+
+
+def plan_forward(
+    client: GraphClient, message_id: str, *, to: list[str], body: str, html: bool
+) -> Plan:
+    payload: dict[str, Any] = {"toRecipients": _recipients(to)}
+    if html:
+        payload["message"] = {"body": {"contentType": "HTML", "content": body}}
+    else:
+        payload["comment"] = body
+    return [
+        PlannedRequest(
+            "POST",
+            client.url(_message_base(message_id) + "/forward"),
+            dict(JSON),
+            payload,
+            expect="none",
+        )
+    ]
+
+
+def run_plan(client: GraphClient, plan: Plan) -> list:
+    """Execute a plan whose steps are independent (no ids threaded between them)."""
+    return [client.execute(step) for step in plan]

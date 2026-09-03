@@ -1,0 +1,27 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onenote/notebooks",
+    "query": {
+      "$select": "id,displayName,lastModifiedDateTime,links",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "0-notebook0001!1",
+          "displayName": "Work",
+          "lastModifiedDateTime": "2026-08-20T09:00:00Z",
+          "links": {"oneNoteWebUrl": {"href": "https://onenote.contoso.example/work"}}
+        },
+        {
+          "id": "0-notebook0002!1",
+          "displayName": "Personal",
+          "lastModifiedDateTime": "2026-08-10T09:00:00Z",
+          "links": {"oneNoteWebUrl": {"href": "https://onenote.contoso.example/personal"}}
+        }
+      ]
+    }
+  }
+]

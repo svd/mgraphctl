@@ -7,8 +7,10 @@ import typer
 
 from mgraphctl.cli import (
     AllFlag,
+    DryRunFlag,
     JsonFlag,
     LimitOpt,
+    gate,
     graph_command,
     make_noun_app,
     page_bounds,
@@ -18,10 +20,12 @@ from mgraphctl.graph import mail
 from mgraphctl.http import GraphClient
 from mgraphctl.render import (
     Column,
+    DryRunResult,
     FileResult,
     ListResult,
     ObjectResult,
     TextResult,
+    WriteResult,
     fmt_dt,
     fmt_person,
     fmt_size,
@@ -37,6 +41,20 @@ app.add_typer(drafts, name="drafts")
 BODY_LIMIT = 4000
 
 FolderOpt = Annotated[str, typer.Option("--folder", help="Folder name, id, or 'all'.")]
+ToOpt = Annotated[
+    list[str] | None, typer.Option("--to", help="Recipient address (repeatable, comma-separated).")
+]
+CcOpt = Annotated[list[str] | None, typer.Option("--cc", help="Copy recipient (repeatable).")]
+BccOpt = Annotated[list[str] | None, typer.Option("--bcc", help="Blind copy (repeatable).")]
+SubjectOpt = Annotated[str | None, typer.Option("--subject", help="Subject line.")]
+BodyOpt = Annotated[str | None, typer.Option("--body", help="Message body.")]
+BodyFileOpt = Annotated[str | None, typer.Option("--body-file", help="Body file, or - for stdin.")]
+HtmlOpt = Annotated[bool, typer.Option("--html", help="The body is HTML, not plain text.")]
+AttachOpt = Annotated[
+    list[Path] | None, typer.Option("--attach", help="File to attach (repeatable).")
+]
+ImportanceOpt = Annotated[str, typer.Option("--importance", help="low, normal or high.")]
+MessageIdArg = Annotated[str, typer.Argument(metavar="ID", help="Message id.")]
 
 
 def _split(values: list[str] | None) -> list[str]:
@@ -57,6 +75,41 @@ def _read_fields(tz: str) -> list[tuple[str, object]]:
         ("Id", "id"),
         ("Web link", "webLink"),
     ]
+
+
+def _send_params(
+    *,
+    to: list[str] | None,
+    body: str | None,
+    body_file: str | None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
+    subject: str | None = None,
+    html: bool = False,
+    attach: list[Path] | None = None,
+    importance: str = "normal",
+    save_to_sent: bool = True,
+) -> mail.SendParams:
+    """Turn the shared `send` / `drafts create` options into a validated `SendParams`."""
+    recipients = _split(to)
+    if not recipients:
+        raise UsageError("USAGE", "--to is required (one or more addresses)")
+    if importance not in mail.IMPORTANCE:
+        raise UsageError(
+            "USAGE",
+            f"--importance must be one of {', '.join(mail.IMPORTANCE)} (got {importance!r})",
+        )
+    return mail.SendParams(
+        to=recipients,
+        body=mail.read_body(body, body_file),
+        cc=_split(cc),
+        bcc=_split(bcc),
+        subject=subject,
+        html=html,
+        attachments=list(attach or []),
+        importance=importance,
+        save_to_sent=save_to_sent,
+    )
 
 
 def _headers_block(message: dict) -> str:
@@ -148,7 +201,7 @@ def list_(
 @graph_command(scopes=["Mail.Read"])
 def read(
     client: GraphClient,
-    message_id: Annotated[str, typer.Argument(metavar="ID", help="Message id.")],
+    message_id: MessageIdArg,
     html: Annotated[bool, typer.Option("--html", help="Show the HTML body verbatim.")] = False,
     full: Annotated[bool, typer.Option("--full", help="Do not truncate the body.")] = False,
     headers: Annotated[
@@ -198,7 +251,7 @@ def read(
 @graph_command(scopes=["Mail.Read"])
 def attachments(
     client: GraphClient,
-    message_id: Annotated[str, typer.Argument(metavar="ID", help="Message id.")],
+    message_id: MessageIdArg,
     download: Annotated[
         str | None, typer.Option("--download", help="Attachment id to download.")
     ] = None,
@@ -311,6 +364,151 @@ def folders(
         text=_tree_text(tree),
         json_obj={"items": tree, "count": len(tree), "truncated": False},
     )
+
+
+# --------------------------------------------------------------------------- write verbs
+
+
+@app.command("send")
+@graph_command(scopes=["Mail.Send"])
+def send(
+    client: GraphClient,
+    to: ToOpt = None,
+    cc: CcOpt = None,
+    bcc: BccOpt = None,
+    subject: SubjectOpt = None,
+    body: BodyOpt = None,
+    body_file: BodyFileOpt = None,
+    html: HtmlOpt = False,
+    attach: AttachOpt = None,
+    importance: ImportanceOpt = "normal",
+    save_to_sent: Annotated[
+        bool,
+        typer.Option("--save-to-sent/--no-save-to-sent", help="Keep a copy in Sent Items."),
+    ] = True,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Send a message."""
+    params = _send_params(
+        to=to,
+        body=body,
+        body_file=body_file,
+        cc=cc,
+        bcc=bcc,
+        subject=subject,
+        html=html,
+        attach=attach,
+        importance=importance,
+        save_to_sent=save_to_sent,
+    )
+    if dry_run:
+        return DryRunResult(mail.plan_send(client, params, for_plan=True))
+    if mail.needs_draft_path(params):
+        gate(["Mail.ReadWrite"])  # the draft path writes before it sends (spec §4.4)
+    return WriteResult(obj=mail.run_send(client, params), message="Sent.")
+
+
+@app.command("reply")
+@graph_command(scopes=["Mail.Send"])
+def reply(
+    client: GraphClient,
+    message_id: MessageIdArg,
+    body: BodyOpt = None,
+    body_file: BodyFileOpt = None,
+    html: HtmlOpt = False,
+    reply_all: Annotated[
+        bool, typer.Option("--reply-all", help="Reply to everyone on the message.")
+    ] = False,
+    to: ToOpt = None,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Reply to a message."""
+    plan = mail.plan_reply(
+        client,
+        message_id,
+        body=mail.read_body(body, body_file),
+        html=html,
+        reply_all=reply_all,
+        extra_to=_split(to),
+    )
+    if dry_run:
+        return DryRunResult(plan)
+    mail.run_plan(client, plan)
+    return WriteResult(obj={"status": "sent"}, message="Sent.")
+
+
+@app.command("forward")
+@graph_command(scopes=["Mail.Send"])
+def forward(
+    client: GraphClient,
+    message_id: MessageIdArg,
+    to: ToOpt = None,
+    body: BodyOpt = None,
+    html: HtmlOpt = False,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Forward a message."""
+    recipients = _split(to)
+    if not recipients:
+        raise UsageError("USAGE", "--to is required (one or more addresses)")
+    plan = mail.plan_forward(client, message_id, to=recipients, body=body or "", html=html)
+    if dry_run:
+        return DryRunResult(plan)
+    mail.run_plan(client, plan)
+    return WriteResult(obj={"status": "sent"}, message="Sent.")
+
+
+@drafts.command("create")
+@graph_command(scopes=["Mail.ReadWrite"])
+def drafts_create(
+    client: GraphClient,
+    to: ToOpt = None,
+    cc: CcOpt = None,
+    bcc: BccOpt = None,
+    subject: SubjectOpt = None,
+    body: BodyOpt = None,
+    body_file: BodyFileOpt = None,
+    html: HtmlOpt = False,
+    attach: AttachOpt = None,
+    importance: ImportanceOpt = "normal",
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Create a draft message without sending it."""
+    params = _send_params(
+        to=to,
+        body=body,
+        body_file=body_file,
+        cc=cc,
+        bcc=bcc,
+        subject=subject,
+        html=html,
+        attach=attach,
+        importance=importance,
+    )
+    if dry_run:
+        return DryRunResult(mail.plan_create_draft(client, params, for_plan=True))
+    draft = mail.run_create_draft(client, params)
+    return WriteResult(obj=draft, message=f"Draft created: {draft.get('id')}")
+
+
+@drafts.command("send")
+@graph_command(scopes=["Mail.ReadWrite", "Mail.Send"])
+def drafts_send(
+    client: GraphClient,
+    message_id: MessageIdArg,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Send an existing draft."""
+    plan = mail.plan_send_draft(client, message_id)
+    if dry_run:
+        return DryRunResult(plan)
+    mail.run_plan(client, plan)
+    return WriteResult(obj={"status": "sent"}, message="Sent.")
 
 
 @drafts.command("list")

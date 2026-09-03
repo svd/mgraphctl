@@ -1,6 +1,7 @@
 """CLI tests for the mail noun (spec §8.2)."""
 
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -446,6 +447,438 @@ def test_mail_drafts_list_json_limit(invoke, graph):
     assert result.stderr == ""  # notes are a text-mode diagnostic
     result = invoke("mail", "drafts", "list", "--limit", "1")
     assert result.stderr == "(more results available — rerun with --all)\n"
+
+
+# --------------------------------------------------------------------------- mail send
+
+
+@covers("mail send")
+def test_mail_send_inline_path(invoke, graph, tmp_path):
+    f = tmp_path / "a.txt"
+    f.write_bytes(b"hello")
+    route = graph.post(f"{GRAPH}/v1.0/me/sendMail").mock(return_value=httpx.Response(202))
+    r = invoke(
+        "mail",
+        "send",
+        "--to",
+        "ada@example.com,bob@example.com",
+        "--cc",
+        "eve@example.com",
+        "--subject",
+        "Hi",
+        "--body",
+        "Body",
+        "--attach",
+        str(f),
+        "--importance",
+        "high",
+        "--json",
+    )
+    assert r.exit_code == 0 and json.loads(r.stdout) == {"status": "sent"}
+    body = json.loads(route.calls.last.request.content)
+    msg = body["message"]
+    assert body["saveToSentItems"] is True and msg["subject"] == "Hi"
+    assert msg["importance"] == "high"
+    assert msg["body"] == {"contentType": "Text", "content": "Body"}
+    assert [r["emailAddress"]["address"] for r in msg["toRecipients"]] == [
+        "ada@example.com",
+        "bob@example.com",
+    ]
+    assert [r["emailAddress"]["address"] for r in msg["ccRecipients"]] == ["eve@example.com"]
+    assert msg["attachments"] == [
+        {
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "name": "a.txt",
+            "contentType": "text/plain",
+            "contentBytes": "aGVsbG8=",
+        }
+    ]
+
+
+@covers("mail send")
+def test_mail_send_inline_dry_run_hides_file_bytes(invoke, graph, tmp_path):
+    f = tmp_path / "a.txt"
+    f.write_bytes(b"hello")
+    r = invoke(
+        "mail",
+        "send",
+        "--to",
+        "ada@example.com",
+        "--subject",
+        "Hi",
+        "--body",
+        "Body",
+        "--attach",
+        str(f),
+        "--dry-run",
+        "--json",
+    )
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["dryRun"] is True and len(doc["requests"]) == 1
+    step = doc["requests"][0]
+    assert step["url"] == f"{GRAPH}/v1.0/me/sendMail" and "inline path" in step["note"]
+    assert step["body"]["message"]["attachments"][0]["contentBytes"] == {
+        "$file": str(f),
+        "bytes": 5,
+        "contentType": "text/plain",
+    }
+    assert graph.calls.call_count == 0
+
+
+@covers("mail send")
+def test_mail_send_draft_path_dry_run_names_steps(invoke, graph, tmp_path):
+    big = tmp_path / "big.bin"
+    big.write_bytes(b"\0" * 3_000_000)
+    r = invoke(
+        "mail",
+        "send",
+        "--to",
+        "ada@example.com",
+        "--subject",
+        "Big",
+        "--body",
+        "x",
+        "--attach",
+        str(big),
+        "--dry-run",
+        "--json",
+    )
+    doc = json.loads(r.stdout)
+    assert [s["method"] for s in doc["requests"]] == ["POST", "POST", "POST"]
+    assert doc["requests"][0]["url"] == f"{GRAPH}/v1.0/me/messages"
+    assert "draft path" in doc["requests"][0]["note"]
+    assert doc["requests"][1]["url"] == f"{GRAPH}/v1.0/me/messages/{{draftId}}/attachments"
+    assert doc["requests"][1]["body"]["contentBytes"] == {
+        "$file": str(big),
+        "bytes": 3_000_000,
+        "contentType": "application/octet-stream",
+    }
+    assert doc["requests"][2]["url"] == f"{GRAPH}/v1.0/me/messages/{{draftId}}/send"
+    assert graph.calls.call_count == 0
+
+
+@covers("mail send")
+def test_mail_send_draft_path_large_attachment_upload_session(invoke, graph, tmp_path):
+    huge = tmp_path / "huge.bin"
+    huge.write_bytes(b"\1" * 4_000_000)
+    graph.post(f"{GRAPH}/v1.0/me/messages").mock(
+        return_value=httpx.Response(201, json={"id": "AAMk-draft-1"})
+    )
+    graph.post(f"{GRAPH}/v1.0/me/messages/AAMk-draft-1/attachments/createUploadSession").mock(
+        return_value=httpx.Response(
+            201,
+            json={
+                "uploadUrl": "https://upload.example.com/session?tok=1",
+                "nextExpectedRanges": ["0-"],
+            },
+        )
+    )
+    put = graph.put("https://upload.example.com/session").mock(
+        side_effect=[
+            httpx.Response(200, json={"nextExpectedRanges": ["3932160-"]}),
+            httpx.Response(
+                201,
+                headers={
+                    "Location": "https://graph.microsoft.com/v1.0/me/messages/AAMk-draft-1"
+                    "/attachments/x"
+                },
+            ),
+        ]
+    )
+    send = graph.post(f"{GRAPH}/v1.0/me/messages/AAMk-draft-1/send").mock(
+        return_value=httpx.Response(202)
+    )
+    r = invoke(
+        "mail",
+        "send",
+        "--to",
+        "ada@example.com",
+        "--subject",
+        "Huge",
+        "--body",
+        "x",
+        "--attach",
+        str(huge),
+        "--json",
+    )
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(r.stdout) == {"status": "sent", "draftId": "AAMk-draft-1"}
+    assert [c.request.headers["Content-Range"] for c in put.calls] == [
+        "bytes 0-3932159/4000000",
+        "bytes 3932160-3999999/4000000",
+    ]
+    assert "Authorization" not in put.calls[0].request.headers and send.called
+
+
+@covers("mail send")
+@pytest.mark.scopes(["Mail.Send", "Mail.Read"])
+def test_mail_send_draft_path_needs_mail_readwrite(invoke, graph, tmp_path):
+    big = tmp_path / "big.bin"
+    big.write_bytes(b"\0" * 3_000_000)
+    r = invoke(
+        "mail",
+        "send",
+        "--to",
+        "ada@example.com",
+        "--subject",
+        "Big",
+        "--body",
+        "x",
+        "--attach",
+        str(big),
+    )
+    assert r.exit_code == 3 and "needs Mail.ReadWrite" in r.stderr
+    assert graph.calls.call_count == 0
+
+
+@covers("mail send")
+def test_mail_send_requires_to_and_body(invoke, graph, tmp_path):
+    r = invoke("mail", "send", "--subject", "Hi", "--body", "Body")
+    assert r.exit_code == 2 and r.stderr.startswith("error[USAGE]: --to is required")
+    r = invoke("mail", "send", "--to", "ada@example.com", "--subject", "Hi")
+    assert r.exit_code == 2 and "exactly one of --body or --body-file" in r.stderr
+    f = tmp_path / "b.txt"
+    f.write_text("From a file")
+    r = invoke(
+        "mail",
+        "send",
+        "--to",
+        "ada@example.com",
+        "--body",
+        "x",
+        "--body-file",
+        str(f),
+        "--dry-run",
+    )
+    assert r.exit_code == 2 and "exactly one of --body or --body-file" in r.stderr
+    route = graph.post(f"{GRAPH}/v1.0/me/sendMail").mock(return_value=httpx.Response(202))
+    r = invoke("mail", "send", "--to", "ada@example.com", "--body-file", "-", input="From stdin")
+    assert r.exit_code == 0, r.stderr
+    body = json.loads(route.calls.last.request.content)
+    assert body["message"]["body"]["content"] == "From stdin"
+    assert graph.calls.call_count == 1
+
+
+@covers("mail send")
+def test_mail_send_html_and_no_save(invoke, graph):
+    route = graph.post(f"{GRAPH}/v1.0/me/sendMail").mock(return_value=httpx.Response(202))
+    r = invoke(
+        "mail",
+        "send",
+        "--to",
+        "ada@example.com",
+        "--subject",
+        "Hi",
+        "--body",
+        "<p>Hi</p>",
+        "--html",
+        "--no-save-to-sent",
+    )
+    assert r.exit_code == 0 and r.stdout == "Sent.\n"
+    body = json.loads(route.calls.last.request.content)
+    assert body["message"]["body"] == {"contentType": "HTML", "content": "<p>Hi</p>"}
+    assert body["saveToSentItems"] is False
+
+
+@covers("mail send")
+def test_mail_send_default_subject_no_subject(invoke, graph):
+    route = graph.post(f"{GRAPH}/v1.0/me/sendMail").mock(return_value=httpx.Response(202))
+    assert invoke("mail", "send", "--to", "ada@example.com", "--body", "x").exit_code == 0
+    body = json.loads(route.calls.last.request.content)
+    assert body["message"]["subject"] == "(no subject)"
+    assert body["message"]["importance"] == "normal"
+
+
+@covers("mail send")
+def test_mail_send_attachment_over_150mb_exit_2(invoke, graph, tmp_path, monkeypatch):
+    big = tmp_path / "huge.iso"
+    big.write_bytes(b"x")
+    real_stat = Path.stat
+
+    class Stat:
+        st_size = 157_286_401
+
+    monkeypatch.setattr(
+        Path, "stat", lambda self, **kw: Stat() if self == big else real_stat(self, **kw)
+    )
+    r = invoke("mail", "send", "--to", "ada@example.com", "--body", "x", "--attach", str(big))
+    assert r.exit_code == 2 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: huge.iso is 157286401 bytes")
+
+
+@covers("mail send")
+def test_mail_send_bad_importance_exit_2(invoke, graph):
+    r = invoke("mail", "send", "--to", "ada@example.com", "--body", "x", "--importance", "urgent")
+    assert r.exit_code == 2 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: --importance must be one of")
+
+
+# --------------------------------------------------------------------------- reply / forward
+
+
+@covers("mail reply")
+def test_mail_reply_dry_run(invoke, graph):
+    result = invoke("mail", "reply", "AAMk-msg-0001", "--body", "Thanks", "--dry-run", "--json")
+    assert result.exit_code == 0, result.stderr
+    doc = json.loads(result.stdout)
+    assert doc["dryRun"] is True
+    assert doc["requests"] == [
+        {
+            "method": "POST",
+            "url": f"{GRAPH}/v1.0/me/messages/AAMk-msg-0001/reply",
+            "headers": {"Content-Type": "application/json"},
+            "body": {"comment": "Thanks"},
+        }
+    ]
+    assert graph.calls.call_count == 0
+
+
+@covers("mail reply")
+def test_mail_reply_dry_run_text(invoke, graph):
+    result = invoke("mail", "reply", "AAMk-msg-0001", "--body", "Thanks", "--dry-run")
+    assert result.stdout.startswith(
+        f"DRY RUN — nothing sent\n1. POST {GRAPH}/v1.0/me/messages/AAMk-msg-0001/reply\n"
+    )
+    assert graph.calls.call_count == 0
+
+
+@covers("mail reply")
+def test_mail_reply_sends(invoke, graph):
+    route = graph.post(f"{GRAPH}/v1.0/me/messages/AAMk-msg-0001/reply").mock(
+        return_value=httpx.Response(202)
+    )
+    result = invoke("mail", "reply", "AAMk-msg-0001", "--body", "Thanks", "--json")
+    assert result.exit_code == 0 and json.loads(result.stdout) == {"status": "sent"}
+    assert json.loads(route.calls.last.request.content) == {"comment": "Thanks"}
+
+
+@covers("mail reply")
+def test_mail_reply_all_html_and_extra_recipients(invoke, graph):
+    route = graph.post(f"{GRAPH}/v1.0/me/messages/AAMk-msg-0001/replyAll").mock(
+        return_value=httpx.Response(202)
+    )
+    result = invoke(
+        "mail",
+        "reply",
+        "AAMk-msg-0001",
+        "--body",
+        "<p>Ack</p>",
+        "--html",
+        "--reply-all",
+        "--to",
+        "eve@example.com",
+    )
+    assert result.exit_code == 0, result.stderr
+    body = json.loads(route.calls.last.request.content)
+    assert body["message"]["body"] == {"contentType": "HTML", "content": "<p>Ack</p>"}
+    assert body["message"]["toRecipients"] == [{"emailAddress": {"address": "eve@example.com"}}]
+    assert "comment" not in body
+
+
+@covers("mail forward")
+def test_mail_forward(invoke, graph):
+    route = graph.post(f"{GRAPH}/v1.0/me/messages/AAMk-msg-0001/forward").mock(
+        return_value=httpx.Response(202)
+    )
+    result = invoke(
+        "mail",
+        "forward",
+        "AAMk-msg-0001",
+        "--to",
+        "eve@example.com,bob@example.com",
+        "--body",
+        "FYI",
+        "--json",
+    )
+    assert result.exit_code == 0 and json.loads(result.stdout) == {"status": "sent"}
+    assert json.loads(route.calls.last.request.content) == {
+        "toRecipients": [
+            {"emailAddress": {"address": "eve@example.com"}},
+            {"emailAddress": {"address": "bob@example.com"}},
+        ],
+        "comment": "FYI",
+    }
+
+
+@covers("mail forward")
+def test_mail_forward_dry_run_and_requires_to(invoke, graph):
+    result = invoke("mail", "forward", "AAMk-msg-0001", "--to", "eve@example.com", "--dry-run")
+    assert result.exit_code == 0, result.stderr
+    assert f"1. POST {GRAPH}/v1.0/me/messages/AAMk-msg-0001/forward" in result.stdout
+    assert graph.calls.call_count == 0
+    result = invoke("mail", "forward", "AAMk-msg-0001", "--body", "FYI")
+    assert result.exit_code == 2 and result.stderr.startswith("error[USAGE]: --to is required")
+
+
+# --------------------------------------------------------------------------- drafts write
+
+
+@covers("mail drafts create")
+def test_mail_drafts_create_returns_draft(invoke, graph, tmp_path):
+    f = tmp_path / "a.txt"
+    f.write_bytes(b"hello")
+    draft = {"id": "AAMk-draft-0003", "subject": "Hi", "isDraft": True}
+    route = graph.post(f"{GRAPH}/v1.0/me/messages").mock(
+        return_value=httpx.Response(201, json=draft)
+    )
+    result = invoke(
+        "mail",
+        "drafts",
+        "create",
+        "--to",
+        "ada@example.com",
+        "--subject",
+        "Hi",
+        "--body",
+        "Body",
+        "--attach",
+        str(f),
+        "--json",
+    )
+    assert result.exit_code == 0, result.stderr
+    assert json.loads(result.stdout) == draft
+    body = json.loads(route.calls.last.request.content)
+    assert body["subject"] == "Hi" and body["toRecipients"]
+    assert body["body"] == {"contentType": "Text", "content": "Body"}
+    assert body["attachments"][0]["contentBytes"] == "aGVsbG8="
+    assert "saveToSentItems" not in body
+
+
+@covers("mail drafts create")
+def test_mail_drafts_create_dry_run(invoke, graph):
+    result = invoke(
+        "mail", "drafts", "create", "--to", "ada@example.com", "--body", "x", "--dry-run", "--json"
+    )
+    assert result.exit_code == 0, result.stderr
+    doc = json.loads(result.stdout)
+    assert [s["url"] for s in doc["requests"]] == [f"{GRAPH}/v1.0/me/messages"]
+    assert graph.calls.call_count == 0
+
+
+@covers("mail drafts send")
+def test_mail_drafts_send(invoke, graph):
+    route = graph.post(f"{GRAPH}/v1.0/me/messages/AAMk-draft-0003/send").mock(
+        return_value=httpx.Response(202)
+    )
+    result = invoke("mail", "drafts", "send", "AAMk-draft-0003", "--json")
+    assert result.exit_code == 0 and json.loads(result.stdout) == {"status": "sent"}
+    assert route.called and route.calls.last.request.content == b""
+
+
+@covers("mail drafts send")
+def test_mail_drafts_send_dry_run(invoke, graph):
+    result = invoke("mail", "drafts", "send", "AAMk-draft-0003", "--dry-run", "--json")
+    assert result.exit_code == 0, result.stderr
+    assert json.loads(result.stdout)["requests"] == [
+        {
+            "method": "POST",
+            "url": f"{GRAPH}/v1.0/me/messages/AAMk-draft-0003/send",
+            "headers": {},
+            "body": None,
+        }
+    ]
+    assert graph.calls.call_count == 0
 
 
 # --------------------------------------------------------------------------- help

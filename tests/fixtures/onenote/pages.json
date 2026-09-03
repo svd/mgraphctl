@@ -1,0 +1,40 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onenote/sections",
+    "query": {"$top": "100"},
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "0-section0001!1", "displayName": "Meeting Notes"},
+        {"id": "0-section0002!1", "displayName": "Recipes"}
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onenote/sections/0-section0001%211/pages",
+    "query": {
+      "$select": "id,title,lastModifiedDateTime,links",
+      "$orderby": "lastModifiedDateTime desc",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "1-page0001!1",
+          "title": "Sprint planning",
+          "lastModifiedDateTime": "2026-08-29T09:00:00Z",
+          "links": {"oneNoteWebUrl": {"href": "https://onenote.contoso.example/page1"}}
+        },
+        {
+          "id": "1-page0002!1",
+          "title": "Retro",
+          "lastModifiedDateTime": "2026-08-22T09:00:00Z",
+          "links": {"oneNoteWebUrl": {"href": "https://onenote.contoso.example/page2"}}
+        }
+      ]
+    }
+  }
+]

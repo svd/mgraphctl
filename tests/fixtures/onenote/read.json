@@ -1,0 +1,22 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onenote/pages/1-abc%2112",
+    "query": {"$select": "id,title,lastModifiedDateTime,links"},
+    "status": 200,
+    "json": {
+      "id": "1-abc!12",
+      "title": "Meeting notes",
+      "lastModifiedDateTime": "2026-08-30T09:00:00Z",
+      "links": {"oneNoteWebUrl": {"href": "https://onenote.contoso.example/meeting-notes"}}
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onenote/pages/1-abc%2112/content",
+    "query": {"includeIDs": "true"},
+    "status": 200,
+    "text": "<html><body><h1>Meeting notes</h1><ul><li>action one</li></ul></body></html>",
+    "headers": {"Content-Type": "text/html"}
+  }
+]

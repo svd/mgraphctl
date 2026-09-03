@@ -1,0 +1,58 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onenote/sections",
+    "query": {
+      "$select": "id,displayName,lastModifiedDateTime,parentNotebook",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "0-section0001!1",
+          "displayName": "Meeting Notes",
+          "lastModifiedDateTime": "2026-08-25T09:00:00Z",
+          "parentNotebook": {"id": "0-notebook0001!1", "displayName": "Work"}
+        },
+        {
+          "id": "0-section0002!1",
+          "displayName": "Recipes",
+          "lastModifiedDateTime": "2026-08-05T09:00:00Z",
+          "parentNotebook": {"id": "0-notebook0002!1", "displayName": "Personal"}
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onenote/notebooks",
+    "query": {"$top": "100"},
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "0-notebook0001!1", "displayName": "Work"},
+        {"id": "0-notebook0002!1", "displayName": "Personal"}
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onenote/notebooks/0-notebook0001%211/sections",
+    "query": {
+      "$select": "id,displayName,lastModifiedDateTime,parentNotebook",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "0-section0001!1",
+          "displayName": "Meeting Notes",
+          "lastModifiedDateTime": "2026-08-25T09:00:00Z",
+          "parentNotebook": {"id": "0-notebook0001!1", "displayName": "Work"}
+        }
+      ]
+    }
+  }
+]
