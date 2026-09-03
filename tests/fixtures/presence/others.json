@@ -1,0 +1,28 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/users/bob%40example.com",
+    "query": {
+      "$select": "id,displayName"
+    },
+    "status": 200,
+    "json": {
+      "id": "00000000-0000-0000-0000-0000000000b0",
+      "displayName": "Bob Example"
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1.0/communications/getPresencesByUserId",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "00000000-0000-0000-0000-0000000000b0",
+          "availability": "Busy",
+          "activity": "InACall"
+        }
+      ]
+    }
+  }
+]

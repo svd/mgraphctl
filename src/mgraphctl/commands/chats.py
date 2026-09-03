@@ -1,5 +1,6 @@
 """Teams chat commands (spec §8.8)."""
 
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -21,15 +22,18 @@ from mgraphctl.http import GraphClient
 from mgraphctl.render import (
     Column,
     DryRunResult,
+    FileResult,
     ListResult,
     ObjectResult,
     WriteResult,
     fmt_dt,
+    fmt_size,
     parse_dt,
     truncate,
 )
 
 CREATE_SCOPES = ["Chat.Create"]
+CHANNEL_SCOPES = ["ChannelMessage.Read.All"]
 
 ChatArg = Annotated[str, typer.Argument(metavar="CHAT", help="Chat id (19:…) or a UPN.")]
 BodyOpt = Annotated[str | None, typer.Option("--body", help="Message text.")]
@@ -223,3 +227,76 @@ def create(
         return DryRunResult(plan)
     created = client.execute(plan[0]) or {}
     return WriteResult(obj=created, message=f"Created chat {created.get('id')}.")
+
+
+@app.command("search")
+@graph_command(scopes=["Chat.Read"])
+def search(
+    client: GraphClient,
+    q: Annotated[str, typer.Argument(metavar="Q", help="What to look for.")],
+    after: Annotated[
+        str | None, typer.Option("--after", metavar="DT", help="Only hits after this time.")
+    ] = None,
+    before: Annotated[
+        str | None, typer.Option("--before", metavar="DT", help="Only hits before this time.")
+    ] = None,
+    limit: LimitOpt = None,
+    all_: AllFlag = False,
+    json_: JsonFlag = False,
+):
+    """Search your chat and channel messages. Hits carry a snippet, not the whole body."""
+    limit, all_ = page_bounds(limit, all_, default=25)
+    tz = client.tz
+    found = chats.search_chat_messages(
+        client,
+        q,
+        after=parse_dt(after, tz) if after else None,
+        before=parse_dt(before, tz, end_of_day=True) if before else None,
+        limit=chats.CAP_SEARCH if all_ else limit,
+    )
+    return ListResult(
+        items=[chats.shape_chat_hit(hit) for hit in found.hits],
+        truncated=found.more,
+        hit_cap=chats.CAP_SEARCH if all_ else None,
+        empty_text="No messages found.",
+        columns=[
+            Column("id", "id"),
+            Column("created", lambda h: fmt_dt(h.get("created"), tz)),
+            Column("from", "from"),
+            Column("where", "where"),
+            Column("summary", lambda h: truncate(h.get("summary"))),
+        ],
+    )
+
+
+@app.command("hosted-content")
+@graph_command(scopes=["Chat.Read"])
+def hosted_content(
+    client: GraphClient,
+    chat: Annotated[
+        str, typer.Argument(metavar="CHAT|URL", help="Chat id, or a full hostedContents URL.")
+    ],
+    msg_id: Annotated[str | None, typer.Argument(metavar="[MSGID]", help="Message id.")] = None,
+    hc_id: Annotated[
+        str | None, typer.Argument(metavar="[HCID]", help="Hosted content id.")
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", help="Where to write it; default is sniffed.")
+    ] = None,
+    json_: JsonFlag = False,
+):
+    """Download an image or file hosted inside a Teams message."""
+    target, hosted_id, is_channel = chats.hosted_content_target(chat, msg_id, hc_id)
+    if is_channel:
+        gate(CHANNEL_SCOPES)  # A channel URL reads channel messages, not chats (spec §8.8).
+    # The name's extension comes from the bytes, so they are read before the file is opened.
+    data = client.request("GET", target, expect="bytes") or b""
+    dest = output or Path(chats.hosted_content_name(hosted_id, data))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+    return FileResult(
+        path=dest,
+        bytes=len(data),
+        meta={},
+        message=f"Downloaded {dest.name} ({fmt_size(len(data))}) to {dest}",
+    )

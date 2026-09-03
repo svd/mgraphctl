@@ -12,6 +12,9 @@ CHAT = "19:chat-0001@thread.v2"
 CHAT_URL = f"{GRAPH}/v1.0/chats/19%3Achat-0001%40thread.v2"
 ME = "00000000-0000-0000-0000-000000000001"
 BOB = "00000000-0000-0000-0000-0000000000b0"
+TEAM = "11111111-1111-4111-8111-111111111111"
+CHANNEL = "19:channel-0001@thread.tacv2"
+PNG = b"\x89PNG\r\n\x1a\n"
 
 
 def bind(user_id: str) -> dict:
@@ -288,6 +291,137 @@ def test_chats_create_scope_gate(invoke, graph):
     r = invoke("chats", "create", "--members", "bob@example.com")
     assert r.exit_code == 3 and graph.calls.call_count == 0
     assert r.stderr.startswith("error[MISSING_SCOPE]: this command needs Chat.Create;")
+
+
+@covers("chats search")
+def test_chats_search_labels_chat_and_channel_hits(invoke, graph):
+    routes = mock_graph(graph, "chats/search")
+    r = invoke("chats", "search", "budget")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(routes[0].calls.last.request.content) == {
+        "requests": [
+            {
+                "entityTypes": ["chatMessage"],
+                "query": {"queryString": "budget"},
+                "from": 0,
+                "size": 25,
+            }
+        ]
+    }
+    lines = r.stdout.splitlines()
+    assert lines[0].split() == ["id", "created", "from", "where", "summary"]
+    assert "chat:19:chat-0001@thread.v2" in lines[1]
+    assert f"channel:{TEAM}/{CHANNEL}" in lines[2]
+    doc = json.loads(invoke("chats", "search", "budget", "--json").stdout)
+    assert doc["count"] == 2
+    assert doc["items"][0]["where"] == "chat:19:chat-0001@thread.v2"
+
+
+@covers("chats search")
+def test_chats_search_date_window_is_client_side(invoke, graph):
+    mock_graph(graph, "chats/search")
+    doc = json.loads(invoke("chats", "search", "budget", "--after", "2026-08-25", "--json").stdout)
+    assert [h["id"] for h in doc["items"]] == ["AAMk-chat-0003"]
+    doc = json.loads(invoke("chats", "search", "budget", "--before", "2026-08-25", "--json").stdout)
+    assert [h["id"] for h in doc["items"]] == ["3"]
+
+
+@covers("chats search")
+def test_chats_search_all_pages_on_more_results(invoke, graph):
+    routes = mock_graph(graph, "chats/search_paged")
+    doc = json.loads(invoke("chats", "search", "budget", "--all", "--json").stdout)
+    assert doc["count"] == 3
+    assert routes[0].call_count == 2
+    assert json.loads(routes[0].calls[1].request.content)["requests"][0]["from"] == 25
+
+
+def test_shape_chat_hit_unit():
+    from mgraphctl.graph.chats import shape_chat_hit
+
+    shaped = shape_chat_hit(
+        {
+            "summary": "the  budget\nis ready",
+            "resource": {
+                "id": "AAMk-chat-0003",
+                "createdDateTime": "2026-08-31T08:15:00Z",
+                "chatId": CHAT,
+                "from": {"user": {"displayName": "Bob Example"}},
+                "webUrl": "https://teams.microsoft.com/l/message/x",
+            },
+        }
+    )
+    assert set(shaped) == {"id", "created", "from", "where", "summary", "webUrl"}
+    assert shaped["id"] == "AAMk-chat-0003"
+    assert shaped["created"] == "2026-08-31T08:15:00Z"
+    assert shaped["from"] == "Bob Example"
+    assert shaped["where"] == f"chat:{CHAT}"
+    assert shaped["summary"] == "the budget is ready"
+    assert shaped["webUrl"] == "https://teams.microsoft.com/l/message/x"
+
+    channel = shape_chat_hit(
+        {
+            "summary": "notes",
+            "resource": {
+                "id": "3",
+                "createdDateTime": "2026-08-20T10:00:00Z",
+                "channelIdentity": {"teamId": TEAM, "channelId": CHANNEL},
+            },
+        }
+    )
+    assert channel["where"] == f"channel:{TEAM}/{CHANNEL}"
+    assert channel["from"] == "" and channel["webUrl"] is None
+
+
+@covers("chats hosted-content")
+def test_hosted_content_triplet_and_url(invoke, graph, tmp_path, monkeypatch):
+    triplet = graph.get(f"{CHAT_URL}/messages/AAMk-chat-0003/hostedContents/aWQ%3D/$value").mock(
+        return_value=httpx.Response(200, content=PNG)
+    )
+    dest = tmp_path / "x.png"
+    r = invoke(
+        "chats",
+        "hosted-content",
+        CHAT,
+        "AAMk-chat-0003",
+        "aWQ=",
+        "--output",
+        str(dest),
+    )
+    assert r.exit_code == 0, r.stderr
+    assert triplet.called and dest.read_bytes() == PNG
+    assert r.stdout == f"Downloaded x.png (8 B) to {dest}\n"
+
+    channel_url = (
+        f"{GRAPH}/v1.0/teams/{TEAM}/channels/19%3Achannel-0001%40thread.tacv2"
+        "/messages/1/hostedContents/aWQ=/$value"
+    )
+    verbatim = graph.get(channel_url).mock(return_value=httpx.Response(200, content=PNG))
+    monkeypatch.chdir(tmp_path)
+    r = invoke("chats", "hosted-content", channel_url, "--json")
+    assert r.exit_code == 0, r.stderr
+    assert verbatim.called
+    doc = json.loads(r.stdout)
+    assert doc == {"path": "teams_hosted_aWQ=.png", "bytes": 8}
+    assert (tmp_path / "teams_hosted_aWQ=.png").read_bytes() == PNG
+
+
+@covers("chats hosted-content")
+@pytest.mark.scopes(["Chat.Read"])
+def test_hosted_content_channel_url_needs_channel_scope(invoke, graph):
+    channel_url = (
+        f"{GRAPH}/v1.0/teams/{TEAM}/channels/19%3Achannel-0001%40thread.tacv2"
+        "/messages/1/hostedContents/aWQ=/$value"
+    )
+    r = invoke("chats", "hosted-content", channel_url)
+    assert r.exit_code == 3 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[MISSING_SCOPE]: this command needs ChannelMessage.Read.All;")
+
+
+@covers("chats hosted-content")
+def test_hosted_content_needs_three_arguments(invoke, graph):
+    r = invoke("chats", "hosted-content", CHAT, "AAMk-chat-0003")
+    assert r.exit_code == 2 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: give CHAT MSGID HCID, or one hostedContents URL")
 
 
 def test_chats_group_help_exits_zero(invoke):

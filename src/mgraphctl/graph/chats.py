@@ -8,11 +8,12 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from datetime import datetime
+from urllib.parse import unquote
 
 from mgraphctl import odata, resolve
 from mgraphctl.errors import NotFoundError, UsageError
-from mgraphctl.graph import users
-from mgraphctl.http import GraphClient, PageResult, Plan, PlannedRequest
+from mgraphctl.graph import teams, users
+from mgraphctl.http import GraphClient, PageResult, Plan, PlannedRequest, SearchResult
 from mgraphctl.render import dig, to_iso_offset
 
 CHAT_SELECT = "id,topic,chatType,lastUpdatedDateTime,viewpoint,webUrl"
@@ -29,9 +30,21 @@ GROUP_TITLE_NAMES = 3
 PAGE_CHATS, CAP_CHATS = 50, 200
 PAGE_MESSAGES, CAP_MESSAGES = 50, 200
 CAP_ONE_ON_ONE = 500
+SEARCH_SIZE, CAP_SEARCH = 25, 200
+HOSTED_NAME_PREFIX = "teams_hosted_"
+HOSTED_ID_IN_NAME = 8
 JSON = {"Content-Type": "application/json"}
 
 _FRACTIONAL_RE = re.compile(r"(\.\d{6})\d+")
+_HOSTED_CONTENT_RE = re.compile(r"/hostedContents/([^/]+)/\$value")
+# The magic bytes the Teams hosted contents actually carry (spec §8.8 `hosted-content`).
+_MAGIC = (
+    (b"\x89PNG\r\n\x1a\n", "png"),
+    (b"\xff\xd8\xff", "jpg"),
+    (b"GIF87a", "gif"),
+    (b"GIF89a", "gif"),
+    (b"%PDF", "pdf"),
+)
 
 
 def _instant(value: str | None) -> datetime | None:
@@ -235,3 +248,84 @@ def run_dm(
     sent = dict(client.execute(plan_chat_send(client, chat["id"], body=body, html=html)[0]) or {})
     sent.setdefault("chatId", chat["id"])
     return sent
+
+
+def _within(hit: dict, after: datetime | None, before: datetime | None) -> bool:
+    if after is None and before is None:
+        return True
+    created = _instant(dig(hit, "resource.createdDateTime"))
+    if created is None:
+        return False
+    if after is not None and created < after:
+        return False
+    return before is None or created <= before
+
+
+def search_chat_messages(
+    client: GraphClient,
+    q: str,
+    *,
+    after: datetime | None,
+    before: datetime | None,
+    limit: int,
+) -> SearchResult:
+    """Search chat and channel messages. The Search API has no date filter, so we apply one."""
+    found = client.search(["chatMessage"], q, size=SEARCH_SIZE, limit=limit)
+    hits = [h for h in found.hits if _within(h, after, before)]
+    return SearchResult(hits=hits, total=found.total, more=found.more)
+
+
+def shape_chat_hit(hit: dict) -> dict:
+    """Flatten one `chatMessage` search hit, naming the chat or channel it came from (quirk 16)."""
+    resource = hit.get("resource") or {}
+    chat_id = resource.get("chatId")
+    identity = resource.get("channelIdentity") or {}
+    if chat_id:
+        where = f"chat:{chat_id}"
+    elif identity:
+        where = f"channel:{identity.get('teamId')}/{identity.get('channelId')}"
+    else:
+        where = ""
+    return {
+        "id": resource.get("id") or hit.get("hitId"),
+        "created": resource.get("createdDateTime"),
+        "from": teams.message_sender(resource),
+        "where": where,
+        # The Search API returns a snippet, never the body (spec §8.8 `search`).
+        "summary": " ".join((hit.get("summary") or "").split()),
+        "webUrl": resource.get("webUrl"),
+    }
+
+
+def hosted_content_path(chat_id: str, msg_id: str, hc_id: str) -> str:
+    return odata.p("chats", chat_id, "messages", msg_id, "hostedContents", hc_id) + "/$value"
+
+
+def hosted_content_target(ref: str, msg_id: str | None, hc_id: str | None) -> tuple[str, str, bool]:
+    """`(path or URL, hosted content id, is a channel message)` for either argument form."""
+    if ref.startswith(("https://", "http://")):
+        if msg_id is not None or hc_id is not None:
+            raise UsageError("USAGE", "give CHAT MSGID HCID, or one hostedContents URL")
+        match = _HOSTED_CONTENT_RE.search(ref)
+        if match is None:
+            raise UsageError("USAGE", "that URL has no /hostedContents/<id>/$value segment")
+        return ref, unquote(match.group(1)), "/channels/" in ref
+    if msg_id is None or hc_id is None:
+        raise UsageError("USAGE", "give CHAT MSGID HCID, or one hostedContents URL")
+    return hosted_content_path(ref, msg_id, hc_id), hc_id, False
+
+
+def sniff_extension(data: bytes) -> str:
+    """The file extension the bytes themselves imply; `bin` when nothing matches."""
+    for magic, extension in _MAGIC:
+        if data.startswith(magic):
+            return extension
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    if b"<svg" in data[:512].lower():
+        return "svg"
+    return "bin"
+
+
+def hosted_content_name(hc_id: str, data: bytes) -> str:
+    return f"{HOSTED_NAME_PREFIX}{hc_id[:HOSTED_ID_IN_NAME]}.{sniff_extension(data)}"
