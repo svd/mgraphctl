@@ -1,0 +1,55 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/drive/root/children",
+    "query": {
+      "$select": "id,name,size,lastModifiedDateTime,file,folder,webUrl,parentReference",
+      "$orderby": "name",
+      "$top": "200"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "01FOLDER00000000000000A1",
+          "name": "Docs Q3",
+          "folder": {"childCount": 1},
+          "lastModifiedDateTime": "2026-08-30T09:00:00Z",
+          "webUrl": "https://contoso.example/Docs%20Q3",
+          "parentReference": {"driveId": "b!drv0001", "path": "/drive/root:"}
+        },
+        {
+          "id": "01FILE000000000000000B1",
+          "name": "report.pdf",
+          "size": 12,
+          "file": {"mimeType": "application/pdf"},
+          "lastModifiedDateTime": "2026-08-31T08:15:00Z",
+          "webUrl": "https://contoso.example/report.pdf",
+          "parentReference": {"driveId": "b!drv0001", "path": "/drive/root:"}
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/drive/root:/Docs%20Q3:/children",
+    "query": {
+      "$select": "id,name,size,lastModifiedDateTime,file,folder,webUrl,parentReference",
+      "$orderby": "name",
+      "$top": "200"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "01ABCDEFGHIJKLMNOPQRSTUV",
+          "name": "Subfolder",
+          "folder": {"childCount": 0},
+          "lastModifiedDateTime": "2026-08-29T09:00:00Z",
+          "webUrl": "https://contoso.example/Docs%20Q3/Subfolder",
+          "parentReference": {"driveId": "b!drv0001", "path": "/drive/root:/Docs Q3"}
+        }
+      ]
+    }
+  }
+]

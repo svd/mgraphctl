@@ -1,0 +1,26 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/people",
+    "query": {
+      "$search": "\"Ada\"",
+      "$top": "50",
+      "$select": "id,displayName,scoredEmailAddresses,jobTitle,department,companyName,personType,userPrincipalName"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "person-0001",
+          "displayName": "Ada Example",
+          "scoredEmailAddresses": [{"address": "ada@example.com", "relevanceScore": 1.0}],
+          "jobTitle": "Principal Engineer",
+          "department": "R&D",
+          "companyName": "Contoso",
+          "personType": {"class": "Person", "subclass": "OrganizationUser"},
+          "userPrincipalName": "ada@example.com"
+        }
+      ]
+    }
+  }
+]

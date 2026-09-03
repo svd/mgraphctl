@@ -1,0 +1,50 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/contacts",
+    "query": {
+      "$select": "id,displayName,emailAddresses,mobilePhone,businessPhones,jobTitle,companyName",
+      "$search": "\"bob\"",
+      "$top": "50"
+    },
+    "status": 400,
+    "json": {
+      "error": {
+        "code": "BadRequest",
+        "message": "search not supported on this property",
+        "innerError": {"request-id": "req-c1", "date": "2026-09-02T00:00:00"}
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/contacts",
+    "query": {
+      "$select": "id,displayName,emailAddresses,mobilePhone,businessPhones,jobTitle,companyName",
+      "$top": "250"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "contact-0001",
+          "displayName": "Alice Example",
+          "emailAddresses": [{"address": "alice@example.com", "name": "Alice Example"}],
+          "mobilePhone": null,
+          "businessPhones": ["+48 000 000 001"],
+          "jobTitle": "Manager",
+          "companyName": "Contoso"
+        },
+        {
+          "id": "contact-0002",
+          "displayName": "Bob Example",
+          "emailAddresses": [{"address": "bob@example.com", "name": "Bob Example"}],
+          "mobilePhone": "+48 000 000 002",
+          "businessPhones": [],
+          "jobTitle": "Sales",
+          "companyName": "Contoso"
+        }
+      ]
+    }
+  }
+]

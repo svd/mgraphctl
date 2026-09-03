@@ -1,0 +1,41 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/drive/root/search(q='quarter')",
+    "query": {
+      "$select": "id,name,size,lastModifiedDateTime,file,folder,webUrl,parentReference",
+      "$top": "200"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "01SEARCH0000000000000C1",
+          "name": "Q3 report.docx",
+          "size": 2048,
+          "file": {"mimeType": "application/msword"},
+          "lastModifiedDateTime": "2026-08-20T10:00:00Z"
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/drive/search(q='quarter')",
+    "query": {
+      "$select": "id,name,size,lastModifiedDateTime,file,folder,webUrl,parentReference",
+      "$top": "200"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "01SEARCH0000000000000C2",
+          "name": "shared Q3.pptx",
+          "size": 4096,
+          "remoteItem": {"id": "01SEARCH0000000000000C2"}
+        }
+      ]
+    }
+  }
+]

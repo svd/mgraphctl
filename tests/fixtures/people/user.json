@@ -1,0 +1,59 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me",
+    "query": {
+      "$select": "id,displayName,userPrincipalName,mail,jobTitle,department,officeLocation,businessPhones,mobilePhone"
+    },
+    "status": 200,
+    "json": {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "displayName": "Fixture User",
+      "userPrincipalName": "fixture-user@example.com",
+      "mail": "fixture-user@example.com",
+      "jobTitle": "Engineer",
+      "department": "R&D",
+      "officeLocation": "Remote",
+      "businessPhones": [],
+      "mobilePhone": null
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/users/11111111-1111-1111-1111-111111111111",
+    "query": {
+      "$select": "id,displayName,userPrincipalName,mail,jobTitle,department,officeLocation,businessPhones,mobilePhone"
+    },
+    "status": 200,
+    "json": {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "displayName": "Guid User",
+      "userPrincipalName": "guid-user@example.com",
+      "mail": "guid-user@example.com",
+      "jobTitle": "Analyst",
+      "department": "Finance",
+      "officeLocation": "Warsaw",
+      "businessPhones": [],
+      "mobilePhone": null
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/users/ada@example.com",
+    "query": {
+      "$select": "id,displayName,userPrincipalName,mail,jobTitle,department,officeLocation,businessPhones,mobilePhone"
+    },
+    "status": 200,
+    "json": {
+      "id": "00000000-0000-0000-0000-00000000000a",
+      "displayName": "Ada Example",
+      "userPrincipalName": "ada@example.com",
+      "mail": "ada@example.com",
+      "jobTitle": "Principal Engineer",
+      "department": "R&D",
+      "officeLocation": "Remote",
+      "businessPhones": [],
+      "mobilePhone": null
+    }
+  }
+]

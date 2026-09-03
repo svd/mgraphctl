@@ -1,0 +1,32 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/drive/items/01ABCDEFGHIJKLMNOPQRSTUV",
+    "query": {"$select": "id,name,size,lastModifiedDateTime,file,folder,webUrl,parentReference"},
+    "status": 200,
+    "json": {
+      "id": "01ABCDEFGHIJKLMNOPQRSTUV",
+      "name": "report.pdf",
+      "size": 12,
+      "file": {"mimeType": "application/pdf"},
+      "lastModifiedDateTime": "2026-08-31T08:15:00Z",
+      "webUrl": "https://contoso.example/report.pdf",
+      "parentReference": {"driveId": "b!drv0001", "path": "/drive/root:"}
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/drive/root:/Docs/report.pdf",
+    "query": {"$select": "id,name,size,lastModifiedDateTime,file,folder,webUrl,parentReference"},
+    "status": 200,
+    "json": {
+      "id": "01ABCDEFGHIJKLMNOPQRSTUV",
+      "name": "report.pdf",
+      "size": 12,
+      "file": {"mimeType": "application/pdf"},
+      "lastModifiedDateTime": "2026-08-31T08:15:00Z",
+      "webUrl": "https://contoso.example/Docs/report.pdf",
+      "parentReference": {"driveId": "b!drv0001", "path": "/drive/root:/Docs"}
+    }
+  }
+]

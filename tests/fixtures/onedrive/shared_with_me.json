@@ -1,0 +1,19 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/drive/sharedWithMe",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "01SHAREDWITHME000000001",
+          "name": "Roadmap.pptx",
+          "remoteItem": {
+            "id": "01REMOTE00000000000001",
+            "parentReference": {"driveId": "b!remoteDrive0001"}
+          }
+        }
+      ]
+    }
+  }
+]

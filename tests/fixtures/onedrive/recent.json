@@ -1,0 +1,20 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/drive/recent",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "01RECENT000000000000001",
+          "name": "Notes.docx",
+          "size": 1024,
+          "file": {"mimeType": "application/msword"},
+          "lastModifiedDateTime": "2026-08-29T12:00:00Z",
+          "webUrl": "https://contoso.example/Notes.docx",
+          "parentReference": {"driveId": "b!drv0001"}
+        }
+      ]
+    }
+  }
+]
