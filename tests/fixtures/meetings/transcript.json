@@ -1,0 +1,10 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onlineMeetings/MSpk-1/transcripts/tr-1/content",
+    "query": {"$format": "text/vtt"},
+    "status": 200,
+    "headers": {"Content-Type": "text/vtt"},
+    "text": "WEBVTT\n\n1\n00:00:01.000 --> 00:00:04.000\n<v Ada Example>Hello there</v>\n"
+  }
+]

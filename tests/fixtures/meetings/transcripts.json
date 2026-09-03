@@ -1,0 +1,13 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onlineMeetings/MSpk-1/transcripts",
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "tr-1", "createdDateTime": "2026-08-28T10:05:00Z"},
+        {"id": "tr-2", "createdDateTime": "2026-08-28T10:35:00Z"}
+      ]
+    }
+  }
+]

@@ -1,19 +1,32 @@
 """Online meetings, transcripts and AI insights (spec §8.10)."""
 
 from datetime import timedelta
+from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from mgraphctl import odata, render
+from mgraphctl import auth, odata, render
 from mgraphctl.cli import JsonFlag, LimitOpt, gate, graph_command, make_noun_app
+from mgraphctl.errors import UsageError
 from mgraphctl.graph import meetings
 from mgraphctl.http import GraphClient
-from mgraphctl.render import Column, ListResult, ObjectResult, fmt_dtz, truncate
+from mgraphctl.render import (
+    Column,
+    FileResult,
+    ListResult,
+    ObjectResult,
+    TextResult,
+    fmt_dt,
+    fmt_dtz,
+    fmt_size,
+    truncate,
+)
 
 app = make_noun_app("Online meetings, transcripts and AI insights.")
 
 DEFAULT_LIMIT = 50
+FORMATS = ("text", "vtt")
 
 MeetingArg = Annotated[str | None, typer.Argument(metavar="MEETING", help="An online meeting id.")]
 JoinUrlOpt = Annotated[
@@ -129,3 +142,130 @@ def get(
         else selected
     )
     return ObjectResult(obj=obj, fields=list(GET_FIELDS))
+
+
+@app.command("transcripts")
+@graph_command(scopes=["OnlineMeetingTranscript.Read.All"])
+def transcripts(
+    client: GraphClient,
+    meeting: MeetingArg = None,
+    join_url: JoinUrlOpt = None,
+    event: EventOpt = None,
+    json_: JsonFlag = False,
+):
+    """List the transcripts recorded for one online meeting."""
+    selected = meetings.select_meeting(client, meeting, join_url, event)
+    items = meetings.list_transcripts(client, selected["id"])
+    tz = client.tz
+    return ListResult(
+        items=items,
+        columns=[
+            Column("id", "id"),
+            Column("created", lambda t: fmt_dt(t.get("createdDateTime"), tz)),
+        ],
+    )
+
+
+@app.command("transcript")
+@graph_command(scopes=["OnlineMeetingTranscript.Read.All"])
+def transcript(
+    client: GraphClient,
+    ids: Annotated[
+        list[str] | None,
+        typer.Argument(
+            metavar="[MEETING] TRANSCRIPT_ID", help="The meeting id, then the transcript id."
+        ),
+    ] = None,
+    join_url: JoinUrlOpt = None,
+    event: EventOpt = None,
+    fmt: Annotated[str, typer.Option("--format", help="text or vtt.")] = "text",
+    output: Annotated[
+        Path | None, typer.Option("--output", help="Write to this file instead of stdout.")
+    ] = None,
+    json_: JsonFlag = False,
+):
+    """Show one transcript's content."""
+    tokens = ids or []
+    if len(tokens) == 2:
+        meeting, transcript_id = tokens
+    elif len(tokens) == 1:
+        meeting, transcript_id = None, tokens[0]
+    else:
+        raise UsageError("USAGE", "give TRANSCRIPT_ID, and MEETING or --join-url or --event")
+    if fmt not in FORMATS:
+        raise UsageError("USAGE", f"--format must be one of {', '.join(FORMATS)}")
+    selected = meetings.select_meeting(client, meeting, join_url, event)
+    meeting_id = selected["id"]
+    text = meetings.get_transcript_content(client, meeting_id, transcript_id, fmt=fmt)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(text, encoding="utf-8")
+        size = len(text.encode("utf-8"))
+        return FileResult(
+            path=output,
+            bytes=size,
+            meta=dict(meetingId=meeting_id, transcriptId=transcript_id, format=fmt),
+            message=f"Wrote the {fmt} transcript ({fmt_size(size)}) to {output}",
+        )
+    payload = dict(meetingId=meeting_id, transcriptId=transcript_id, format=fmt, text=text)
+    return TextResult(text=text, json_obj=payload)
+
+
+@app.command("insights")
+@graph_command(scopes=["OnlineMeetingAiInsight.Read.All"])
+def insights(
+    client: GraphClient,
+    meeting: MeetingArg = None,
+    join_url: JoinUrlOpt = None,
+    event: EventOpt = None,
+    json_: JsonFlag = False,
+):
+    """AI-generated meeting insights (recap, action items, mentions)."""
+    selected = meetings.select_meeting(client, meeting, join_url, event)
+    oid = auth.decode_jwt(auth.get_access_token())["oid"]
+    items, note = meetings.insights(client, oid, selected["id"])
+    return ListResult(
+        items=items,
+        columns=[Column("id", "id"), Column("title", "title")],
+        empty_text=note or "No results.",
+        extra={"note": note} if note else None,
+    )
+
+
+@app.command("recordings")
+@graph_command(scopes=["OnlineMeetingRecording.Read.All"])
+def recordings(
+    client: GraphClient,
+    meeting: MeetingArg = None,
+    join_url: JoinUrlOpt = None,
+    event: EventOpt = None,
+    download: Annotated[
+        str | None, typer.Option("--download", metavar="RID", help="Recording id to download.")
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", help="File to write the recording to.")
+    ] = None,
+    json_: JsonFlag = False,
+):
+    """List recordings for one online meeting, or download one."""
+    selected = meetings.select_meeting(client, meeting, join_url, event)
+    meeting_id = selected["id"]
+    if download is not None or output is not None:
+        if download is None or output is None:
+            raise UsageError("USAGE", "--download and --output must be given together")
+        got = meetings.download_recording(client, meeting_id, download, output)
+        return FileResult(
+            path=got.path,
+            bytes=got.bytes,
+            meta=dict(contentType=got.content_type),
+            message=f"Downloaded recording ({fmt_size(got.bytes)}) to {got.path}",
+        )
+    items = meetings.list_recordings(client, meeting_id)
+    tz = client.tz
+    return ListResult(
+        items=items,
+        columns=[
+            Column("id", "id"),
+            Column("created", lambda r: fmt_dt(r.get("createdDateTime"), tz)),
+        ],
+    )

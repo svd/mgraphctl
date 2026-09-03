@@ -1,0 +1,8 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onlineMeetings/MSpk-1/recordings",
+    "status": 200,
+    "json": {"value": [{"id": "rec-1", "createdDateTime": "2026-08-28T10:00:00Z"}]}
+  }
+]
