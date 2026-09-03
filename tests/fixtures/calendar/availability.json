@@ -1,0 +1,42 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me",
+    "query": {"$select": "mail,userPrincipalName"},
+    "status": 200,
+    "json": {"mail": "ada@example.com", "userPrincipalName": "ada@example.com"}
+  },
+  {
+    "method": "POST",
+    "path": "/v1.0/me/calendar/getSchedule",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "scheduleId": "ada@example.com",
+          "availabilityView": "001120300000000000000000000000",
+          "scheduleItems": [
+            {
+              "status": "busy",
+              "start": {"dateTime": "2026-09-02T10:00:00.0000000", "timeZone": "Europe/Warsaw"},
+              "end": {"dateTime": "2026-09-02T11:00:00.0000000", "timeZone": "Europe/Warsaw"},
+              "subject": "Standup"
+            },
+            {
+              "status": "tentative",
+              "start": {"dateTime": "2026-09-02T11:00:00.0000000", "timeZone": "Europe/Warsaw"},
+              "end": {"dateTime": "2026-09-02T11:30:00.0000000", "timeZone": "Europe/Warsaw"},
+              "subject": "Maybe Sync"
+            },
+            {
+              "status": "oof",
+              "start": {"dateTime": "2026-09-02T12:00:00.0000000", "timeZone": "Europe/Warsaw"},
+              "end": {"dateTime": "2026-09-02T12:30:00.0000000", "timeZone": "Europe/Warsaw"},
+              "subject": "Out"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

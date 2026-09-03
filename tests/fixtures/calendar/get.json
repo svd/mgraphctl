@@ -1,0 +1,29 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/events/AAMkEvt-0001",
+    "status": 200,
+    "json": {
+      "id": "AAMkEvt-0001",
+      "subject": "Sprint Review",
+      "start": {"dateTime": "2026-09-02T10:00:00.0000000", "timeZone": "Europe/Warsaw"},
+      "end": {"dateTime": "2026-09-02T11:00:00.0000000", "timeZone": "Europe/Warsaw"},
+      "location": {"displayName": "Room 1"},
+      "organizer": {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}},
+      "attendees": [
+        {"emailAddress": {"name": "Bob Example", "address": "bob@example.com"}, "status": {"response": "accepted"}, "type": "required"},
+        {"emailAddress": {"name": "Cid Example", "address": "cid@example.com"}, "status": {"response": "tentativelyAccepted"}, "type": "optional"}
+      ],
+      "isOnlineMeeting": true,
+      "onlineMeeting": {"joinUrl": "https://teams.microsoft.com/l/meetup-join/sprintreview"},
+      "isCancelled": false,
+      "isAllDay": false,
+      "showAs": "busy",
+      "responseStatus": {"response": "organizer", "time": "2026-08-01T00:00:00Z"},
+      "seriesMasterId": null,
+      "bodyPreview": "Please review the agenda before the call.",
+      "body": {"contentType": "html", "content": "<p>Please review the <b>agenda</b> before the call.</p>"},
+      "webLink": "https://outlook.office.com/calendar/item/sprintreview"
+    }
+  }
+]

@@ -1,0 +1,658 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/calendarView",
+    "query": {
+      "startDateTime": "2026-09-01T00:00:00+02:00",
+      "endDateTime": "2026-09-08T23:59:59+02:00",
+      "$select": "id,subject,start,end,location,organizer,attendees,isOnlineMeeting,onlineMeeting,isCancelled,isAllDay,showAs,responseStatus,seriesMasterId,bodyPreview,webLink",
+      "$orderby": "start/dateTime",
+      "$top": "50"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMkEvt-0001"
+        },
+        {
+          "id": "AAMkEvt-0002"
+        },
+        {
+          "id": "AAMkEvt-0003"
+        },
+        {
+          "id": "AAMkEvt-0004"
+        },
+        {
+          "id": "AAMkEvt-0005"
+        },
+        {
+          "id": "AAMkEvt-0006"
+        },
+        {
+          "id": "AAMkEvt-0007"
+        },
+        {
+          "id": "AAMkEvt-0008"
+        },
+        {
+          "id": "AAMkEvt-0009"
+        },
+        {
+          "id": "AAMkEvt-0010"
+        },
+        {
+          "id": "AAMkEvt-0011"
+        },
+        {
+          "id": "AAMkEvt-0012"
+        },
+        {
+          "id": "AAMkEvt-0013"
+        },
+        {
+          "id": "AAMkEvt-0014"
+        },
+        {
+          "id": "AAMkEvt-0015"
+        },
+        {
+          "id": "AAMkEvt-0016"
+        },
+        {
+          "id": "AAMkEvt-0017"
+        },
+        {
+          "id": "AAMkEvt-0018"
+        },
+        {
+          "id": "AAMkEvt-0019"
+        },
+        {
+          "id": "AAMkEvt-0020"
+        },
+        {
+          "id": "AAMkEvt-0021"
+        },
+        {
+          "id": "AAMkEvt-0022"
+        },
+        {
+          "id": "AAMkEvt-0023"
+        },
+        {
+          "id": "AAMkEvt-0024"
+        },
+        {
+          "id": "AAMkEvt-0025"
+        },
+        {
+          "id": "AAMkEvt-0026"
+        },
+        {
+          "id": "AAMkEvt-0027"
+        },
+        {
+          "id": "AAMkEvt-0028"
+        },
+        {
+          "id": "AAMkEvt-0029"
+        },
+        {
+          "id": "AAMkEvt-0030"
+        },
+        {
+          "id": "AAMkEvt-0031"
+        },
+        {
+          "id": "AAMkEvt-0032"
+        },
+        {
+          "id": "AAMkEvt-0033"
+        },
+        {
+          "id": "AAMkEvt-0034"
+        },
+        {
+          "id": "AAMkEvt-0035"
+        },
+        {
+          "id": "AAMkEvt-0036"
+        },
+        {
+          "id": "AAMkEvt-0037"
+        },
+        {
+          "id": "AAMkEvt-0038"
+        },
+        {
+          "id": "AAMkEvt-0039"
+        },
+        {
+          "id": "AAMkEvt-0040"
+        },
+        {
+          "id": "AAMkEvt-0041"
+        },
+        {
+          "id": "AAMkEvt-0042"
+        },
+        {
+          "id": "AAMkEvt-0043"
+        },
+        {
+          "id": "AAMkEvt-0044"
+        },
+        {
+          "id": "AAMkEvt-0045"
+        },
+        {
+          "id": "AAMkEvt-0046"
+        },
+        {
+          "id": "AAMkEvt-0047"
+        },
+        {
+          "id": "AAMkEvt-0048"
+        },
+        {
+          "id": "AAMkEvt-0049"
+        },
+        {
+          "id": "AAMkEvt-0050"
+        }
+      ],
+      "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendarView?$skiptoken=page-2"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/calendarView",
+    "query": {
+      "$skiptoken": "page-2"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMkEvt-0051"
+        },
+        {
+          "id": "AAMkEvt-0052"
+        },
+        {
+          "id": "AAMkEvt-0053"
+        },
+        {
+          "id": "AAMkEvt-0054"
+        },
+        {
+          "id": "AAMkEvt-0055"
+        },
+        {
+          "id": "AAMkEvt-0056"
+        },
+        {
+          "id": "AAMkEvt-0057"
+        },
+        {
+          "id": "AAMkEvt-0058"
+        },
+        {
+          "id": "AAMkEvt-0059"
+        },
+        {
+          "id": "AAMkEvt-0060"
+        },
+        {
+          "id": "AAMkEvt-0061"
+        },
+        {
+          "id": "AAMkEvt-0062"
+        },
+        {
+          "id": "AAMkEvt-0063"
+        },
+        {
+          "id": "AAMkEvt-0064"
+        },
+        {
+          "id": "AAMkEvt-0065"
+        },
+        {
+          "id": "AAMkEvt-0066"
+        },
+        {
+          "id": "AAMkEvt-0067"
+        },
+        {
+          "id": "AAMkEvt-0068"
+        },
+        {
+          "id": "AAMkEvt-0069"
+        },
+        {
+          "id": "AAMkEvt-0070"
+        },
+        {
+          "id": "AAMkEvt-0071"
+        },
+        {
+          "id": "AAMkEvt-0072"
+        },
+        {
+          "id": "AAMkEvt-0073"
+        },
+        {
+          "id": "AAMkEvt-0074"
+        },
+        {
+          "id": "AAMkEvt-0075"
+        },
+        {
+          "id": "AAMkEvt-0076"
+        },
+        {
+          "id": "AAMkEvt-0077"
+        },
+        {
+          "id": "AAMkEvt-0078"
+        },
+        {
+          "id": "AAMkEvt-0079"
+        },
+        {
+          "id": "AAMkEvt-0080"
+        },
+        {
+          "id": "AAMkEvt-0081"
+        },
+        {
+          "id": "AAMkEvt-0082"
+        },
+        {
+          "id": "AAMkEvt-0083"
+        },
+        {
+          "id": "AAMkEvt-0084"
+        },
+        {
+          "id": "AAMkEvt-0085"
+        },
+        {
+          "id": "AAMkEvt-0086"
+        },
+        {
+          "id": "AAMkEvt-0087"
+        },
+        {
+          "id": "AAMkEvt-0088"
+        },
+        {
+          "id": "AAMkEvt-0089"
+        },
+        {
+          "id": "AAMkEvt-0090"
+        },
+        {
+          "id": "AAMkEvt-0091"
+        },
+        {
+          "id": "AAMkEvt-0092"
+        },
+        {
+          "id": "AAMkEvt-0093"
+        },
+        {
+          "id": "AAMkEvt-0094"
+        },
+        {
+          "id": "AAMkEvt-0095"
+        },
+        {
+          "id": "AAMkEvt-0096"
+        },
+        {
+          "id": "AAMkEvt-0097"
+        },
+        {
+          "id": "AAMkEvt-0098"
+        },
+        {
+          "id": "AAMkEvt-0099"
+        },
+        {
+          "id": "AAMkEvt-0100"
+        }
+      ],
+      "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendarView?$skiptoken=page-3"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/calendarView",
+    "query": {
+      "$skiptoken": "page-3"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMkEvt-0101"
+        },
+        {
+          "id": "AAMkEvt-0102"
+        },
+        {
+          "id": "AAMkEvt-0103"
+        },
+        {
+          "id": "AAMkEvt-0104"
+        },
+        {
+          "id": "AAMkEvt-0105"
+        },
+        {
+          "id": "AAMkEvt-0106"
+        },
+        {
+          "id": "AAMkEvt-0107"
+        },
+        {
+          "id": "AAMkEvt-0108"
+        },
+        {
+          "id": "AAMkEvt-0109"
+        },
+        {
+          "id": "AAMkEvt-0110"
+        },
+        {
+          "id": "AAMkEvt-0111"
+        },
+        {
+          "id": "AAMkEvt-0112"
+        },
+        {
+          "id": "AAMkEvt-0113"
+        },
+        {
+          "id": "AAMkEvt-0114"
+        },
+        {
+          "id": "AAMkEvt-0115"
+        },
+        {
+          "id": "AAMkEvt-0116"
+        },
+        {
+          "id": "AAMkEvt-0117"
+        },
+        {
+          "id": "AAMkEvt-0118"
+        },
+        {
+          "id": "AAMkEvt-0119"
+        },
+        {
+          "id": "AAMkEvt-0120"
+        },
+        {
+          "id": "AAMkEvt-0121"
+        },
+        {
+          "id": "AAMkEvt-0122"
+        },
+        {
+          "id": "AAMkEvt-0123"
+        },
+        {
+          "id": "AAMkEvt-0124"
+        },
+        {
+          "id": "AAMkEvt-0125"
+        },
+        {
+          "id": "AAMkEvt-0126"
+        },
+        {
+          "id": "AAMkEvt-0127"
+        },
+        {
+          "id": "AAMkEvt-0128"
+        },
+        {
+          "id": "AAMkEvt-0129"
+        },
+        {
+          "id": "AAMkEvt-0130"
+        },
+        {
+          "id": "AAMkEvt-0131"
+        },
+        {
+          "id": "AAMkEvt-0132"
+        },
+        {
+          "id": "AAMkEvt-0133"
+        },
+        {
+          "id": "AAMkEvt-0134"
+        },
+        {
+          "id": "AAMkEvt-0135"
+        },
+        {
+          "id": "AAMkEvt-0136"
+        },
+        {
+          "id": "AAMkEvt-0137"
+        },
+        {
+          "id": "AAMkEvt-0138"
+        },
+        {
+          "id": "AAMkEvt-0139"
+        },
+        {
+          "id": "AAMkEvt-0140"
+        },
+        {
+          "id": "AAMkEvt-0141"
+        },
+        {
+          "id": "AAMkEvt-0142"
+        },
+        {
+          "id": "AAMkEvt-0143"
+        },
+        {
+          "id": "AAMkEvt-0144"
+        },
+        {
+          "id": "AAMkEvt-0145"
+        },
+        {
+          "id": "AAMkEvt-0146"
+        },
+        {
+          "id": "AAMkEvt-0147"
+        },
+        {
+          "id": "AAMkEvt-0148"
+        },
+        {
+          "id": "AAMkEvt-0149"
+        },
+        {
+          "id": "AAMkEvt-0150"
+        }
+      ],
+      "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendarView?$skiptoken=page-4"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/calendarView",
+    "query": {
+      "$skiptoken": "page-4"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMkEvt-0151"
+        },
+        {
+          "id": "AAMkEvt-0152"
+        },
+        {
+          "id": "AAMkEvt-0153"
+        },
+        {
+          "id": "AAMkEvt-0154"
+        },
+        {
+          "id": "AAMkEvt-0155"
+        },
+        {
+          "id": "AAMkEvt-0156"
+        },
+        {
+          "id": "AAMkEvt-0157"
+        },
+        {
+          "id": "AAMkEvt-0158"
+        },
+        {
+          "id": "AAMkEvt-0159"
+        },
+        {
+          "id": "AAMkEvt-0160"
+        },
+        {
+          "id": "AAMkEvt-0161"
+        },
+        {
+          "id": "AAMkEvt-0162"
+        },
+        {
+          "id": "AAMkEvt-0163"
+        },
+        {
+          "id": "AAMkEvt-0164"
+        },
+        {
+          "id": "AAMkEvt-0165"
+        },
+        {
+          "id": "AAMkEvt-0166"
+        },
+        {
+          "id": "AAMkEvt-0167"
+        },
+        {
+          "id": "AAMkEvt-0168"
+        },
+        {
+          "id": "AAMkEvt-0169"
+        },
+        {
+          "id": "AAMkEvt-0170"
+        },
+        {
+          "id": "AAMkEvt-0171"
+        },
+        {
+          "id": "AAMkEvt-0172"
+        },
+        {
+          "id": "AAMkEvt-0173"
+        },
+        {
+          "id": "AAMkEvt-0174"
+        },
+        {
+          "id": "AAMkEvt-0175"
+        },
+        {
+          "id": "AAMkEvt-0176"
+        },
+        {
+          "id": "AAMkEvt-0177"
+        },
+        {
+          "id": "AAMkEvt-0178"
+        },
+        {
+          "id": "AAMkEvt-0179"
+        },
+        {
+          "id": "AAMkEvt-0180"
+        },
+        {
+          "id": "AAMkEvt-0181"
+        },
+        {
+          "id": "AAMkEvt-0182"
+        },
+        {
+          "id": "AAMkEvt-0183"
+        },
+        {
+          "id": "AAMkEvt-0184"
+        },
+        {
+          "id": "AAMkEvt-0185"
+        },
+        {
+          "id": "AAMkEvt-0186"
+        },
+        {
+          "id": "AAMkEvt-0187"
+        },
+        {
+          "id": "AAMkEvt-0188"
+        },
+        {
+          "id": "AAMkEvt-0189"
+        },
+        {
+          "id": "AAMkEvt-0190"
+        },
+        {
+          "id": "AAMkEvt-0191"
+        },
+        {
+          "id": "AAMkEvt-0192"
+        },
+        {
+          "id": "AAMkEvt-0193"
+        },
+        {
+          "id": "AAMkEvt-0194"
+        },
+        {
+          "id": "AAMkEvt-0195"
+        },
+        {
+          "id": "AAMkEvt-0196"
+        },
+        {
+          "id": "AAMkEvt-0197"
+        },
+        {
+          "id": "AAMkEvt-0198"
+        },
+        {
+          "id": "AAMkEvt-0199"
+        },
+        {
+          "id": "AAMkEvt-0200"
+        }
+      ],
+      "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendarView?$skiptoken=page-5"
+    }
+  }
+]

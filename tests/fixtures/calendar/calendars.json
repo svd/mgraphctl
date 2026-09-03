@@ -1,0 +1,17 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/calendars",
+    "query": {
+      "$select": "id,name,isDefaultCalendar,canEdit,owner,color",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "AAMkCal-personal-0000000000000000000000000000", "name": "Calendar", "isDefaultCalendar": true, "canEdit": true, "owner": {"name": "Ada Example", "address": "ada@example.com"}, "color": "auto"},
+        {"id": "AAMkCal-team-00000000000000000000000000000000", "name": "Team Calendar", "isDefaultCalendar": false, "canEdit": true, "owner": {"name": "Ada Example", "address": "ada@example.com"}, "color": "lightBlue"}
+      ]
+    }
+  }
+]

@@ -1,0 +1,36 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/calendarView",
+    "query": {
+      "startDateTime": "2026-09-02T09:00:00+02:00",
+      "endDateTime": "2026-09-09T09:00:00+02:00",
+      "$select": "id,subject,start,end,location,organizer,attendees,isOnlineMeeting,onlineMeeting,isCancelled,isAllDay,showAs,responseStatus,seriesMasterId,bodyPreview,webLink",
+      "$orderby": "start/dateTime",
+      "$top": "50"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMkEvt-0099",
+          "subject": "Cancelled Sync",
+          "start": {"dateTime": "2026-09-02T15:00:00.0000000", "timeZone": "Europe/Warsaw"},
+          "end": {"dateTime": "2026-09-02T15:30:00.0000000", "timeZone": "Europe/Warsaw"},
+          "location": {"displayName": ""},
+          "organizer": {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}},
+          "attendees": [],
+          "isOnlineMeeting": false,
+          "onlineMeeting": null,
+          "isCancelled": true,
+          "isAllDay": false,
+          "showAs": "free",
+          "responseStatus": {"response": "organizer", "time": "2026-08-01T00:00:00Z"},
+          "seriesMasterId": null,
+          "bodyPreview": "",
+          "webLink": "https://outlook.office.com/calendar/item/cancelled"
+        }
+      ]
+    }
+  }
+]

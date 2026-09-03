@@ -1,0 +1,56 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/calendarView",
+    "query": {
+      "startDateTime": "2026-09-02T09:00:00+02:00",
+      "endDateTime": "2026-09-09T09:00:00+02:00",
+      "$select": "id,subject,start,end,location,organizer,attendees,isOnlineMeeting,onlineMeeting,isCancelled,isAllDay,showAs,responseStatus,seriesMasterId,bodyPreview,webLink",
+      "$orderby": "start/dateTime",
+      "$top": "50"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMkEvt-0001",
+          "subject": "Standup",
+          "start": {"dateTime": "2026-09-02T10:00:00.0000000", "timeZone": "Europe/Warsaw"},
+          "end": {"dateTime": "2026-09-02T10:15:00.0000000", "timeZone": "Europe/Warsaw"},
+          "location": {"displayName": "Room 1"},
+          "organizer": {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}},
+          "attendees": [
+            {"emailAddress": {"name": "Bob Example", "address": "bob@example.com"}, "status": {"response": "accepted"}, "type": "required"}
+          ],
+          "isOnlineMeeting": true,
+          "onlineMeeting": {"joinUrl": "https://teams.microsoft.com/l/meetup-join/standup"},
+          "isCancelled": false,
+          "isAllDay": false,
+          "showAs": "busy",
+          "responseStatus": {"response": "organizer", "time": "2026-08-01T00:00:00Z"},
+          "seriesMasterId": null,
+          "bodyPreview": "Daily sync",
+          "webLink": "https://outlook.office.com/calendar/item/standup"
+        },
+        {
+          "id": "AAMkEvt-0002",
+          "subject": "Company Holiday",
+          "start": {"dateTime": "2026-09-03T00:00:00.0000000", "timeZone": "Europe/Warsaw"},
+          "end": {"dateTime": "2026-09-04T00:00:00.0000000", "timeZone": "Europe/Warsaw"},
+          "location": {"displayName": ""},
+          "organizer": {"emailAddress": {"name": "HR Example", "address": "hr@example.com"}},
+          "attendees": [],
+          "isOnlineMeeting": false,
+          "onlineMeeting": null,
+          "isCancelled": false,
+          "isAllDay": true,
+          "showAs": "free",
+          "responseStatus": {"response": "none", "time": "2026-08-01T00:00:00Z"},
+          "seriesMasterId": null,
+          "bodyPreview": "",
+          "webLink": "https://outlook.office.com/calendar/item/holiday"
+        }
+      ]
+    }
+  }
+]
