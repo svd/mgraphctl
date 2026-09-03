@@ -11,11 +11,9 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from mgraphctl import odata
-from mgraphctl.http import GraphClient, PageResult, Plan, PlannedRequest
+from mgraphctl.http import JSON_HEADERS, GraphClient, PageResult, Plan, PlannedRequest
 from mgraphctl.render import fmt_person, iso_duration, to_graph_dtz, to_iso_offset
 from mgraphctl.resolve import looks_like_id, pick_unique, split_id_prefix
-
-JSON = {"Content-Type": "application/json"}
 
 LIST_SELECT = (
     "id,subject,start,end,location,organizer,attendees,isOnlineMeeting,onlineMeeting,"
@@ -211,13 +209,13 @@ def event_body(p: EventParams, tz: str, *, partial: bool) -> dict:
 def plan_create(client: GraphClient, p: EventParams, tz: str) -> Plan:
     body = event_body(p, tz, partial=False)
     path = "/me/events" if p.calendar is None else odata.p("me", "calendars", p.calendar, "events")
-    return [PlannedRequest("POST", client.url(path), dict(JSON), body)]
+    return [PlannedRequest("POST", client.url(path), dict(JSON_HEADERS), body)]
 
 
 def plan_update(client: GraphClient, event_id: str, p: EventParams, tz: str) -> Plan:
     body = event_body(p, tz, partial=True)
     url = client.url(odata.p("me", "events", event_id))
-    return [PlannedRequest("PATCH", url, dict(JSON), body)]
+    return [PlannedRequest("PATCH", url, dict(JSON_HEADERS), body)]
 
 
 def plan_delete(client: GraphClient, event_id: str) -> Plan:
@@ -243,7 +241,7 @@ def plan_respond(
         start, end = propose
         body["proposedNewTime"] = {"start": to_graph_dtz(start, tz), "end": to_graph_dtz(end, tz)}
     url = client.url(odata.p("me", "events", event_id, endpoint))
-    return [PlannedRequest("POST", url, dict(JSON), body)]
+    return [PlannedRequest("POST", url, dict(JSON_HEADERS), body)]
 
 
 def run_plan(client: GraphClient, plan: Plan) -> list:

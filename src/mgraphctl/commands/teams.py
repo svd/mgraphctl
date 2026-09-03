@@ -1,7 +1,5 @@
 """Teams and channel commands (spec §8.7)."""
 
-import sys
-from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -14,6 +12,7 @@ from mgraphctl.cli import (
     graph_command,
     make_noun_app,
     page_bounds,
+    read_body,
 )
 from mgraphctl.errors import UsageError
 from mgraphctl.graph import teams
@@ -47,15 +46,6 @@ CHANNEL_FIELDS = [
 app = make_noun_app("Teams and channels.")
 channel = make_noun_app("Channels within a team.")
 app.add_typer(channel, name="channel")
-
-
-def read_body(body: str | None, body_file: str | None) -> str:
-    """The message text from exactly one of `--body` or `--body-file` (`-` reads stdin)."""
-    if (body is None) == (body_file is None):
-        raise UsageError("USAGE", "give exactly one of --body or --body-file")
-    if body is not None:
-        return body
-    return sys.stdin.read() if body_file == "-" else Path(body_file).read_text()
 
 
 @app.command("list")

@@ -11,6 +11,7 @@ import sys
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated, Any, TypeVar
 
 import typer
@@ -122,6 +123,15 @@ def page_bounds(limit: int | None, all_: bool, *, default: int) -> tuple[int, bo
     if all_ and limit is not None:
         raise UsageError("USAGE", "--all and --limit are mutually exclusive")
     return (limit if limit is not None else default), all_
+
+
+def read_body(body: str | None, body_file: str | None) -> str:
+    """The message body from `--body`, `--body-file FILE`, or `--body-file -` (stdin)."""
+    if (body is None) == (body_file is None):
+        raise UsageError("USAGE", "give exactly one of --body or --body-file")
+    if body is not None:
+        return body
+    return sys.stdin.read() if body_file == "-" else Path(body_file).read_text()
 
 
 def graph_command(*, scopes: list[str]) -> Callable[[F], F]:

@@ -218,7 +218,7 @@ def insights(
 ):
     """AI-generated meeting insights (recap, action items, mentions)."""
     selected = meetings.select_meeting(client, meeting, join_url, event)
-    oid = auth.decode_jwt(auth.get_access_token())["oid"]
+    oid = auth.my_oid()
     items, note = meetings.insights(client, oid, selected["id"])
     return ListResult(
         items=items,

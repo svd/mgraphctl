@@ -15,7 +15,14 @@ from typing import Any
 from mgraphctl import odata
 from mgraphctl.errors import GraphError, MsgraphError, UsageError
 from mgraphctl.graph import users
-from mgraphctl.http import BatchRequest, GraphClient, PageResult, Plan, PlannedRequest
+from mgraphctl.http import (
+    JSON_HEADERS,
+    BatchRequest,
+    GraphClient,
+    PageResult,
+    Plan,
+    PlannedRequest,
+)
 from mgraphctl.render import to_iso_offset
 from mgraphctl.resolve import looks_like_id, pick_unique, split_id_prefix
 
@@ -27,7 +34,6 @@ from mgraphctl.resolve import looks_like_id, pick_unique, split_id_prefix
 # functions never call `render` directly (spec §7.2), hence the injected callback.
 OnSkip = Callable[[str], None]
 
-JSON = {"Content-Type": "application/json"}
 MY_TASKS_PLAN_TITLE_CAP = 20
 PERCENT_VALUES = (0, 50, 100)
 # Not a user-facing cap: large enough that name resolution never misses a real match because
@@ -228,7 +234,7 @@ def _create_body(
 def _description_step(tasks_url: str, task_id: str, description: str) -> PlannedRequest:
     url = f"{tasks_url}/{task_id}/details"
     return PlannedRequest(
-        "PATCH", url, {**JSON, "If-Match": "{etag}"}, {"description": description}
+        "PATCH", url, {**JSON_HEADERS, "If-Match": "{etag}"}, {"description": description}
     )
 
 
@@ -260,7 +266,7 @@ def plan_create_task(
         priority=priority,
     )
     tasks_url = client.url(odata.p("planner", "tasks"))
-    steps: Plan = [PlannedRequest("POST", tasks_url, dict(JSON), body)]
+    steps: Plan = [PlannedRequest("POST", tasks_url, dict(JSON_HEADERS), body)]
     if description is not None:
         steps.append(_description_step(tasks_url, "{taskId}", description))
     return steps
@@ -350,7 +356,7 @@ def plan_update_task(
     tasks_url = client.url(odata.p("planner", "tasks"))
     steps: Plan = []
     if body:
-        headers = {**JSON, "If-Match": "{etag}", "Prefer": "return=representation"}
+        headers = {**JSON_HEADERS, "If-Match": "{etag}", "Prefer": "return=representation"}
         steps.append(PlannedRequest("PATCH", f"{tasks_url}/{task_id}", headers, body))
     if description is not None:
         steps.append(_description_step(tasks_url, task_id, description))

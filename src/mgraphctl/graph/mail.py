@@ -5,7 +5,6 @@ Pure: client and parameters in, Graph dicts / `PageResult` / `Plan` out. Nothing
 
 from __future__ import annotations
 
-import sys
 from base64 import b64encode
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -19,6 +18,7 @@ from mgraphctl import config, odata, resolve
 from mgraphctl.errors import UsageError
 from mgraphctl.html import to_markdown
 from mgraphctl.http import (
+    JSON_HEADERS,
     BatchRequest,
     DownloadResult,
     GraphClient,
@@ -41,7 +41,6 @@ FOLDER_RESOLVE_SELECT = "id,displayName,childFolderCount"
 PAGE_SEARCH, PAGE_FILTER, CAP_LIST = 25, 50, 500
 PAGE_FOLDERS, CAP_FOLDERS, PAGE_FOLDER_RESOLVE = 100, 500, 200
 
-JSON = {"Content-Type": "application/json"}
 FILE_ATTACHMENT = "#microsoft.graph.fileAttachment"
 MAX_ATTACHMENT = 157_286_400  # 150 MB, Outlook's own ceiling
 IMPORTANCE = ("low", "normal", "high")
@@ -322,15 +321,6 @@ class SendParams:
         return measured
 
 
-def read_body(body: str | None, body_file: str | None) -> str:
-    """The message body from `--body`, `--body-file FILE`, or `--body-file -` (stdin)."""
-    if (body is None) == (body_file is None):
-        raise UsageError("USAGE", "give exactly one of --body or --body-file")
-    if body is not None:
-        return body
-    return sys.stdin.read() if body_file == "-" else Path(body_file).read_text()
-
-
 def _recipients(addresses: list[str]) -> list[dict]:
     return [{"emailAddress": {"address": a}} for a in addresses]
 
@@ -423,7 +413,7 @@ def _attachment_steps(client: GraphClient, base: str, files: list[Path], *, for_
                 PlannedRequest(
                     "POST",
                     client.url(base + "/attachments"),
-                    dict(JSON),
+                    dict(JSON_HEADERS),
                     _file_attachment(file, for_plan=for_plan),
                 )
             )
@@ -433,7 +423,7 @@ def _attachment_steps(client: GraphClient, base: str, files: list[Path], *, for_
             PlannedRequest(
                 "POST",
                 client.url(base + "/attachments/createUploadSession"),
-                dict(JSON),
+                dict(JSON_HEADERS),
                 item,
                 file=file,
                 chunk_size=config.CHUNK_OUTLOOK,
@@ -458,7 +448,7 @@ def plan_send(client: GraphClient, params: SendParams, *, for_plan: bool = False
             PlannedRequest(
                 "POST",
                 client.url("/me/sendMail"),
-                dict(JSON),
+                dict(JSON_HEADERS),
                 payload,
                 note=INLINE_NOTE,
                 expect="none",
@@ -469,7 +459,7 @@ def plan_send(client: GraphClient, params: SendParams, *, for_plan: bool = False
         PlannedRequest(
             "POST",
             client.url("/me/messages"),
-            dict(JSON),
+            dict(JSON_HEADERS),
             build_message(params, for_plan=for_plan),
             note=DRAFT_NOTE,
         )
@@ -495,7 +485,7 @@ def plan_create_draft(client: GraphClient, params: SendParams, *, for_plan: bool
         PlannedRequest(
             "POST",
             client.url("/me/messages"),
-            dict(JSON),
+            dict(JSON_HEADERS),
             build_message(params, for_plan=for_plan),
         )
     ]
@@ -540,7 +530,7 @@ def plan_reply(
         PlannedRequest(
             "POST",
             client.url(_message_base(message_id) + f"/{verb}"),
-            dict(JSON),
+            dict(JSON_HEADERS),
             payload,
             expect="none",
         )
@@ -559,7 +549,7 @@ def plan_forward(
         PlannedRequest(
             "POST",
             client.url(_message_base(message_id) + "/forward"),
-            dict(JSON),
+            dict(JSON_HEADERS),
             payload,
             expect="none",
         )
@@ -586,7 +576,7 @@ def plan_mark(client: GraphClient, message_ids: list[str], patch: dict) -> Plan:
             PlannedRequest(
                 "PATCH",
                 client.url(_message_base(message_id)),
-                dict(JSON),
+                dict(JSON_HEADERS),
                 dict(patch),
                 note=note,
             )
@@ -617,7 +607,7 @@ def plan_move(client: GraphClient, message_id: str, folder: str) -> Plan:
         PlannedRequest(
             "POST",
             client.url(_message_base(message_id) + "/move"),
-            dict(JSON),
+            dict(JSON_HEADERS),
             {"destinationId": destination},
         )
     ]

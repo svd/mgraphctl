@@ -7,13 +7,21 @@ paging on `moreResultsAvailable`; this module only shapes the query and the resu
 
 from __future__ import annotations
 
-import re
-from datetime import UTC, datetime
+from datetime import datetime
 
 from mgraphctl.errors import UsageError
 from mgraphctl.graph.chats import shape_chat_hit
 from mgraphctl.http import GraphClient, SearchResult
-from mgraphctl.render import Column, dig, fmt_dt, fmt_dtz, fmt_person, kql_date, truncate
+from mgraphctl.render import (
+    Column,
+    dig,
+    fmt_dt,
+    fmt_dtz,
+    fmt_person,
+    kql_date,
+    parse_graph_dt,
+    truncate,
+)
 
 ENTITY_TYPES = ("message", "event", "driveItem", "site", "list", "chatMessage", "person")
 
@@ -41,8 +49,6 @@ _DATE_PATH: dict[str, str] = {
     "chatMessage": "resource.createdDateTime",
 }
 
-_FRACTIONAL_RE = re.compile(r"(\.\d{6})\d+")
-
 
 def normalise_entity_type(value: str) -> str:
     """Fold `--type` onto the Graph spelling; anything else is a usage error."""
@@ -52,27 +58,13 @@ def normalise_entity_type(value: str) -> str:
     raise UsageError("USAGE", f"unknown --type {value!r}; use one of {', '.join(ENTITY_TYPES)}")
 
 
-def _as_utc(value: str | None) -> datetime | None:
-    """A Graph datetime string (`Z`, an offset, or bare — treated as UTC) as an aware datetime."""
-    if not value:
-        return None
-    text = _FRACTIONAL_RE.sub(r"\1", value)
-    if text.endswith("Z"):
-        text = text[:-1] + "+00:00"
-    try:
-        dt = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
-
-
 def _within(hit: dict, entity_type: str, after: datetime | None, before: datetime | None) -> bool:
     if after is None and before is None:
         return True
     path = _DATE_PATH.get(entity_type)
     if path is None:  # message (filtered server-side) and person (no date field)
         return True
-    when = _as_utc(dig(hit, path))
+    when = parse_graph_dt(dig(hit, path))
     if when is None:
         return False
     if after is not None and when < after:

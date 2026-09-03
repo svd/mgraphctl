@@ -392,6 +392,19 @@ def test_cached_access_token_reads_msal_cache_without_network(fake):
     assert auth.cached_access_token() is None
 
 
+def test_my_oid_needs_an_oid_claim(monkeypatch):
+    monkeypatch.setattr(auth, "cached_access_token", lambda: jwt({"oid": "u-ada"}))
+    assert auth.my_oid() == "u-ada"
+
+    for absent in (tok("User.Read"), None):  # a token without the claim, and no token at all
+        monkeypatch.setattr(auth, "cached_access_token", lambda absent=absent: absent)
+        with pytest.raises(errors.AuthError) as info:
+            auth.my_oid()
+        assert info.value.code == "NOT_LOGGED_IN" and info.value.exit_code == 3
+        assert info.value.message == "the cached token carries no oid claim"
+        assert info.value.hint == errors.HINTS["NOT_LOGGED_IN"]
+
+
 def test_account_upn(fake):
     app = fake(FakeApp(accounts=[ACCOUNT]))
     assert auth.account_upn() == "ada@example.com"

@@ -8,9 +8,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import timedelta
 
-from mgraphctl import auth, errors, odata
-from mgraphctl.errors import AuthError, UsageError
-from mgraphctl.http import GraphClient, Plan, PlannedRequest
+from mgraphctl import odata
+from mgraphctl.errors import UsageError
+from mgraphctl.http import JSON_HEADERS, GraphClient, Plan, PlannedRequest
 from mgraphctl.render import iso_duration
 
 # The CLI state, and the `availability` / `activity` pair Graph wants for it.
@@ -22,20 +22,6 @@ PRESENCE_PAIRS: dict[str, tuple[str, str]] = {
     "away": ("Away", "Away"),
     "offline": ("Offline", "OffWork"),
 }
-
-JSON = {"Content-Type": "application/json"}
-
-
-def my_oid() -> str:
-    """The signed-in user's object id, read from the cached token (spec §8.9, no `/me` call)."""
-    oid = auth.decode_jwt(auth.cached_access_token() or "").get("oid")
-    if not oid:
-        raise AuthError(
-            "NOT_LOGGED_IN",
-            "the cached token carries no oid claim",
-            hint=errors.HINTS["NOT_LOGGED_IN"],
-        )
-    return oid
 
 
 def resolve_pair(state: str) -> tuple[str, str]:
@@ -76,7 +62,7 @@ def plan_set(
         PlannedRequest(
             "POST",
             f"{base}/setUserPreferredPresence",
-            dict(JSON),
+            dict(JSON_HEADERS),
             {
                 "availability": state,
                 "activity": activity,
@@ -90,7 +76,7 @@ def plan_set(
             PlannedRequest(
                 "POST",
                 f"{base}/setStatusMessage",
-                dict(JSON),
+                dict(JSON_HEADERS),
                 {"statusMessage": {"message": {"content": message, "contentType": "text"}}},
                 expect="none",
             )

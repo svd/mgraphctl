@@ -18,6 +18,20 @@ def test_fmt_dt_converts_z_and_offsets_to_tz():
     assert render.fmt_dt(None, TZ) == "N/A"
 
 
+def test_parse_graph_dt_treats_a_naive_timestamp_as_utc():
+    assert render.parse_graph_dt("2026-08-31T08:15:00") == datetime(2026, 8, 31, 8, 15, tzinfo=UTC)
+    assert render.parse_graph_dt("2026-08-31T08:15:00.1234567Z") == datetime(
+        2026, 8, 31, 8, 15, 0, 123456, tzinfo=UTC
+    )
+
+
+def test_parse_graph_dt_returns_none_for_empty_and_unparsable():
+    assert render.parse_graph_dt(None) is None
+    assert render.parse_graph_dt("") is None
+    assert render.parse_graph_dt("last Tuesday") is None
+    assert render.fmt_dt("last Tuesday", TZ) == "N/A"
+
+
 def test_fmt_dtz_iana_utc_and_windows():
     assert (
         render.fmt_dtz({"dateTime": "2026-08-31T08:15:00.0000000", "timeZone": "UTC"}, TZ)

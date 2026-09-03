@@ -5,6 +5,7 @@ from typing import Annotated
 
 import typer
 
+from mgraphctl import auth
 from mgraphctl.cli import (
     AllFlag,
     DryRunFlag,
@@ -14,9 +15,9 @@ from mgraphctl.cli import (
     graph_command,
     make_noun_app,
     page_bounds,
+    read_body,
 )
-from mgraphctl.commands.teams import read_body
-from mgraphctl.graph import chats, presence, teams, users
+from mgraphctl.graph import chats, teams, users
 from mgraphctl.http import GraphClient
 from mgraphctl.render import (
     Column,
@@ -62,7 +63,7 @@ def list_(
         client, chat_type=chats.normalise_chat_type(chat_type), limit=limit, all_=all_
     )
     items = [c for c in page.items if chats.is_unread(c)] if unread else page.items
-    oid = presence.my_oid()
+    oid = auth.my_oid()
     tz = client.tz
     return ListResult(
         items=items,
@@ -84,7 +85,7 @@ def list_(
 def get(client: GraphClient, chat: ChatArg, json_: JsonFlag = False):
     """Show one chat."""
     chat_id = chats.resolve_chat(client, chat)
-    oid = presence.my_oid()
+    oid = auth.my_oid()
     tz = client.tz
     return ObjectResult(
         obj=chats.get_chat(client, chat_id),
@@ -190,7 +191,7 @@ def dm(
         who,
         body=text,
         html=html,
-        my_oid=presence.my_oid(),
+        my_oid=auth.my_oid(),
         can_create=lambda: gate(CREATE_SCOPES),
     )
     return WriteResult(obj=sent, message="Sent.")
@@ -210,7 +211,7 @@ def create(
 ):
     """Create a chat with the given members."""
     plan = chats.plan_create_chat(
-        client, member_ids=member or [], topic=topic, my_oid=presence.my_oid()
+        client, member_ids=member or [], topic=topic, my_oid=auth.my_oid()
     )
     if dry_run:
         return DryRunResult(plan)

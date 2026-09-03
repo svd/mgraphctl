@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from mgraphctl import odata, resolve
 from mgraphctl.html import to_markdown
-from mgraphctl.http import GraphClient, PageResult, Plan, PlannedRequest
+from mgraphctl.http import JSON_HEADERS, GraphClient, PageResult, Plan, PlannedRequest
 from mgraphctl.render import Column, fmt_dt, truncate
 
 CHANNEL_SELECT = "id,displayName,description,membershipType"
@@ -16,7 +16,6 @@ PAGE_MEMBERS, CAP_MEMBERS = 50, 999
 PAGE_MESSAGES, CAP_MESSAGES = 50, 200
 CAP_TEAMS = CAP_CHANNELS = 999
 BODY_CAP = 300
-JSON = {"Content-Type": "application/json"}
 
 
 def list_teams(client: GraphClient) -> PageResult:
@@ -172,4 +171,4 @@ def plan_channel_send(
     if subject is not None:
         payload["subject"] = subject
     payload["body"] = {"contentType": "html" if html else "text", "content": body}
-    return [PlannedRequest("POST", client.url(odata.p(*segments)), dict(JSON), payload)]
+    return [PlannedRequest("POST", client.url(odata.p(*segments)), dict(JSON_HEADERS), payload)]

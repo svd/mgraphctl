@@ -14,6 +14,7 @@ from mgraphctl.cli import (
     graph_command,
     make_noun_app,
     page_bounds,
+    read_body,
 )
 from mgraphctl.errors import MsgraphError, NotFoundError, UsageError
 from mgraphctl.graph import mail
@@ -103,7 +104,7 @@ def _send_params(
         )
     return mail.SendParams(
         to=recipients,
-        body=mail.read_body(body, body_file),
+        body=read_body(body, body_file),
         cc=_split(cc),
         bcc=_split(bcc),
         subject=subject,
@@ -483,7 +484,7 @@ def reply(
     plan = mail.plan_reply(
         client,
         message_id,
-        body=mail.read_body(body, body_file),
+        body=read_body(body, body_file),
         html=html,
         reply_all=reply_all,
         extra_to=_split(to),

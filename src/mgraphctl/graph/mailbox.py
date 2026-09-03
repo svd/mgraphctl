@@ -9,7 +9,7 @@ from datetime import datetime
 
 from mgraphctl.graph import mail
 from mgraphctl.html import text_to_html
-from mgraphctl.http import GraphClient, PageResult, Plan, PlannedRequest
+from mgraphctl.http import JSON_HEADERS, GraphClient, PageResult, Plan, PlannedRequest
 from mgraphctl.render import to_graph_dtz
 
 SETTINGS_PATH = "/me/mailboxSettings"
@@ -56,7 +56,7 @@ def plan_set_oof(
         PlannedRequest(
             "PATCH",
             client.url(SETTINGS_PATH),
-            dict(mail.JSON),
+            dict(JSON_HEADERS),
             {"automaticRepliesSetting": setting},
         )
     ]

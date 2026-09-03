@@ -13,8 +13,15 @@ from urllib.parse import unquote
 from mgraphctl import config, odata, resolve
 from mgraphctl.errors import NotFoundError, UsageError
 from mgraphctl.graph import teams, users
-from mgraphctl.http import GraphClient, PageResult, Plan, PlannedRequest, SearchResult
-from mgraphctl.render import dig, to_iso_offset
+from mgraphctl.http import (
+    JSON_HEADERS,
+    GraphClient,
+    PageResult,
+    Plan,
+    PlannedRequest,
+    SearchResult,
+)
+from mgraphctl.render import dig, parse_graph_dt, to_iso_offset
 
 CHAT_SELECT = "id,topic,chatType,lastUpdatedDateTime,viewpoint,webUrl"
 CHAT_EXPAND = "members,lastMessagePreview"
@@ -34,9 +41,6 @@ CAP_ONE_ON_ONE = 500
 SEARCH_SIZE, CAP_SEARCH = 25, 200
 HOSTED_NAME_PREFIX = "teams_hosted_"
 HOSTED_ID_IN_NAME = 8
-JSON = {"Content-Type": "application/json"}
-
-_FRACTIONAL_RE = re.compile(r"(\.\d{6})\d+")
 # Every request carries the access token, so a URL taken from a message body is only ever
 # followed when it is a Graph hosted-contents address on our own base (spec §5.1, §10 quirk 21).
 _HOSTED_TAIL = r"/messages/[^/]+/hostedContents/([^/?]+)/\$value(?:\?.*)?$"
@@ -50,19 +54,6 @@ _MAGIC = (
     (b"GIF89a", "gif"),
     (b"%PDF", "pdf"),
 )
-
-
-def _instant(value: str | None) -> datetime | None:
-    """A Graph UTC timestamp as an aware datetime, or None when it is absent or unparsable."""
-    if not value:
-        return None
-    text = _FRACTIONAL_RE.sub(r"\1", value)
-    if text.endswith("Z"):
-        text = text[:-1] + "+00:00"
-    try:
-        return datetime.fromisoformat(text)
-    except ValueError:
-        return None
 
 
 def normalise_chat_type(value: str | None) -> str | None:
@@ -106,10 +97,10 @@ def chat_title(chat: dict, my_oid: str | None) -> str:
 
 def is_unread(chat: dict) -> bool:
     """Whether the last message preview is newer than what the viewpoint says was read."""
-    created = _instant(dig(chat, "lastMessagePreview.createdDateTime"))
+    created = parse_graph_dt(dig(chat, "lastMessagePreview.createdDateTime"))
     if created is None:
         return False
-    read = _instant(dig(chat, "viewpoint.lastMessageReadDateTime"))
+    read = parse_graph_dt(dig(chat, "viewpoint.lastMessageReadDateTime"))
     return read is None or read < created
 
 
@@ -150,7 +141,7 @@ def message_body(body: str, html: bool) -> dict:
 
 def plan_chat_send(client: GraphClient, chat_id: str, *, body: str, html: bool) -> Plan:
     url = client.url(odata.p("chats", chat_id, "messages"))
-    return [PlannedRequest("POST", url, dict(JSON), message_body(body, html))]
+    return [PlannedRequest("POST", url, dict(JSON_HEADERS), message_body(body, html))]
 
 
 def find_one_on_one(client: GraphClient, user_id: str) -> dict | None:
@@ -210,7 +201,7 @@ def plan_create_chat(
     if not member_ids:
         raise UsageError("USAGE", "give at least one --members UPN")
     body = create_chat_body(client, member_ids=member_ids, topic=topic, my_oid=my_oid)
-    return [PlannedRequest("POST", client.url("/chats"), dict(JSON), body)]
+    return [PlannedRequest("POST", client.url("/chats"), dict(JSON_HEADERS), body)]
 
 
 def plan_dm(
@@ -224,7 +215,7 @@ def plan_dm(
             PlannedRequest(
                 "POST",
                 client.url("/chats"),
-                dict(JSON),
+                dict(JSON_HEADERS),
                 create_chat_body(client, member_ids=[user_ref], topic=None, my_oid=ME_PLACEHOLDER),
                 note="only when no 1:1 chat exists",
             )
@@ -232,7 +223,7 @@ def plan_dm(
         send_url = client.url(f"/chats/{CHAT_ID_PLACEHOLDER}/messages")
     else:
         send_url = client.url(odata.p("chats", existing_chat["id"], "messages"))
-    steps.append(PlannedRequest("POST", send_url, dict(JSON), message_body(body, html)))
+    steps.append(PlannedRequest("POST", send_url, dict(JSON_HEADERS), message_body(body, html)))
     return steps
 
 
@@ -259,7 +250,7 @@ def run_dm(
 def _within(hit: dict, after: datetime | None, before: datetime | None) -> bool:
     if after is None and before is None:
         return True
-    created = _instant(dig(hit, "resource.createdDateTime"))
+    created = parse_graph_dt(dig(hit, "resource.createdDateTime"))
     if created is None:
         return False
     if after is not None and created < after:

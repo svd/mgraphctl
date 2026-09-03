@@ -13,7 +13,7 @@ import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -293,16 +293,25 @@ def local_tz() -> str:
     return "UTC"
 
 
+def parse_graph_dt(value: str | None) -> datetime | None:
+    """A Graph timestamp as an aware datetime (bare ones are UTC), or None when unusable."""
+    if not value:
+        return None
+    text = _FRACTIONAL_RE.sub(r"\1", value)
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
 def fmt_dt(value: str | None, tz: str) -> str:
-    """Render an ISO datetime string (`Z` or offset) in `tz`, or "N/A" for None."""
-    if value is None:
+    """Render an ISO datetime string (`Z` or offset) in `tz`, or "N/A" when there is none."""
+    dt = parse_graph_dt(value)
+    if dt is None:
         return "N/A"
-    v = _FRACTIONAL_RE.sub(r"\1", value)
-    if v.endswith("Z"):
-        v = v[:-1] + "+00:00"
-    dt = datetime.fromisoformat(v)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=ZoneInfo(tz))
     return dt.astimezone(ZoneInfo(tz)).isoformat(timespec="minutes")
 
 

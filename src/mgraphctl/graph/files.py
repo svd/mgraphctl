@@ -14,12 +14,18 @@ from typing import Any
 
 from mgraphctl import config, odata, resolve
 from mgraphctl.errors import UsageError
-from mgraphctl.http import DownloadResult, GraphClient, PageResult, Plan, PlannedRequest
+from mgraphctl.http import (
+    JSON_HEADERS,
+    DownloadResult,
+    GraphClient,
+    PageResult,
+    Plan,
+    PlannedRequest,
+)
 from mgraphctl.render import Column, fmt_dt, fmt_size, to_iso_offset
 
 ITEM_SELECT = "id,name,size,lastModifiedDateTime,file,folder,webUrl,parentReference"
 PAGE_LS, CAP_LS = 200, 1000
-JSON = {"Content-Type": "application/json"}
 CONFLICT_BEHAVIORS = frozenset({"rename", "replace", "fail"})
 
 
@@ -127,7 +133,13 @@ def plan_upload(
     note = f"upload {size} bytes in {ceil(size / config.CHUNK_DRIVE)} chunks"
     return [
         PlannedRequest(
-            "POST", url, dict(JSON), body, file=file, chunk_size=config.CHUNK_DRIVE, note=note
+            "POST",
+            url,
+            dict(JSON_HEADERS),
+            body,
+            file=file,
+            chunk_size=config.CHUNK_DRIVE,
+            note=note,
         )
     ]
 
@@ -153,7 +165,7 @@ def plan_mkdir(client: GraphClient, base: str, path: str) -> Plan:
         name = clean
         url = client.url(f"{base}/root/children")
     body = {"name": name, "folder": {}, "@microsoft.graph.conflictBehavior": "fail"}
-    return [PlannedRequest("POST", url, dict(JSON), body)]
+    return [PlannedRequest("POST", url, dict(JSON_HEADERS), body)]
 
 
 def run_mkdir(client: GraphClient, base: str, path: str) -> dict:
@@ -173,7 +185,7 @@ def plan_move(client: GraphClient, base: str, ref: str, to: str, name: str | Non
     if name is not None:
         body["name"] = name
     url = client.url(item_ref(base, ref))
-    return [PlannedRequest("PATCH", url, dict(JSON), body)]
+    return [PlannedRequest("PATCH", url, dict(JSON_HEADERS), body)]
 
 
 def run_move(client: GraphClient, base: str, ref: str, to: str, name: str | None) -> dict:
@@ -182,7 +194,7 @@ def run_move(client: GraphClient, base: str, ref: str, to: str, name: str | None
 
 def plan_rename(client: GraphClient, base: str, ref: str, name: str) -> Plan:
     url = client.url(item_ref(base, ref))
-    return [PlannedRequest("PATCH", url, dict(JSON), {"name": name})]
+    return [PlannedRequest("PATCH", url, dict(JSON_HEADERS), {"name": name})]
 
 
 def run_rename(client: GraphClient, base: str, ref: str, name: str) -> dict:
@@ -211,7 +223,7 @@ def plan_share(
     if expires is not None:
         body["expirationDateTime"] = to_iso_offset(expires)
     url = client.url(_action_path(base, ref, "createLink"))
-    return [PlannedRequest("POST", url, dict(JSON), body)]
+    return [PlannedRequest("POST", url, dict(JSON_HEADERS), body)]
 
 
 def run_share(

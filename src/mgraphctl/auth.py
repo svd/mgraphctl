@@ -171,6 +171,18 @@ def cached_access_token() -> str | None:
     return newest.get("secret")
 
 
+def my_oid() -> str:
+    """The signed-in user's object id, read from the cached token (no `/me` call)."""
+    oid = decode_jwt(cached_access_token() or "").get("oid")
+    if not oid:
+        raise AuthError(
+            "NOT_LOGGED_IN",
+            "the cached token carries no oid claim",
+            hint=errors.HINTS["NOT_LOGGED_IN"],
+        )
+    return oid
+
+
 def account_upn() -> str | None:
     s = config.settings()
     if _replay_mode(s):

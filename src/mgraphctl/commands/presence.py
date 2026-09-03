@@ -4,6 +4,7 @@ from typing import Annotated
 
 import typer
 
+from mgraphctl import auth
 from mgraphctl.cli import DryRunFlag, JsonFlag, gate, graph_command, make_noun_app
 from mgraphctl.graph import presence as presence_api
 from mgraphctl.graph import users
@@ -78,7 +79,7 @@ def set_(
     availability, _ = presence_api.resolve_pair(state)
     plan = presence_api.plan_set(
         client,
-        presence_api.my_oid(),
+        auth.my_oid(),
         state,
         expiration=parse_duration(expiration),
         message=message,
@@ -94,7 +95,7 @@ def set_(
 @graph_command(scopes=["Presence.ReadWrite"])
 def clear(client: GraphClient, dry_run: DryRunFlag = False, json_: JsonFlag = False):
     """Clear your preferred presence, handing it back to Teams."""
-    plan = presence_api.plan_clear(client, presence_api.my_oid())
+    plan = presence_api.plan_clear(client, auth.my_oid())
     if dry_run:
         return DryRunResult(plan)
     client.execute(plan[0])

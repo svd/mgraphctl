@@ -1,6 +1,5 @@
 """OneNote notebooks, sections and pages (spec §8.13)."""
 
-import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -14,8 +13,8 @@ from mgraphctl.cli import (
     graph_command,
     make_noun_app,
     page_bounds,
+    read_body,
 )
-from mgraphctl.errors import UsageError
 from mgraphctl.graph import onenote
 from mgraphctl.html import to_markdown
 from mgraphctl.http import GraphClient
@@ -34,14 +33,6 @@ from mgraphctl.render import (
 DEFAULT_LIMIT = 50
 
 app = make_noun_app("OneNote notebooks and pages.")
-
-
-def _body_text(body: str | None, body_file: str | None) -> str:
-    if (body is None) == (body_file is None):
-        raise UsageError("USAGE", "give exactly one of --body or --body-file")
-    if body is not None:
-        return body
-    return sys.stdin.read() if body_file == "-" else Path(body_file).read_text()
 
 
 @app.command("notebooks")
@@ -172,7 +163,7 @@ def create(
     json_: JsonFlag = False,
 ):
     """Create a page in a OneNote section."""
-    text = _body_text(body, body_file)
+    text = read_body(body, body_file)
     section_id = onenote.resolve_section(client, section)
     plan = onenote.plan_create_page(client, section_id, title=title, body=text, html=html_)
     if dry_run:

@@ -29,6 +29,7 @@ log = logging.getLogger("mgraphctl.http")
 TIMEOUT = httpx.Timeout(connect=10, read=60, write=60, pool=10)
 LONG = httpx.Timeout(connect=10, read=300, write=300, pool=10)
 BATCH_CHUNK = 20
+JSON_HEADERS = {"Content-Type": "application/json"}
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 LOG_BODY_LIMIT = 2048
 # Replaying these is safe: the server either ignores the repeat or applies the same state.

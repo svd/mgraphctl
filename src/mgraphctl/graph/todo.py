@@ -10,10 +10,9 @@ from typing import Any
 
 from mgraphctl import odata, render
 from mgraphctl.errors import UsageError
-from mgraphctl.http import GraphClient, PageResult, Plan, PlannedRequest
+from mgraphctl.http import JSON_HEADERS, GraphClient, PageResult, Plan, PlannedRequest
 from mgraphctl.resolve import looks_like_id, pick_unique, split_id_prefix
 
-JSON = {"Content-Type": "application/json"}
 LIST_PAGE = 100
 TASK_PAGE = 100
 CAP_TASKS = 500
@@ -119,7 +118,7 @@ def task_body(
 def plan_create(client: GraphClient, list_id: str, **opts: Any) -> Plan:
     body = task_body(**opts)
     url = client.url(odata.p("me", "todo", "lists", list_id, "tasks"))
-    return [PlannedRequest("POST", url, dict(JSON), body)]
+    return [PlannedRequest("POST", url, dict(JSON_HEADERS), body)]
 
 
 def run_create(client: GraphClient, list_id: str, **opts: Any) -> dict:
@@ -129,7 +128,7 @@ def run_create(client: GraphClient, list_id: str, **opts: Any) -> dict:
 def plan_update(client: GraphClient, list_id: str, task_id: str, **opts: Any) -> Plan:
     body = task_body(**opts)
     url = client.url(odata.p("me", "todo", "lists", list_id, "tasks", task_id))
-    return [PlannedRequest("PATCH", url, dict(JSON), body)]
+    return [PlannedRequest("PATCH", url, dict(JSON_HEADERS), body)]
 
 
 def run_update(client: GraphClient, list_id: str, task_id: str, **opts: Any) -> dict:
@@ -193,7 +192,7 @@ def plan_from_mail(
             raise UsageError("USAGE", "--importance must be low, normal or high")
         body["importance"] = importance
     url = client.url(odata.p("me", "todo", "lists", list_id, "tasks"))
-    return [PlannedRequest("POST", url, dict(JSON), body)]
+    return [PlannedRequest("POST", url, dict(JSON_HEADERS), body)]
 
 
 def run_from_mail(client: GraphClient, list_id: str, message: dict, **opts: Any) -> dict:
