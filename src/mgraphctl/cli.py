@@ -172,11 +172,11 @@ def _version_cb(value: bool) -> None:
 
 
 def _configure_logging(level: int) -> None:
-    """Bind logging to the current stderr and prefix every line with DEBUG (§5.7)."""
+    """Bind logging to the current stderr and prefix every line with its level (§5.7)."""
     logging.basicConfig(
         stream=sys.stderr,
         level=logging.DEBUG if level else logging.WARNING,
-        format="DEBUG %(message)s",
+        format="%(levelname)s %(message)s",
         force=True,
     )
     logging.getLogger("msal").setLevel(logging.INFO if level else logging.WARNING)

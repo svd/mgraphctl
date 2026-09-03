@@ -321,6 +321,15 @@ def test_calendar_create_full_body(invoke, graph):
 
 
 @covers("calendar create")
+def test_calendar_create_all_day_rejects_a_start_with_a_time(invoke, graph):
+    r = invoke(
+        "calendar", "create", "--subject", "Offsite", "--start", "2026-09-05T09:00", "--all-day"
+    )
+    assert r.exit_code == 2 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: --all-day needs a date-only --start/--end")
+
+
+@covers("calendar create")
 def test_calendar_create_all_day_defaults_end(invoke, graph):
     route = graph.post(f"{GRAPH}/v1.0/me/events").mock(
         return_value=httpx.Response(

@@ -75,7 +75,9 @@ def save_cache() -> None:
     tmp: str | None = None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.parent.chmod(0o700)
+        # A directory we do not own cannot be chmod-ed, but the 0600 file still goes in it.
+        with contextlib.suppress(OSError):
+            path.parent.chmod(0o700)
         # A unique temp file in the same directory: two concurrent invocations must not
         # write through one another's half-finished file before os.replace lands.
         fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f"{path.name}.", suffix=".tmp")

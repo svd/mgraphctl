@@ -148,7 +148,10 @@ def download(
 @graph_command(scopes=["Files.ReadWrite"])
 def upload(
     client: GraphClient,
-    file: Annotated[Path, typer.Argument(metavar="FILE", help="Local file to upload.")],
+    file: Annotated[
+        Path,
+        typer.Argument(metavar="FILE", help="Local file to upload.", exists=True, dir_okay=False),
+    ],
     drive: DriveOpt = None,
     dest: Annotated[
         str | None,

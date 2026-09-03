@@ -56,7 +56,6 @@ def list_(client: GraphClient, json_: JsonFlag = False):
     return ListResult(
         items=page.items,
         truncated=page.truncated,
-        hit_cap=teams.CAP_TEAMS,
         empty_text="No teams.",
         columns=[
             Column("id", "id"),
@@ -110,7 +109,6 @@ def channels(client: GraphClient, team: TeamArg, json_: JsonFlag = False):
     return ListResult(
         items=page.items,
         truncated=page.truncated,
-        hit_cap=teams.CAP_CHANNELS,
         empty_text="No channels.",
         columns=[
             Column("id", "id"),

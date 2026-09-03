@@ -96,4 +96,7 @@ def chain(
         gate(["User.Read.All"])
         levels = org.chain_iterative(client, upn, max_levels=max_)
     text = "\n".join(_chain_line(i, person) for i, person in enumerate(levels))
-    return TextResult(text=text, json_obj=levels)
+    return TextResult(
+        text=text,
+        json_obj={"items": levels, "count": len(levels), "truncated": False},
+    )

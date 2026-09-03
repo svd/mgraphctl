@@ -53,6 +53,25 @@ def test_record_then_replay_json_roundtrip(tmp_path):
         }
 
 
+def test_record_redacts_credentials_in_a_json_body(tmp_path):
+    with respx.mock:
+        respx.post(f"{V1}/me/drive/items/i1/createUploadSession").mock(
+            return_value=httpx.Response(
+                200, json={"uploadUrl": "https://up.example.com/s?tempauth=abc", "id": "s1"}
+            )
+        )
+        recorder = fixtures.FixtureTransport(tmp_path, record=True, inner=httpx.HTTPTransport())
+        with _client(recorder) as c:
+            live = c.post("/me/drive/items/i1/createUploadSession", json={})
+    # The live response still carries the real URL; only what lands on disk is redacted.
+    assert live["uploadUrl"] == "https://up.example.com/s?tempauth=abc"
+
+    key = "POST /v1.0/me/drive/items/i1/createUploadSession"
+    entry = json.loads(fixtures.fixture_path(tmp_path, key).read_text())["responses"][0]
+    assert entry["body"] == {"uploadUrl": "***", "id": "s1"}
+    assert "tempauth" not in json.dumps(entry)
+
+
 def test_replay_binary_download_strips_query_on_unauthenticated_client(tmp_path):
     payload = b"\x89PNG\r\n\x1a\n" + bytes(range(256))
     fixture_dir = tmp_path / "fx"

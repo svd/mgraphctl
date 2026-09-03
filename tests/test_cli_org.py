@@ -105,7 +105,8 @@ def test_org_chain_expand_then_fallback(invoke, graph):
     r = invoke("org", "chain", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
-    assert [level["displayName"] for level in doc] == [
+    assert doc["count"] == 3 and doc["truncated"] is False
+    assert [level["displayName"] for level in doc["items"]] == [
         "Ada Example",
         "Bob Manager",
         "Carol Director",
@@ -208,7 +209,7 @@ def test_org_chain_max_bound_truncates_on_the_expand_path(invoke, graph):
     r = invoke("org", "chain", "--max", "1", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
-    assert [level["displayName"] for level in doc] == ["Level 0", "Level 1"]
+    assert [level["displayName"] for level in doc["items"]] == ["Level 0", "Level 1"]
 
 
 @covers("org chain")
@@ -229,7 +230,7 @@ def test_org_chain_max_bound_truncates_on_the_iterative_path(invoke, graph):
     r = invoke("org", "chain", "--max", "1", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
-    assert [level["displayName"] for level in doc] == ["Level 0", "Level 1"]
+    assert [level["displayName"] for level in doc["items"]] == ["Level 0", "Level 1"]
     assert manager1.call_count == 1
 
 

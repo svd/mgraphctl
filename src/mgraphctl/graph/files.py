@@ -93,11 +93,16 @@ def _action_path(base: str, ref: str, action: str) -> str:
     return item_ref(base, ref) + sep + action
 
 
+def _default_name(item: dict) -> Path:
+    """Where a download lands with no `--output`: the item's basename, never a path Graph chose."""
+    return Path(Path(item.get("name") or "").name or item["id"])
+
+
 def download_item(
     client: GraphClient, base: str, ref: str, dest: Path | None
 ) -> tuple[dict, DownloadResult]:
     item = get_item(client, base, ref)
-    result = client.download(_action_path(base, ref, "content"), dest or Path(item["name"]))
+    result = client.download(_action_path(base, ref, "content"), dest or _default_name(item))
     return item, result
 
 
@@ -249,7 +254,7 @@ def download_shared_item(
 ) -> tuple[dict, DownloadResult]:
     item = get_shared_item(client, url)
     result = client.download(
-        f"/shares/{odata.share_id(url)}/driveItem/content", dest or Path(item["name"])
+        f"/shares/{odata.share_id(url)}/driveItem/content", dest or _default_name(item)
     )
     return item, result
 

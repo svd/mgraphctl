@@ -41,7 +41,7 @@ UPLOAD_STALL_LIMIT = 3
 
 Expect = Literal["json", "bytes", "text", "none", "response"]
 
-_TOKEN_IN_BODY = re.compile(r'("(?:access|refresh)_token"\s*:\s*")[^"]*"')
+_TOKEN_IN_BODY = re.compile(r'("(?:access_token|refresh_token|uploadUrl)"\s*:\s*")[^"]*"')
 
 # Hosts the bearer token may ever be sent to: the host of the configured Graph base URLs,
 # derived (not hard-coded) so this stays in lockstep with config.py. A caller can pass an

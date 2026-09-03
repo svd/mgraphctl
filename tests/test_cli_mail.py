@@ -479,6 +479,23 @@ def test_mail_drafts_list_json_limit(invoke, graph):
 
 
 @covers("mail send")
+def test_mail_send_absent_attachment_is_a_usage_error(invoke, graph, tmp_path):
+    r = invoke(
+        "mail",
+        "send",
+        "--to",
+        "ada@example.com",
+        "--subject",
+        "Hi",
+        "--body",
+        "x",
+        "--attach",
+        str(tmp_path / "gone.txt"),
+    )
+    assert r.exit_code == 2 and graph.calls.call_count == 0
+
+
+@covers("mail send")
 def test_mail_send_inline_path(invoke, graph, tmp_path):
     f = tmp_path / "a.txt"
     f.write_bytes(b"hello")

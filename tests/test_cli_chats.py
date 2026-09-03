@@ -406,6 +406,29 @@ def test_hosted_content_triplet_and_url(invoke, graph, tmp_path, monkeypatch):
 
 
 @covers("chats hosted-content")
+@pytest.mark.scopes(["ChannelMessage.Read.All"])
+def test_hosted_content_channel_url_does_not_need_chat_read(invoke, graph, monkeypatch, tmp_path):
+    """The verb declares no scope; a channel target is gated on ChannelMessage.Read.All alone."""
+    monkeypatch.chdir(tmp_path)
+    channel_url = (
+        f"{GRAPH}/v1.0/teams/{TEAM}/channels/19%3Achannel-0001%40thread.tacv2"
+        "/messages/1/hostedContents/aWQ=/$value"
+    )
+    route = graph.get(channel_url).mock(return_value=httpx.Response(200, content=PNG))
+    r = invoke("chats", "hosted-content", channel_url, "--json")
+    assert r.exit_code == 0, r.stderr
+    assert route.called and json.loads(r.stdout) == {"path": "teams_hosted_aWQ=.png", "bytes": 8}
+
+
+@covers("chats hosted-content")
+@pytest.mark.scopes(["ChannelMessage.Read.All"])
+def test_hosted_content_chat_target_still_needs_chat_read(invoke, graph):
+    r = invoke("chats", "hosted-content", CHAT, "AAMk-chat-0003", "aWQ=")
+    assert r.exit_code == 3 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[MISSING_SCOPE]: this command needs Chat.Read;")
+
+
+@covers("chats hosted-content")
 @pytest.mark.scopes(["Chat.Read"])
 def test_hosted_content_channel_url_needs_channel_scope(invoke, graph):
     channel_url = (

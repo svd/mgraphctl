@@ -118,7 +118,7 @@ def test_planner_tasks_limit_client_side(invoke, graph):
     assert tasks_route.calls.last.request.url.query == b""
 
     text_result = invoke("planner", "tasks", "Roadmap", "--limit", "2")
-    assert "hit the 2-item cap" in text_result.stderr
+    assert "more results available" in text_result.stderr
 
 
 @covers("planner plans")
@@ -130,7 +130,7 @@ def test_planner_plans_truncated_by_limit(invoke, graph):
     assert doc["count"] == 1 and doc["truncated"] is True
 
     text_result = invoke("planner", "plans", "--limit", "1")
-    assert "hit the 1-item cap" in text_result.stderr
+    assert "more results available" in text_result.stderr
 
 
 @covers("planner tasks")
@@ -142,7 +142,7 @@ def test_planner_tasks_my_truncated_by_limit(invoke, graph):
     assert doc["count"] == 1 and doc["truncated"] is True
 
     text_result = invoke("planner", "tasks", "--my", "--limit", "1")
-    assert "hit the 1-item cap" in text_result.stderr
+    assert "more results available" in text_result.stderr
 
 
 @covers("planner plans")

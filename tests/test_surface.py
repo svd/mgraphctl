@@ -1,8 +1,16 @@
 """Every registered verb is covered by a test and carries --json (spec §11)."""
 
+import importlib
+from pathlib import Path
+
 import typer.main
 
 import helpers
+
+# `@covers` fills helpers.VERBS_TESTED at import time, so this file has to pull every CLI test
+# module in itself — otherwise `pytest tests/test_surface.py` alone sees an empty registry.
+for _path in sorted(Path(__file__).parent.glob("test_cli_*.py")):
+    importlib.import_module(_path.stem)
 
 
 def walk(app):

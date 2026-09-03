@@ -11,6 +11,7 @@ import httpx
 
 from mgraphctl import config
 from mgraphctl.errors import FixtureError
+from mgraphctl.http import _TOKEN_IN_BODY
 
 # Recorded responses never carry credentials, and never carry framing that would not
 # survive re-serialising the body.
@@ -52,7 +53,9 @@ def _encode_body(response: httpx.Response) -> dict:
     content_type = response.headers.get("content-type", "")
     if "json" in content_type:
         try:
-            return {"body": json.loads(raw)}
+            # A recorded body must never keep a token: `uploadUrl` and the OAuth pair are
+            # redacted here exactly as the debug log redacts them.
+            return {"body": json.loads(_TOKEN_IN_BODY.sub(r'\1***"', raw.decode("utf-8")))}
         except (json.JSONDecodeError, UnicodeDecodeError):
             pass
     if content_type.startswith("text/"):

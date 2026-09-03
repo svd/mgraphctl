@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from typing import Any
 
 from mgraphctl import odata
+from mgraphctl.errors import UsageError
 from mgraphctl.http import JSON_HEADERS, GraphClient, PageResult, Plan, PlannedRequest
 from mgraphctl.render import fmt_person, iso_duration, to_graph_dtz, to_iso_offset
 from mgraphctl.resolve import looks_like_id, pick_unique, split_id_prefix
@@ -165,6 +166,8 @@ class EventParams:
 
 def event_body(p: EventParams, tz: str, *, partial: bool) -> dict:
     """The JSON body for `create` (`partial=False`) or `update` (`partial=True`, given fields)."""
+    if p.all_day and p.start is not None and p.start.time() != time():
+        raise UsageError("USAGE", "--all-day needs a date-only --start/--end")
     body: dict[str, Any] = {}
     if p.subject is not None:
         body["subject"] = p.subject

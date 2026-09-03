@@ -755,7 +755,10 @@ def test_debug_log_redacts(caplog, monkeypatch):
     respx.get(f"{V1}/me").mock(
         return_value=httpx.Response(
             200,
-            content=b'{"access_token": "s3cr3t-value", "id": "1"}',
+            content=(
+                b'{"access_token": "s3cr3t-value",'
+                b' "uploadUrl": "https://up.example.com/s?tempauth=t0ken", "id": "1"}'
+            ),
             headers={"Content-Type": "application/json", "request-id": "req-0001"},
         )
     )
@@ -769,5 +772,7 @@ def test_debug_log_redacts(caplog, monkeypatch):
     )
     body_lines = [m for m in caplog.messages if "access_token" in m]
     assert body_lines and '"access_token": "***"' in body_lines[0]
-    assert "s3cr3t-value" not in caplog.text
+    # An upload session's uploadUrl is a bearer credential of its own (spec §5.4).
+    assert '"uploadUrl": "***"' in body_lines[0]
+    assert "s3cr3t-value" not in caplog.text and "t0ken" not in caplog.text
     assert "Authorization" not in caplog.text and "tok-1" not in caplog.text

@@ -245,7 +245,7 @@ def download_url(
 ) -> tuple[Resolution, DownloadResult]:
     resolution, content_path = _resolve(client, url)
     name = resolution.item.get("name") or url.rsplit("/", 1)[-1].split("?", 1)[0]
-    result = client.download(content_path, dest or Path(name))
+    result = client.download(content_path, dest or Path(Path(name).name or resolution.item["id"]))
     return resolution, result
 
 

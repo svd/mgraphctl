@@ -260,7 +260,7 @@ def search(
 
 
 @app.command("hosted-content")
-@graph_command(scopes=["Chat.Read"])
+@graph_command(scopes=[])
 def hosted_content(
     client: GraphClient,
     chat: Annotated[
@@ -277,8 +277,8 @@ def hosted_content(
 ):
     """Download an image or file hosted inside a Teams message."""
     target, hosted_id, is_channel = chats.hosted_content_target(chat, msg_id, hc_id)
-    if is_channel:
-        gate(CHANNEL_SCOPES)  # A channel URL reads channel messages, not chats (spec §8.8).
+    # A channel URL reads channel messages, not chats, so the gate follows the form (spec §8.8).
+    gate(CHANNEL_SCOPES if is_channel else ["Chat.Read"])
     # The name's extension comes from the bytes, so they are read before the file is opened.
     data = client.request("GET", target, expect="bytes") or b""
     dest = output or Path(chats.hosted_content_name(hosted_id, data))

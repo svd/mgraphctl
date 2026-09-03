@@ -283,6 +283,12 @@ def test_onedrive_upload_dry_run(invoke, graph, tmp_path):
 
 
 @covers("onedrive upload")
+def test_onedrive_upload_absent_file_is_a_usage_error(invoke, graph, tmp_path):
+    r = invoke("onedrive", "upload", str(tmp_path / "gone.txt"))
+    assert r.exit_code == 2 and graph.calls.call_count == 0
+
+
+@covers("onedrive upload")
 @pytest.mark.scopes(["Files.Read"])
 def test_onedrive_upload_missing_scope(invoke, graph, tmp_path):
     src = tmp_path / "a.txt"

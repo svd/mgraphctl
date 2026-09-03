@@ -71,8 +71,11 @@ def test_debug_logs_to_stderr(invoke, graph):
     r = invoke("--debug", "me", "--json")
     assert r.exit_code == 0 and json.loads(r.stdout)["id"] == "1"
     assert "GET https://graph.microsoft.com/v1.0/me" in r.stderr and "Bearer" not in r.stderr
-    request_lines = [ln for ln in r.stderr.splitlines() if "/v1.0/me" in ln]
+    # Our own request lines are the ones carrying the attempt count; httpx logs the same
+    # request at INFO, and the level prefix is now the record's real level, not a fixed "DEBUG".
+    request_lines = [ln for ln in r.stderr.splitlines() if "/v1.0/me" in ln and "[attempt " in ln]
     assert request_lines and all(ln.startswith("DEBUG ") for ln in request_lines)
+    assert any(ln.startswith("INFO ") for ln in r.stderr.splitlines())
 
 
 def test_registry_lists_every_noun():

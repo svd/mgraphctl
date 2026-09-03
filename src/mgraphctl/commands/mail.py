@@ -54,7 +54,8 @@ BodyOpt = Annotated[str | None, typer.Option("--body", help="Message body.")]
 BodyFileOpt = Annotated[str | None, typer.Option("--body-file", help="Body file, or - for stdin.")]
 HtmlOpt = Annotated[bool, typer.Option("--html", help="The body is HTML, not plain text.")]
 AttachOpt = Annotated[
-    list[Path] | None, typer.Option("--attach", help="File to attach (repeatable).")
+    list[Path] | None,
+    typer.Option("--attach", help="File to attach (repeatable).", exists=True, dir_okay=False),
 ]
 ImportanceOpt = Annotated[str, typer.Option("--importance", help="low, normal or high.")]
 MessageIdArg = Annotated[str, typer.Argument(metavar="ID", help="Message id.")]
