@@ -1106,5 +1106,6 @@ def test_mail_group_help(invoke):
     result = invoke("mail")
     assert result.exit_code == 0 and "Usage:" in result.stdout
     assert "list" in result.stdout and "read" in result.stdout
-    result = invoke("mail", "drafts")
-    assert result.exit_code == 0 and "Usage:" in result.stdout
+    for group in ("drafts", "rules"):
+        result = invoke("mail", group)
+        assert result.exit_code == 0 and "Usage:" in result.stdout
