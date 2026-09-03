@@ -1,0 +1,15 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/mailboxSettings/automaticRepliesSetting",
+    "status": 200,
+    "json": {
+      "status": "scheduled",
+      "externalAudience": "contactsOnly",
+      "scheduledStartDateTime": {"dateTime": "2026-09-10T06:00:00.0000000", "timeZone": "UTC"},
+      "scheduledEndDateTime": {"dateTime": "2026-09-12T16:00:00.0000000", "timeZone": "UTC"},
+      "internalReplyMessage": "<p>Away until Monday.</p>",
+      "externalReplyMessage": "<p>Away until Monday.</p>"
+    }
+  }
+]

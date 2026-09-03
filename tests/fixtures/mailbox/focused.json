@@ -1,0 +1,27 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/mailFolders/inbox/messages",
+    "query": {
+      "$select": "id,subject,from,toRecipients,ccRecipients,receivedDateTime,isRead,hasAttachments,importance,bodyPreview,conversationId,webLink,inferenceClassification",
+      "$filter": "receivedDateTime ge 2026-08-03T12:00:00+02:00 and inferenceClassification eq 'focused'",
+      "$orderby": "receivedDateTime desc",
+      "$top": "50"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMk-msg-0001",
+          "subject": "Sprint review",
+          "isRead": false,
+          "hasAttachments": true,
+          "importance": "high",
+          "receivedDateTime": "2026-08-31T08:15:00Z",
+          "inferenceClassification": "focused",
+          "from": {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}}
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/mailboxSettings",
+    "status": 200,
+    "json": {
+      "userPurpose": "user",
+      "dateFormat": "dd.MM.yyyy",
+      "timeFormat": "HH:mm",
+      "timeZone": "Central European Standard Time",
+      "language": {"locale": "en-GB", "displayName": "English (United Kingdom)"},
+      "workingHours": {
+        "daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        "startTime": "08:00:00.0000000",
+        "endTime": "17:00:00.0000000",
+        "timeZone": {"name": "Europe/Warsaw"}
+      },
+      "automaticRepliesSetting": {
+        "status": "disabled",
+        "externalAudience": "none",
+        "internalReplyMessage": "",
+        "externalReplyMessage": ""
+      }
+    }
+  }
+]
