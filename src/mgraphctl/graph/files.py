@@ -6,14 +6,13 @@ Pure: client + params in, Graph dicts / PageResult / Plan out. `base` is one of 
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from math import ceil
 from mimetypes import guess_type
 from pathlib import Path
 from typing import Any
 
-from mgraphctl import config, odata
+from mgraphctl import config, odata, resolve
 from mgraphctl.errors import UsageError
 from mgraphctl.http import DownloadResult, GraphClient, PageResult, Plan, PlannedRequest
 from mgraphctl.render import Column, fmt_dt, fmt_size, to_iso_offset
@@ -23,25 +22,11 @@ PAGE_LS, CAP_LS = 200, 1000
 JSON = {"Content-Type": "application/json"}
 CONFLICT_BEHAVIORS = frozenset({"rename", "replace", "fail"})
 
-# spec §6.6 "drive ID|PATH" row: an id never contains "." or "/".
-_ID_RE = re.compile(r"^[A-Za-z0-9!]{20,}$")
-
-
-def _split_id_prefix(ref: str) -> tuple[str, bool]:
-    """Strip a forcing `id:` prefix; `(value, True)` when it was present."""
-    if ref.startswith("id:"):
-        return ref[3:], True
-    return ref, False
-
-
-def _looks_like_id(value: str) -> bool:
-    return bool(_ID_RE.match(value))
-
 
 def item_ref(base: str, ref: str) -> str:
     """`{base}/items/{id}` for an id (or `id:`-forced value), else `{base}/root:/{path}`."""
-    value, forced = _split_id_prefix(ref)
-    if forced or _looks_like_id(value):
+    value, forced = resolve.split_id_prefix(ref)
+    if resolve.looks_like_id(ref, "drive_item"):
         return f"{base}/items" + odata.p(value)
     return f"{base}/root:/{odata.drive_path(value.lstrip('/'))}"
 
@@ -85,8 +70,8 @@ def get_item(client: GraphClient, base: str, ref: str) -> dict:
 
 
 def resolve_item_id(client: GraphClient, base: str, ref: str) -> str:
-    value, forced = _split_id_prefix(ref)
-    if forced or _looks_like_id(value):
+    value, forced = resolve.split_id_prefix(ref)
+    if resolve.looks_like_id(ref, "drive_item"):
         return value
     return get_item(client, base, ref)["id"]
 
@@ -98,8 +83,7 @@ def _action_path(base: str, ref: str, action: str) -> str:
     (`/items/{id}/action`); a path-form ref (`{base}/root:/{path}`) needs the path's closing
     colon before the action segment (`root:/{path}:/action`) or Graph 400s.
     """
-    value, forced = _split_id_prefix(ref)
-    sep = "/" if (forced or _looks_like_id(value)) else ":/"
+    sep = "/" if resolve.looks_like_id(ref, "drive_item") else ":/"
     return item_ref(base, ref) + sep + action
 
 
@@ -177,7 +161,7 @@ def run_mkdir(client: GraphClient, base: str, path: str) -> dict:
 
 
 def _resolve_folder_id(client: GraphClient, base: str, to: str) -> str:
-    value, forced = _split_id_prefix(to)
+    value, forced = resolve.split_id_prefix(to)
     if forced:
         return value
     return get_item(client, base, to)["id"]
