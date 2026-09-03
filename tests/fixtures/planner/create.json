@@ -1,0 +1,52 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/planner/plans",
+    "status": 200,
+    "json": {"value": [{"id": "plan-0001", "title": "Roadmap"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/memberOf/microsoft.graph.group",
+    "query": {
+      "$filter": "groupTypes/any(c:c eq 'Unified')",
+      "$count": "true",
+      "$select": "id,displayName",
+      "$top": "999"
+    },
+    "status": 200,
+    "json": {"value": []}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001/buckets",
+    "status": 200,
+    "json": {"value": [{"id": "bucket-0001", "name": "Backlog"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/users/ada%40example.com",
+    "query": {"$select": "id"},
+    "status": 200,
+    "json": {"id": "oid-ada-0001"}
+  },
+  {
+    "method": "POST",
+    "path": "/v1.0/planner/tasks",
+    "status": 201,
+    "json": {"id": "task-0001", "planId": "plan-0001", "bucketId": "bucket-0001", "title": "T",
+             "@odata.etag": "W/\"etag-task-1\""}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/tasks/task-0001/details",
+    "status": 200,
+    "json": {"@odata.etag": "W/\"etag-details-1\""}
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1.0/planner/tasks/task-0001/details",
+    "status": 200,
+    "json": {"@odata.etag": "W/\"etag-details-2\"", "description": "D"}
+  }
+]

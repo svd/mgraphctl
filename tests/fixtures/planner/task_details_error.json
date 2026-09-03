@@ -1,0 +1,17 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/tasks/task-0001",
+    "status": 200,
+    "json": {"id": "task-0001", "title": "Design schema", "planId": "plan-0001",
+             "bucketId": "bucket-0001", "percentComplete": 0, "priority": 5,
+             "dueDateTime": "2026-09-05T00:00:00Z"}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/tasks/task-0001/details",
+    "status": 403,
+    "json": {"error": {"code": "Forbidden", "message": "no details access",
+                        "innerError": {"request-id": "req-0099", "date": "2026-09-02T00:00:00"}}}
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/planner/plans",
+    "status": 200,
+    "json": {"value": [{"id": "plan-0001", "title": "Roadmap"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/memberOf/microsoft.graph.group",
+    "query": {
+      "$filter": "groupTypes/any(c:c eq 'Unified')",
+      "$count": "true",
+      "$select": "id,displayName",
+      "$top": "999"
+    },
+    "status": 200,
+    "json": {"value": []}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001",
+    "status": 200,
+    "json": {"id": "plan-0001", "title": "Roadmap", "createdDateTime": "2026-08-01T09:00:00Z"}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001/details",
+    "status": 200,
+    "json": {"@odata.etag": "W/\"etag-d1\"", "description": "Plan description"}
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001",
+    "status": 200,
+    "json": {"id": "plan-0001", "title": "Roadmap"}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001/details",
+    "status": 200,
+    "json": {"@odata.etag": "W/\"d1\""}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001/buckets",
+    "status": 200,
+    "json": {"value": [{"id": "bucket-0001", "name": "Backlog"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001/tasks",
+    "status": 200,
+    "json": {"value": [{"id": "task-0001", "title": "T", "percentComplete": 0, "bucketId": "bucket-0001"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/tasks/task-0001",
+    "status": 200,
+    "json": {"id": "task-0001", "title": "T"}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/tasks/task-0001/details",
+    "status": 200,
+    "json": {"@odata.etag": "W/\"td1\""}
+  }
+]

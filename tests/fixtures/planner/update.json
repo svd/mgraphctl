@@ -1,0 +1,26 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/users/bob%40example.com",
+    "query": {"$select": "id"},
+    "status": 200,
+    "json": {"id": "oid-bob-0001"}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/tasks/task-0001",
+    "responses": [
+      {"status": 200, "json": {"@odata.etag": "W/\"etag-1\""}},
+      {"status": 200, "json": {"@odata.etag": "W/\"etag-2\""}}
+    ]
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1.0/planner/tasks/task-0001",
+    "responses": [
+      {"status": 412, "json": {"error": {"code": "PreconditionFailed", "message": "etag mismatch",
+                                          "innerError": {"request-id": "req-0412", "date": "2026-09-02T00:00:00"}}}},
+      {"status": 200, "json": {"id": "task-0001", "percentComplete": 50, "assignments": {}}}
+    ]
+  }
+]

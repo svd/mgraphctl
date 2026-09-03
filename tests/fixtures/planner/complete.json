@@ -1,0 +1,14 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/tasks/task-0001",
+    "status": 200,
+    "json": {"@odata.etag": "W/\"etag-1\""}
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1.0/planner/tasks/task-0001",
+    "status": 200,
+    "json": {"id": "task-0001", "percentComplete": 100}
+  }
+]

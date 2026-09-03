@@ -1,0 +1,31 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/planner/plans",
+    "status": 200,
+    "json": {"value": [{"id": "plan-0001", "title": "Roadmap"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/memberOf/microsoft.graph.group",
+    "query": {
+      "$filter": "groupTypes/any(c:c eq 'Unified')",
+      "$count": "true",
+      "$select": "id,displayName",
+      "$top": "999"
+    },
+    "status": 200,
+    "json": {"value": []}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001/buckets",
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "bucket-0001", "name": "Backlog"},
+        {"id": "bucket-0002", "name": "Doing"}
+      ]
+    }
+  }
+]

@@ -1,0 +1,39 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/planner/plans",
+    "status": 200,
+    "json": {"value": [{"id": "plan-0001", "title": "Roadmap"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/memberOf/microsoft.graph.group",
+    "query": {
+      "$filter": "groupTypes/any(c:c eq 'Unified')",
+      "$count": "true",
+      "$select": "id,displayName",
+      "$top": "999"
+    },
+    "status": 200,
+    "json": {"value": []}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001/buckets",
+    "status": 200,
+    "json": {"value": [{"id": "bucket-0001", "name": "Backlog"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001/tasks",
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "task-0001", "title": "A", "percentComplete": 0, "bucketId": "bucket-0001"},
+        {"id": "task-0002", "title": "B", "percentComplete": 0, "bucketId": "bucket-0001"},
+        {"id": "task-0003", "title": "C", "percentComplete": 0, "bucketId": "bucket-0001"},
+        {"id": "task-0004", "title": "D", "percentComplete": 0, "bucketId": "bucket-0001"}
+      ]
+    }
+  }
+]

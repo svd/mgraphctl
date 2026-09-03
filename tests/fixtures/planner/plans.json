@@ -1,0 +1,36 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/planner/plans",
+    "status": 200,
+    "json": {"value": [{"id": "plan-0001", "title": "Personal Plan"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/memberOf/microsoft.graph.group",
+    "query": {
+      "$filter": "groupTypes/any(c:c eq 'Unified')",
+      "$count": "true",
+      "$select": "id,displayName",
+      "$top": "999"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "11111111-1111-1111-1111-111111111111", "displayName": "Engineering"},
+        {"id": "22222222-2222-2222-2222-222222222222", "displayName": "Marketing"}
+      ]
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1.0/$batch",
+    "status": 200,
+    "json": {
+      "responses": [
+        {"id": "1", "status": 200, "headers": {}, "body": {"value": [{"id": "plan-0002", "title": "Roadmap"}]}},
+        {"id": "2", "status": 200, "headers": {}, "body": {"value": [{"id": "plan-0002", "title": "Roadmap"}]}}
+      ]
+    }
+  }
+]

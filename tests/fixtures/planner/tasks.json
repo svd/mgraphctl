@@ -1,0 +1,46 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/planner/plans",
+    "status": 200,
+    "json": {"value": [{"id": "plan-0001", "title": "Roadmap"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/memberOf/microsoft.graph.group",
+    "query": {
+      "$filter": "groupTypes/any(c:c eq 'Unified')",
+      "$count": "true",
+      "$select": "id,displayName",
+      "$top": "999"
+    },
+    "status": 200,
+    "json": {"value": []}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001/buckets",
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "bucket-0001", "name": "Backlog"},
+        {"id": "bucket-0002", "name": "Doing"}
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/planner/plans/plan-0001/tasks",
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "task-0001", "title": "Design schema", "percentComplete": 0, "priority": 5,
+         "dueDateTime": "2026-09-05T00:00:00Z", "bucketId": "bucket-0001"},
+        {"id": "task-0002", "title": "Ship beta", "percentComplete": 100, "priority": 3,
+         "dueDateTime": "2026-09-01T00:00:00Z", "bucketId": "bucket-0002"},
+        {"id": "task-0003", "title": "Write docs", "percentComplete": 50, "priority": 1,
+         "dueDateTime": "2026-09-08T00:00:00Z", "bucketId": "bucket-0002"}
+      ]
+    }
+  }
+]

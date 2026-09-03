@@ -1,0 +1,26 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/planner/tasks",
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "task-0010", "title": "Review PR", "percentComplete": 0, "priority": 5,
+         "dueDateTime": "2026-09-04T00:00:00Z", "planId": "plan-0001"},
+        {"id": "task-0011", "title": "Plan sprint", "percentComplete": 0, "priority": 3,
+         "dueDateTime": "2026-09-06T00:00:00Z", "planId": "plan-0002"}
+      ]
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1.0/$batch",
+    "status": 200,
+    "json": {
+      "responses": [
+        {"id": "1", "status": 200, "headers": {}, "body": {"id": "plan-0001", "title": "Roadmap"}},
+        {"id": "2", "status": 200, "headers": {}, "body": {"id": "plan-0002", "title": "Onboarding"}}
+      ]
+    }
+  }
+]
