@@ -1,0 +1,26 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/teams/11111111-1111-4111-8111-111111111111/members",
+    "query": {"$top": "50"},
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "MCMjMSMj-0001",
+          "displayName": "Ada Example",
+          "email": "ada@example.com",
+          "roles": ["owner"],
+          "userId": "00000000-0000-0000-0000-000000000001"
+        },
+        {
+          "id": "MCMjMSMj-0002",
+          "displayName": "Bob Example",
+          "email": "bob@example.com",
+          "roles": [],
+          "userId": "00000000-0000-0000-0000-0000000000b0"
+        }
+      ]
+    }
+  }
+]

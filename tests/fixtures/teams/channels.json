@@ -1,0 +1,24 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/teams/11111111-1111-4111-8111-111111111111/channels",
+    "query": {"$select": "id,displayName,description,membershipType"},
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "19:channel-0001@thread.tacv2",
+          "displayName": "General",
+          "description": "Team-wide announcements",
+          "membershipType": "standard"
+        },
+        {
+          "id": "19:channel-0002@thread.tacv2",
+          "displayName": "Random",
+          "description": "Off topic",
+          "membershipType": "standard"
+        }
+      ]
+    }
+  }
+]
