@@ -2,6 +2,7 @@
 
 import json
 
+import httpx
 import pytest
 
 from helpers import covers, graph_error, mock_graph
@@ -48,6 +49,69 @@ def test_todo_tasks_filter_and_list_resolution(invoke, graph):
 @covers("todo tasks")
 def test_todo_tasks_limit_zero_is_usage_error(invoke):
     assert invoke("todo", "tasks", "Groceries", "--limit", "0").exit_code == 2
+
+
+@covers("todo tasks")
+def test_todo_tasks_all_hits_cap_note(invoke, graph):
+    pages = []
+
+    def page(request: httpx.Request) -> httpx.Response:
+        n = len(pages)
+        pages.append(n)
+        items = [
+            {
+                "id": f"task-{n * 100 + i:04d}",
+                "status": "notStarted",
+                "importance": "normal",
+                "dueDateTime": None,
+                "title": "Task",
+            }
+            for i in range(100)
+        ]
+        return httpx.Response(200, json={"value": items, "@odata.nextLink": str(request.url)})
+
+    graph.get(f"{GRAPH}/v1.0/me/todo/lists/list-0002/tasks").mock(side_effect=page)
+    result = invoke("todo", "tasks", "id:list-0002", "--all", "--json")
+    assert result.exit_code == 0, result.stderr
+    doc = json.loads(result.stdout)
+    assert doc["count"] == 500 and doc["truncated"] is True
+    assert len(pages) == 5
+    result = invoke("todo", "tasks", "id:list-0002", "--all")
+    assert result.stderr == "(hit the 500-item cap — narrow the query)\n"
+
+
+@covers("todo tasks")
+def test_todo_tasks_limit_reports_rerun_with_all(invoke, graph):
+    graph.get(f"{GRAPH}/v1.0/me/todo/lists/list-0002/tasks").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    {
+                        "id": "task-0001",
+                        "status": "notStarted",
+                        "importance": "high",
+                        "dueDateTime": None,
+                        "title": "Buy milk",
+                    },
+                    {
+                        "id": "task-0002",
+                        "status": "notStarted",
+                        "importance": "low",
+                        "dueDateTime": None,
+                        "title": "Buy bread",
+                    },
+                ]
+            },
+        )
+    )
+    result = invoke("todo", "tasks", "id:list-0002", "--limit", "1", "--json")
+    assert result.exit_code == 0, result.stderr
+    doc = json.loads(result.stdout)
+    assert doc["count"] == 1 and doc["truncated"] is True
+    assert result.stderr == ""  # notes are a text-mode diagnostic
+    result = invoke("todo", "tasks", "id:list-0002", "--limit", "1")
+    assert result.stderr == "(more results available — rerun with --all)\n"
 
 
 @covers("todo task")

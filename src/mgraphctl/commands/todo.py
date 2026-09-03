@@ -76,7 +76,12 @@ def tasks(
         limit=bounded_limit,
         all_=bounded_all,
     )
-    return ListResult(items=page.items, truncated=page.truncated, columns=_task_columns(client.tz))
+    return ListResult(
+        items=page.items,
+        truncated=page.truncated,
+        hit_cap=todo.CAP_TASKS if bounded_all else None,
+        columns=_task_columns(client.tz),
+    )
 
 
 @app.command("task")

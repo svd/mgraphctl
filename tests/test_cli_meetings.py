@@ -120,7 +120,7 @@ def test_meetings_list_limit_zero_is_usage_error(invoke):
 
 
 @covers("meetings list")
-def test_meetings_list_truncated_reports_the_cap(invoke, graph):
+def test_meetings_list_truncated_reports_raise_limit(invoke, graph):
     def online_event(event_id: str, subject: str, join_url: str) -> dict:
         return {
             "id": event_id,
@@ -150,7 +150,7 @@ def test_meetings_list_truncated_reports_the_cap(invoke, graph):
 
     r = invoke("meetings", "list", "--limit", "1")
     assert r.exit_code == 0, r.stderr
-    assert "hit the 1-item cap" in r.stderr
+    assert r.stderr == "(more results available — raise --limit)\n"
 
 
 @covers("meetings list")

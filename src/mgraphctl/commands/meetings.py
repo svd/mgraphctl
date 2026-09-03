@@ -115,7 +115,7 @@ def list_(
     return ListResult(
         items=items,
         truncated=page.truncated,
-        hit_cap=bound if page.truncated else None,
+        supports_all=False,
         columns=[
             Column("start", lambda it: fmt_dtz(it.get("start"), tz)),
             Column("subject", lambda it: truncate(it.get("subject"))),
