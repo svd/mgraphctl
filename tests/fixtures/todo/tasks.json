@@ -1,0 +1,52 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/todo/lists",
+    "query": {"$top": "100"},
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "list-0001", "displayName": "Tasks", "wellknownListName": "defaultList"},
+        {"id": "list-0002", "displayName": "Groceries", "wellknownListName": "none"}
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/todo/lists/list-0002/tasks",
+    "query": {"$top": "100", "$filter": "status ne 'completed'"},
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "task-0001", "status": "notStarted", "importance": "high",
+         "dueDateTime": {"dateTime": "2026-09-05T00:00:00", "timeZone": "UTC"}, "title": "Buy milk"}
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/todo/lists/list-0002/tasks",
+    "query": {"$top": "100"},
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "task-0001", "status": "notStarted", "importance": "high",
+         "dueDateTime": {"dateTime": "2026-09-05T00:00:00", "timeZone": "UTC"}, "title": "Buy milk"},
+        {"id": "task-0002", "status": "completed", "importance": "low",
+         "dueDateTime": null, "title": "Buy bread"}
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/todo/lists/list-0001/tasks",
+    "query": {"$top": "100", "$filter": "status ne 'completed'"},
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "task-0010", "status": "inProgress", "importance": "normal",
+         "dueDateTime": null, "title": "Renew passport"}
+      ]
+    }
+  }
+]

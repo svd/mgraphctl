@@ -1,0 +1,38 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/todo/lists",
+    "query": {"$top": "100"},
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "list-0001", "displayName": "Tasks", "wellknownListName": "defaultList"},
+        {"id": "list-0002", "displayName": "Groceries", "wellknownListName": "none"}
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/messages/AAMk-msg-0001",
+    "query": {"$select": "subject,webLink,bodyPreview,from,receivedDateTime"},
+    "status": 200,
+    "json": {
+      "id": "AAMk-msg-0001",
+      "subject": "Sprint review",
+      "webLink": "https://outlook.office.com/mail/AAMk-msg-0001",
+      "bodyPreview": "Let's sync at 10am.",
+      "receivedDateTime": "2026-08-31T08:15:00Z",
+      "from": {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}}
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1.0/me/todo/lists/list-0002/tasks",
+    "status": 201,
+    "json": {
+      "id": "task-0030",
+      "title": "Sprint review",
+      "status": "notStarted"
+    }
+  }
+]

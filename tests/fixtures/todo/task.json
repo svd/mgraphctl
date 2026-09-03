@@ -1,0 +1,29 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/todo/lists",
+    "query": {"$top": "100"},
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "list-0001", "displayName": "Tasks", "wellknownListName": "defaultList"},
+        {"id": "list-0002", "displayName": "Groceries", "wellknownListName": "none"}
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/todo/lists/list-0002/tasks/task-0001",
+    "query": {"$expand": "checklistItems,linkedResources"},
+    "status": 200,
+    "json": {
+      "id": "task-0001",
+      "status": "notStarted",
+      "importance": "high",
+      "title": "Buy milk",
+      "dueDateTime": {"dateTime": "2026-09-05T00:00:00", "timeZone": "UTC"},
+      "checklistItems": [{"id": "chk-0001", "displayName": "2%", "isChecked": false}],
+      "linkedResources": [{"webUrl": "https://outlook.example.com/mail/0001", "displayName": "Buy milk"}]
+    }
+  }
+]

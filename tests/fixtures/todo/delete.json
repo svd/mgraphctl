@@ -1,0 +1,19 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/todo/lists",
+    "query": {"$top": "100"},
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "list-0001", "displayName": "Tasks", "wellknownListName": "defaultList"},
+        {"id": "list-0002", "displayName": "Groceries", "wellknownListName": "none"}
+      ]
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1.0/me/todo/lists/list-0002/tasks/task-0001",
+    "status": 204
+  }
+]
