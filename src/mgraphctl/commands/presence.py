@@ -4,9 +4,7 @@ from typing import Annotated
 
 import typer
 
-from mgraphctl import auth, errors
 from mgraphctl.cli import DryRunFlag, JsonFlag, gate, graph_command, make_noun_app
-from mgraphctl.errors import AuthError
 from mgraphctl.graph import presence as presence_api
 from mgraphctl.graph import users
 from mgraphctl.http import GraphClient
@@ -24,18 +22,6 @@ OTHERS_SCOPES = ["Presence.Read.All"]
 STATES = ", ".join(presence_api.PRESENCE_PAIRS)
 
 app = make_noun_app("Teams presence.")
-
-
-def my_oid() -> str:
-    """The signed-in user's object id, read from the cached token (spec §8.9, no `/me` call)."""
-    oid = auth.decode_jwt(auth.cached_access_token() or "").get("oid")
-    if not oid:
-        raise AuthError(
-            "NOT_LOGGED_IN",
-            "the cached token carries no oid claim",
-            hint=errors.HINTS["NOT_LOGGED_IN"],
-        )
-    return oid
 
 
 @app.command("get")
@@ -92,7 +78,7 @@ def set_(
     availability, _ = presence_api.resolve_pair(state)
     plan = presence_api.plan_set(
         client,
-        my_oid(),
+        presence_api.my_oid(),
         state,
         expiration=parse_duration(expiration),
         message=message,
@@ -108,7 +94,7 @@ def set_(
 @graph_command(scopes=["Presence.ReadWrite"])
 def clear(client: GraphClient, dry_run: DryRunFlag = False, json_: JsonFlag = False):
     """Clear your preferred presence, handing it back to Teams."""
-    plan = presence_api.plan_clear(client, my_oid())
+    plan = presence_api.plan_clear(client, presence_api.my_oid())
     if dry_run:
         return DryRunResult(plan)
     client.execute(plan[0])

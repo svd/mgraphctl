@@ -5,11 +5,7 @@ Pure: client and parameters in, Graph dicts, a `PageResult` or a `Plan` out.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 from mgraphctl import odata, resolve
-from mgraphctl.errors import UsageError
 from mgraphctl.html import to_markdown
 from mgraphctl.http import GraphClient, PageResult, Plan, PlannedRequest
 from mgraphctl.render import Column, fmt_dt, truncate
@@ -177,12 +173,3 @@ def plan_channel_send(
         payload["subject"] = subject
     payload["body"] = {"contentType": "html" if html else "text", "content": body}
     return [PlannedRequest("POST", client.url(odata.p(*segments)), dict(JSON), payload)]
-
-
-def read_body(body: str | None, body_file: str | None) -> str:
-    """The message text from exactly one of `--body` or `--body-file` (`-` reads stdin)."""
-    if (body is None) == (body_file is None):
-        raise UsageError("USAGE", "give exactly one of --body or --body-file")
-    if body is not None:
-        return body
-    return sys.stdin.read() if body_file == "-" else Path(body_file).read_text()

@@ -10,7 +10,7 @@ from collections.abc import Callable
 from datetime import datetime
 from urllib.parse import unquote
 
-from mgraphctl import odata, resolve
+from mgraphctl import config, odata, resolve
 from mgraphctl.errors import NotFoundError, UsageError
 from mgraphctl.graph import teams, users
 from mgraphctl.http import GraphClient, PageResult, Plan, PlannedRequest, SearchResult
@@ -28,6 +28,7 @@ CHAT_ID_PLACEHOLDER = "{chatId}"
 GROUP_TITLE_NAMES = 3
 
 PAGE_CHATS, CAP_CHATS = 50, 200
+CAP_CHAT_MEMBERS = 999
 PAGE_MESSAGES, CAP_MESSAGES = 50, 200
 CAP_ONE_ON_ONE = 500
 SEARCH_SIZE, CAP_SEARCH = 25, 200
@@ -36,7 +37,11 @@ HOSTED_ID_IN_NAME = 8
 JSON = {"Content-Type": "application/json"}
 
 _FRACTIONAL_RE = re.compile(r"(\.\d{6})\d+")
-_HOSTED_CONTENT_RE = re.compile(r"/hostedContents/([^/]+)/\$value")
+# Every request carries the access token, so a URL taken from a message body is only ever
+# followed when it is a Graph hosted-contents address on our own base (spec §5.1, §10 quirk 21).
+_HOSTED_TAIL = r"/messages/[^/]+/hostedContents/([^/?]+)/\$value(?:\?.*)?$"
+_CHAT_HOSTED_RE = re.compile(r"^/chats/[^/]+" + _HOSTED_TAIL)
+_CHANNEL_HOSTED_RE = re.compile(r"^/teams/[^/]+/channels/[^/]+" + _HOSTED_TAIL)
 # The magic bytes the Teams hosted contents actually carry (spec §8.8 `hosted-content`).
 _MAGIC = (
     (b"\x89PNG\r\n\x1a\n", "png"),
@@ -117,7 +122,7 @@ def list_chat_members(client: GraphClient, chat_id: str) -> PageResult:
         odata.p("chats", chat_id, "members"),
         limit=None,
         all_=True,
-        cap=CAP_CHATS,
+        cap=CAP_CHAT_MEMBERS,
         page_size=None,
     )
 
@@ -179,10 +184,11 @@ def resolve_chat(client: GraphClient, value: str) -> str:
 
 
 def _bind(client: GraphClient, user_ref: str) -> dict:
+    # The reference sits inside an OData string literal, so an apostrophe has to be doubled.
     return {
         "@odata.type": MEMBER_TYPE,
         "roles": ["owner"],
-        "user@odata.bind": client.url(f"/users('{user_ref}')"),
+        "user@odata.bind": client.url(f"/users('{odata.odata_str(user_ref)}')"),
     }
 
 
@@ -301,15 +307,42 @@ def hosted_content_path(chat_id: str, msg_id: str, hc_id: str) -> str:
     return odata.p("chats", chat_id, "messages", msg_id, "hostedContents", hc_id) + "/$value"
 
 
+def _graph_path(url: str) -> str | None:
+    """The path of a URL on our own Graph base, or None when it is anywhere else."""
+    for base in (config.GRAPH_V1, config.GRAPH_BETA):
+        if url.startswith(base + "/"):
+            return url[len(base) :]
+    return None
+
+
+def _verbatim_url(url: str) -> tuple[str, str, bool]:
+    """Validate a hosted-contents URL before it is sent with the bearer token attached."""
+    path = _graph_path(url)
+    if path is None:
+        raise UsageError(
+            "USAGE",
+            "a hosted content URL must be on "
+            f"{config.GRAPH_V1} or {config.GRAPH_BETA}; refusing to send the access token "
+            "to another host",
+        )
+    chat = _CHAT_HOSTED_RE.match(path)
+    if chat:
+        return url, unquote(chat.group(1)), False
+    channel = _CHANNEL_HOSTED_RE.match(path)
+    if channel:
+        return url, unquote(channel.group(1)), True
+    raise UsageError(
+        "USAGE",
+        "that URL is not a /chats/… or /teams/… messages/hostedContents/<id>/$value address",
+    )
+
+
 def hosted_content_target(ref: str, msg_id: str | None, hc_id: str | None) -> tuple[str, str, bool]:
     """`(path or URL, hosted content id, is a channel message)` for either argument form."""
     if ref.startswith(("https://", "http://")):
         if msg_id is not None or hc_id is not None:
             raise UsageError("USAGE", "give CHAT MSGID HCID, or one hostedContents URL")
-        match = _HOSTED_CONTENT_RE.search(ref)
-        if match is None:
-            raise UsageError("USAGE", "that URL has no /hostedContents/<id>/$value segment")
-        return ref, unquote(match.group(1)), "/channels/" in ref
+        return _verbatim_url(ref)
     if msg_id is None or hc_id is None:
         raise UsageError("USAGE", "give CHAT MSGID HCID, or one hostedContents URL")
     return hosted_content_path(ref, msg_id, hc_id), hc_id, False

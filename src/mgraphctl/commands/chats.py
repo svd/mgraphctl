@@ -5,7 +5,6 @@ from typing import Annotated
 
 import typer
 
-from mgraphctl import auth, errors
 from mgraphctl.cli import (
     AllFlag,
     DryRunFlag,
@@ -16,8 +15,8 @@ from mgraphctl.cli import (
     make_noun_app,
     page_bounds,
 )
-from mgraphctl.errors import AuthError
-from mgraphctl.graph import chats, teams, users
+from mgraphctl.commands.teams import read_body
+from mgraphctl.graph import chats, presence, teams, users
 from mgraphctl.http import GraphClient
 from mgraphctl.render import (
     Column,
@@ -45,18 +44,6 @@ HtmlFlag = Annotated[bool, typer.Option("--html", help="Send the body as HTML.")
 app = make_noun_app("Teams chats and direct messages.")
 
 
-def my_oid() -> str:
-    """The signed-in user's object id, read from the cached token (spec §8.9, no `/me` call)."""
-    oid = auth.decode_jwt(auth.cached_access_token() or "").get("oid")
-    if not oid:
-        raise AuthError(
-            "NOT_LOGGED_IN",
-            "the cached token carries no oid claim",
-            hint=errors.HINTS["NOT_LOGGED_IN"],
-        )
-    return oid
-
-
 @app.command("list")
 @graph_command(scopes=["Chat.Read"])
 def list_(
@@ -75,7 +62,7 @@ def list_(
         client, chat_type=chats.normalise_chat_type(chat_type), limit=limit, all_=all_
     )
     items = [c for c in page.items if chats.is_unread(c)] if unread else page.items
-    oid = my_oid()
+    oid = presence.my_oid()
     tz = client.tz
     return ListResult(
         items=items,
@@ -97,7 +84,7 @@ def list_(
 def get(client: GraphClient, chat: ChatArg, json_: JsonFlag = False):
     """Show one chat."""
     chat_id = chats.resolve_chat(client, chat)
-    oid = my_oid()
+    oid = presence.my_oid()
     tz = client.tz
     return ObjectResult(
         obj=chats.get_chat(client, chat_id),
@@ -173,7 +160,7 @@ def send(
     json_: JsonFlag = False,
 ):
     """Send a message to a chat."""
-    text = teams.read_body(body, body_file)
+    text = read_body(body, body_file)
     chat_id = chats.resolve_chat(client, chat)
     plan = chats.plan_chat_send(client, chat_id, body=text, html=html)
     if dry_run:
@@ -193,7 +180,7 @@ def dm(
     json_: JsonFlag = False,
 ):
     """Send a direct message, creating the 1:1 chat when there is none yet."""
-    text = teams.read_body(body, body_file)
+    text = read_body(body, body_file)
     if dry_run:
         # Both branches are shown; looking the chat up would be a request (spec §8.8).
         return DryRunResult(chats.plan_dm(client, user, None, body=text, html=html))
@@ -203,7 +190,7 @@ def dm(
         who,
         body=text,
         html=html,
-        my_oid=my_oid(),
+        my_oid=presence.my_oid(),
         can_create=lambda: gate(CREATE_SCOPES),
     )
     return WriteResult(obj=sent, message="Sent.")
@@ -222,7 +209,9 @@ def create(
     json_: JsonFlag = False,
 ):
     """Create a chat with the given members."""
-    plan = chats.plan_create_chat(client, member_ids=member or [], topic=topic, my_oid=my_oid())
+    plan = chats.plan_create_chat(
+        client, member_ids=member or [], topic=topic, my_oid=presence.my_oid()
+    )
     if dry_run:
         return DryRunResult(plan)
     created = client.execute(plan[0]) or {}

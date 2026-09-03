@@ -418,6 +418,48 @@ def test_hosted_content_channel_url_needs_channel_scope(invoke, graph):
 
 
 @covers("chats hosted-content")
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://attacker.example/v1.0/chats/c/messages/1/hostedContents/aWQ=/$value",
+        # The Graph host as userinfo, not as the authority.
+        "https://graph.microsoft.com@attacker.example/v1.0/chats/c/messages/1"
+        "/hostedContents/aWQ=/$value",
+        # Right host, wrong scheme: the token must never travel in clear text.
+        "http://graph.microsoft.com/v1.0/chats/c/messages/1/hostedContents/aWQ=/$value",
+        # Right host and scheme, but not a hosted-contents address.
+        "https://graph.microsoft.com/v1.0/me/messages",
+    ],
+)
+def test_hosted_content_refuses_foreign_urls(invoke, graph, url):
+    r = invoke("chats", "hosted-content", url)
+    assert r.exit_code == 2 and r.stdout == ""
+    assert graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: ")
+
+
+@covers("chats hosted-content")
+def test_hosted_content_accepts_v1_and_beta_graph_urls(invoke, graph, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    for base in (f"{GRAPH}/v1.0", f"{GRAPH}/beta"):
+        url = f"{base}/chats/19%3Achat-0001%40thread.v2/messages/1/hostedContents/aWQ=/$value"
+        route = graph.get(url).mock(return_value=httpx.Response(200, content=PNG))
+        r = invoke("chats", "hosted-content", url, "--json")
+        assert r.exit_code == 0, r.stderr
+        assert route.called
+        assert json.loads(r.stdout) == {"path": "teams_hosted_aWQ=.png", "bytes": 8}
+
+
+@covers("chats create")
+def test_chats_create_escapes_apostrophes_in_the_bind(invoke, graph):
+    r = invoke("chats", "create", "--members", "o'brien@example.com", "--dry-run", "--json")
+    assert r.exit_code == 0, r.stderr
+    members = json.loads(r.stdout)["requests"][0]["body"]["members"]
+    assert members[1]["user@odata.bind"] == f"{GRAPH}/v1.0/users('o''brien@example.com')"
+    assert graph.calls.call_count == 0
+
+
+@covers("chats hosted-content")
 def test_hosted_content_needs_three_arguments(invoke, graph):
     r = invoke("chats", "hosted-content", CHAT, "AAMk-chat-0003")
     assert r.exit_code == 2 and graph.calls.call_count == 0

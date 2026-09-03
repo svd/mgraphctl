@@ -1,5 +1,7 @@
 """Teams and channel commands (spec §8.7)."""
 
+import sys
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -45,6 +47,15 @@ CHANNEL_FIELDS = [
 app = make_noun_app("Teams and channels.")
 channel = make_noun_app("Channels within a team.")
 app.add_typer(channel, name="channel")
+
+
+def read_body(body: str | None, body_file: str | None) -> str:
+    """The message text from exactly one of `--body` or `--body-file` (`-` reads stdin)."""
+    if (body is None) == (body_file is None):
+        raise UsageError("USAGE", "give exactly one of --body or --body-file")
+    if body is not None:
+        return body
+    return sys.stdin.read() if body_file == "-" else Path(body_file).read_text()
 
 
 @app.command("list")
@@ -192,7 +203,7 @@ def channel_send(
     json_: JsonFlag = False,
 ):
     """Post a message to a channel."""
-    text = teams.read_body(body, body_file)
+    text = read_body(body, body_file)
     team_id = teams.resolve_team(client, team)["id"]
     channel_id = teams.resolve_channel(client, team_id, chan)["id"]
     plan = teams.plan_channel_send(
