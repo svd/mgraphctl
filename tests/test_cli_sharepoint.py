@@ -438,3 +438,22 @@ def test_sharepoint_upload_missing_scope(invoke, graph, tmp_path):
     assert r.exit_code == 3 and graph.calls.call_count == 0
     assert r.stderr.startswith("error[MISSING_SCOPE]:")
     assert "login --scopes extended" in r.stderr
+
+
+@covers("sharepoint upload")
+def test_sharepoint_upload_conflict_is_a_choice(invoke, graph, tmp_path):
+    assert "--conflict <rename|replace|fail>" in invoke("sharepoint", "upload", "--help").stdout
+    small = tmp_path / "a.txt"
+    small.write_bytes(b"hello")
+    r = invoke("sharepoint", "upload", SITE_ID, str(small), "--conflict", "clobber")
+    assert r.exit_code == 2 and r.stdout == "" and graph.calls.call_count == 0
+    assert "--conflict" in r.stderr
+
+
+@covers("sharepoint url")
+def test_sharepoint_url_has_no_dry_run(invoke, graph):
+    """`url` only ever reads, so it carries `--info`, not `--dry-run`."""
+    help_text = invoke("sharepoint", "url", "--help").stdout
+    assert "--info" in help_text and "--dry-run" not in help_text
+    r = invoke("sharepoint", "url", "https://contoso.example/sites/Eng/a.docx", "--dry-run")
+    assert r.exit_code == 2 and graph.calls.call_count == 0

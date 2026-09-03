@@ -304,6 +304,15 @@ def test_planner_update_dry_run(invoke, graph):
     assert graph.calls.call_count == 0
 
 
+@covers("planner update")
+def test_planner_update_percent_is_a_choice(invoke, graph):
+    """Graph rejects anything but 0, 50 or 100, so the parser does it first."""
+    assert "--percent <0|50|100>" in invoke("planner", "update", "--help").stdout
+    r = invoke("planner", "update", "task-0001", "--percent", "42")
+    assert r.exit_code == 2 and r.stdout == "" and graph.calls.call_count == 0
+    assert "--percent" in r.stderr
+
+
 @covers("planner complete")
 def test_planner_complete_is_percent_100(invoke, graph):
     mock_graph(graph, "planner/complete")

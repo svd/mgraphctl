@@ -1,7 +1,7 @@
 """SharePoint sites, drives, browsing, lists and items (spec §8.12)."""
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 
@@ -200,7 +200,7 @@ def upload(
     ] = None,
     drive: DriveOpt = None,
     conflict: Annotated[
-        str, typer.Option("--conflict", help="rename, replace, or fail.")
+        Literal["rename", "replace", "fail"], typer.Option("--conflict", help="On a name clash.")
     ] = "replace",
     dry_run: DryRunFlag = False,
     json_: JsonFlag = False,
@@ -223,11 +223,10 @@ def url(
     info: Annotated[
         bool, typer.Option("--info", help="Resolve and print, without downloading.")
     ] = False,
-    dry_run: DryRunFlag = False,
     json_: JsonFlag = False,
 ):
     """Resolve a SharePoint web URL to a drive item, and download it."""
-    if info or dry_run:
+    if info:
         resolution = sharepoint.resolve_url(client, url)
         obj = {
             "resolution": {

@@ -182,3 +182,14 @@ def test_limit_option_rejects_zero():
     assert runner.invoke(probe, ["--limit", "0"], catch_exceptions=False).exit_code == 2
     ok = runner.invoke(probe, ["--limit", "3"], catch_exceptions=False)
     assert ok.exit_code == 0 and ok.stdout.strip() == "3"
+
+
+def test_debug_short_option_counts(invoke, graph):
+    graph.get(f"{GRAPH}/v1.0/me").mock(return_value=httpx.Response(200, json={"id": "1"}))
+    r = invoke("-d", "me", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert "DEBUG GET https://graph.microsoft.com/v1.0/me" in r.stderr
+    # The help text promises `-dd`; at level 2 the response body is logged too.
+    r2 = invoke("-dd", "me", "--json")
+    assert r2.exit_code == 0, r2.stderr
+    assert 'DEBUG body: {"id":"1"}' in r2.stderr

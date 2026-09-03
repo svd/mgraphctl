@@ -154,3 +154,18 @@ def test_api_output_needs_raw(invoke, graph, tmp_path):
     r = invoke("api", "GET", "/me", "--output", str(tmp_path / "f.bin"))
     assert r.exit_code == 2 and r.stdout == "" and graph.calls.call_count == 0
     assert r.stderr.startswith("error[USAGE]: --output writes the bytes of a --raw response")
+
+
+@covers("api")
+def test_api_outlook_tz_sends_prefer_and_documents_itself(invoke, graph, app):
+    import typer.main
+
+    route = graph.get(f"{GRAPH}/v1.0/me").mock(return_value=httpx.Response(200, json={"id": "1"}))
+    r = invoke("--tz", "Asia/Tokyo", "api", "GET", "/me", "--outlook-tz")
+    assert r.exit_code == 0, r.stderr
+    assert route.calls.last.request.headers["Prefer"] == 'outlook.timezone="Asia/Tokyo"'
+    # The flag stays out of `api --help` (an escape hatch), but it still carries help text.
+    api_cmd = typer.main.get_group(app).commands["api"]
+    (option,) = [p for p in api_cmd.params if "--outlook-tz" in p.opts]
+    assert option.hidden is True
+    assert "Prefer: outlook.timezone" in (option.help or "")

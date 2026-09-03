@@ -188,7 +188,9 @@ def build_app() -> typer.Typer:
         ctx: typer.Context,
         debug: Annotated[
             int,
-            typer.Option("--debug", count=True, help="Log requests to stderr (-dd adds bodies)."),
+            typer.Option(
+                "--debug", "-d", count=True, help="Log requests to stderr (-dd adds bodies)."
+            ),
         ] = 0,
         tz: Annotated[
             str | None,

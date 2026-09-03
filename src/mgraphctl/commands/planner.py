@@ -1,6 +1,6 @@
 """Planner commands: plans, buckets, tasks (spec §8.14)."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 
@@ -209,7 +209,10 @@ def update(
     task_id: Annotated[str, typer.Argument(metavar="ID")],
     title: Annotated[str | None, typer.Option("--title")] = None,
     due: Annotated[str | None, typer.Option("--due")] = None,
-    percent: Annotated[int | None, typer.Option("--percent")] = None,
+    percent: Annotated[
+        Literal[0, 50, 100] | None,
+        typer.Option("--percent", help="Completion; Graph accepts only these three values."),
+    ] = None,
     bucket: Annotated[str | None, typer.Option("--bucket", help="Bucket name or id.")] = None,
     priority: Annotated[int | None, typer.Option("--priority", min=0, max=10)] = None,
     assign: Annotated[list[str] | None, typer.Option("--assign")] = None,

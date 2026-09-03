@@ -33,7 +33,7 @@ These come *before* the noun: `mgraphctl --tz Europe/Warsaw calendar list`.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--debug` | off | Log one line per request to stderr. Repeat (`--debug --debug`) to add truncated bodies. |
+| `--debug`, `-d` | off | Log one line per request to stderr. Repeat (`-dd`) to add truncated bodies. |
 | `--tz IANA` | `MGRAPHCTL_TZ`, else the detected local zone | Time zone for `Prefer: outlook.timezone`, for naive datetime input, and for rendering. |
 | `--beta` | off | Send every relative path to `/beta` instead of `/v1.0`. |
 | `--version` | — | Print `mgraphctl <version>` and exit 0. |
@@ -133,7 +133,7 @@ The escape hatch: one raw Graph request. `PATH` may be relative (`/me/messages`)
 | `--all` | off | Follow `@odata.nextLink` and merge every page's `value`. |
 | `--raw` | off | Treat the response as bytes, not JSON. |
 | `--output FILE` | — | Write the `--raw` bytes to this file. |
-| `--outlook-tz` | off | Add `Prefer: outlook.timezone` for Outlook date fields. |
+| `--outlook-tz` | off | Send `Prefer: outlook.timezone` for mail/calendar paths. Hidden from `--help`. |
 | `--dry-run` | off | Show the request; send nothing. |
 | `--json` | off | Accepted, no-op — the body is printed as returned. |
 
@@ -1460,7 +1460,6 @@ search for.
 |---|---|---|
 | `--output FILE` | the file's own name | Destination file. |
 | `--info` | off | Resolve and print, without downloading. |
-| `--dry-run` | off | Show the request(s); send nothing. |
 | `--json` | off | Print JSON instead of text. |
 
 - **Graph:** first `GET /shares/{share_id(url)}/driveItem`; on a 4xx it parses the URL's host and

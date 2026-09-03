@@ -97,7 +97,14 @@ def api(
     output: Annotated[
         Path | None, typer.Option("--output", help="Write the --raw bytes to this file.")
     ] = None,
-    outlook_tz: Annotated[bool, typer.Option("--outlook-tz", hidden=True)] = False,
+    outlook_tz: Annotated[
+        bool,
+        typer.Option(
+            "--outlook-tz",
+            hidden=True,
+            help="Send Prefer: outlook.timezone for mail/calendar paths.",
+        ),
+    ] = False,
     dry_run: DryRunFlag = False,
     json_: JsonFlag = False,
 ):
