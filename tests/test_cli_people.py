@@ -36,6 +36,23 @@ def test_people_search_limit_zero_is_usage_error(invoke):
     assert invoke("people", "search", "Ada", "--limit", "0").exit_code == 2
 
 
+@covers("people search")
+def test_people_search_all_hits_the_250_cap(invoke, graph):
+    """spec §5.3: people search/contacts page at 50, default limit 20, --all cap 250."""
+    hits = [{"id": f"person-{i:04d}", "displayName": f"Person {i}"} for i in range(251)]
+    graph.get(f"{GRAPH}/v1.0/me/people").mock(
+        return_value=httpx.Response(200, json={"value": hits})
+    )
+    r = invoke("people", "search", "A", "--all", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["count"] == 250 and doc["truncated"] is True
+
+    r = invoke("people", "search", "A", "--all")
+    assert r.exit_code == 0
+    assert "hit the 250-item cap" in r.stderr
+
+
 @covers("people contacts")
 def test_people_contacts_search_and_fallback(invoke, graph):
     routes = mock_graph(graph, "people/contacts")

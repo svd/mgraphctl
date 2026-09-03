@@ -18,8 +18,7 @@ PEOPLE_SELECT = (
 CONTACTS_SELECT = "id,displayName,emailAddresses,mobilePhone,businessPhones,jobTitle,companyName"
 
 PAGE = 50
-CAP = 500
-FALLBACK_PAGE = 250
+CAP = 250  # spec §5.3: people search, contacts — page_size 50, default limit 20, --all cap 250
 
 
 def search_people(client: GraphClient, q: str, *, limit: int, all_: bool) -> PageResult:
@@ -65,8 +64,8 @@ def list_contacts(client: GraphClient, *, search: str | None, limit: int, all_: 
             params={"$select": CONTACTS_SELECT},
             limit=None,
             all_=True,
-            cap=FALLBACK_PAGE,
-            page_size=FALLBACK_PAGE,
+            cap=CAP,
+            page_size=CAP,
         )
         term = search.casefold()
         filtered = [c for c in page.items if _contact_matches(c, term)]

@@ -112,14 +112,18 @@ def test_org_chain_expand_then_fallback(invoke, graph):
     ]
 
 
+EXPAND_QUERY = {
+    "$expand": f"manager($levels=max;$select={CHAIN_SELECT})",
+    "$count": "true",
+}
+
+
 @covers("org chain")
-def test_org_chain_falls_back_iteratively_on_400(invoke, graph):
-    expand_query = {
-        "$expand": f"manager($levels=max;$select={CHAIN_SELECT})",
-        "$count": "true",
-    }
-    graph.route(method="GET", url=f"{GRAPH}/v1.0/me", params__eq=expand_query).mock(
-        return_value=graph_error(400, "BadRequest")
+@pytest.mark.parametrize("status,code", [(400, "BadRequest"), (403, "Forbidden")])
+def test_org_chain_falls_back_iteratively_through_the_command(invoke, graph, status, code):
+    """expand -> 400/403 -> commands/org.py::chain gates User.Read.All -> chain_iterative."""
+    graph.route(method="GET", url=f"{GRAPH}/v1.0/me", params__eq=EXPAND_QUERY).mock(
+        return_value=graph_error(status, code)
     )
     graph.route(method="GET", url=f"{GRAPH}/v1.0/me", params__eq={"$select": CHAIN_SELECT}).mock(
         return_value=httpx.Response(
@@ -161,16 +165,72 @@ def test_org_chain_falls_back_iteratively_on_400(invoke, graph):
 @covers("org chain")
 @pytest.mark.scopes(["User.Read"])
 def test_org_chain_fallback_needs_user_read_all(invoke, graph):
-    expand_query = {
-        "$expand": f"manager($levels=max;$select={CHAIN_SELECT})",
-        "$count": "true",
-    }
-    graph.route(method="GET", url=f"{GRAPH}/v1.0/me", params__eq=expand_query).mock(
+    graph.route(method="GET", url=f"{GRAPH}/v1.0/me", params__eq=EXPAND_QUERY).mock(
         return_value=graph_error(400, "BadRequest")
     )
     r = invoke("org", "chain")
     assert r.exit_code == 3
     assert r.stderr.startswith("error[MISSING_SCOPE]: this command needs User.Read.All")
+
+
+@covers("org chain")
+def test_org_chain_max_bound_truncates_on_the_expand_path(invoke, graph):
+    """A chain deeper than `--max` is truncated to `max_levels + 1` entries (self + N)."""
+    graph.route(method="GET", url=f"{GRAPH}/v1.0/me", params__eq=EXPAND_QUERY).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "u-1",
+                "displayName": "Level 0",
+                "userPrincipalName": "l0@example.com",
+                "jobTitle": "Engineer",
+                "manager": {
+                    "id": "u-2",
+                    "displayName": "Level 1",
+                    "userPrincipalName": "l1@example.com",
+                    "jobTitle": "Lead",
+                    "manager": {
+                        "id": "u-3",
+                        "displayName": "Level 2",
+                        "userPrincipalName": "l2@example.com",
+                        "jobTitle": "Director",
+                        "manager": {
+                            "id": "u-4",
+                            "displayName": "Level 3",
+                            "userPrincipalName": "l3@example.com",
+                            "jobTitle": "VP",
+                        },
+                    },
+                },
+            },
+        )
+    )
+    r = invoke("org", "chain", "--max", "1", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert [level["displayName"] for level in doc] == ["Level 0", "Level 1"]
+
+
+@covers("org chain")
+def test_org_chain_max_bound_truncates_on_the_iterative_path(invoke, graph):
+    """The iterative fallback also stops climbing once `--max` levels are reached."""
+    graph.route(method="GET", url=f"{GRAPH}/v1.0/me", params__eq=EXPAND_QUERY).mock(
+        return_value=graph_error(400, "BadRequest")
+    )
+    graph.route(method="GET", url=f"{GRAPH}/v1.0/me", params__eq={"$select": CHAIN_SELECT}).mock(
+        return_value=httpx.Response(200, json={"id": "u-x1", "displayName": "Level 0"})
+    )
+    manager1 = graph.get(f"{GRAPH}/v1.0/users/u-x1/manager", params={"$select": CHAIN_SELECT}).mock(
+        return_value=httpx.Response(200, json={"id": "u-x2", "displayName": "Level 1"})
+    )
+    # No route registered for u-x2's manager: if the loop kept climbing past --max it would
+    # hit an unmocked request and respx (assert_all_mocked=True by default) would fail loudly.
+
+    r = invoke("org", "chain", "--max", "1", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert [level["displayName"] for level in doc] == ["Level 0", "Level 1"]
+    assert manager1.call_count == 1
 
 
 def test_org_help(invoke):

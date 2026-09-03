@@ -6,7 +6,6 @@ Pure: client and parameters in, Graph dicts / PageResult / list[dict] out.
 from __future__ import annotations
 
 from mgraphctl import odata
-from mgraphctl.cli import gate
 from mgraphctl.errors import GraphError, NotFoundError
 from mgraphctl.http import GraphClient, PageResult
 
@@ -50,8 +49,27 @@ def _walk_expanded(obj: dict) -> list[dict]:
     return levels
 
 
-def _iterative_chain(client: GraphClient, start: dict, max_levels: int) -> list[dict]:
-    """Walk `/users/{id}/manager` one level at a time, for tenants that reject `$expand`."""
+def chain_expand(client: GraphClient, upn: str | None, *, max_levels: int) -> list[dict]:
+    """The management chain via one `$expand=manager($levels=max)` call (spec §8.6 `chain`).
+
+    Self, then each nested `manager`, from the single response. Raises `GraphError` (400/403
+    on a tenant that rejects the expand) for the caller to catch and fall back to
+    `chain_iterative`.
+    """
+    path = _user_path(upn)
+    expand = f"manager($levels=max;$select={CHAIN_SELECT})"
+    obj = client.get(path, params={"$expand": expand, "$count": True}, headers=EVENTUAL)
+    return _walk_expanded(obj)[: max_levels + 1]
+
+
+def chain_iterative(client: GraphClient, upn: str | None, *, max_levels: int) -> list[dict]:
+    """The management chain via a `/users/{id}/manager` walk, one level at a time.
+
+    The fallback path for tenants that reject `$expand`; callers gate this on
+    `User.Read.All` before calling it (spec §8.6, §4.4 — the branch-level gate lives in the
+    command layer, not here).
+    """
+    start = client.get(_user_path(upn), params={"$select": CHAIN_SELECT})
     levels = [start]
     current_id = start.get("id")
     while current_id and len(levels) <= max_levels:
@@ -66,22 +84,3 @@ def _iterative_chain(client: GraphClient, start: dict, max_levels: int) -> list[
         levels.append(nxt)
         current_id = nxt.get("id")
     return levels
-
-
-def chain(client: GraphClient, upn: str | None, *, max_levels: int) -> list[dict]:
-    """The management chain from self upward (spec §8.6 `chain`).
-
-    `$expand=manager($levels=max)` in one call; on 400/403 (a tenant that rejects the
-    expand), an iterative `/users/{id}/manager` walk, gated on `User.Read.All`.
-    """
-    path = _user_path(upn)
-    expand = f"manager($levels=max;$select={CHAIN_SELECT})"
-    try:
-        obj = client.get(path, params={"$expand": expand, "$count": True}, headers=EVENTUAL)
-    except GraphError as exc:
-        if exc.status not in (400, 403):
-            raise
-        gate(["User.Read.All"])
-        start = client.get(path, params={"$select": CHAIN_SELECT})
-        return _iterative_chain(client, start, max_levels)
-    return _walk_expanded(obj)[: max_levels + 1]

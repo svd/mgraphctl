@@ -13,6 +13,7 @@ from mgraphctl.cli import (
     make_noun_app,
     page_bounds,
 )
+from mgraphctl.errors import GraphError
 from mgraphctl.graph import org
 from mgraphctl.http import GraphClient
 from mgraphctl.render import Column, ListResult, ObjectResult, TextResult
@@ -87,6 +88,12 @@ def chain(
     json_: JsonFlag = False,
 ):
     """Show the management chain from the user upward (self by default)."""
-    levels = org.chain(client, upn, max_levels=max_)
+    try:
+        levels = org.chain_expand(client, upn, max_levels=max_)
+    except GraphError as exc:
+        if exc.status not in (400, 403):
+            raise
+        gate(["User.Read.All"])
+        levels = org.chain_iterative(client, upn, max_levels=max_)
     text = "\n".join(_chain_line(i, person) for i, person in enumerate(levels))
     return TextResult(text=text, json_obj=levels)
