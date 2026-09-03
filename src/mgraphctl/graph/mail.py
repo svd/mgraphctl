@@ -9,6 +9,7 @@ import sys
 from base64 import b64encode
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import cached_property
 from math import ceil
 from mimetypes import guess_type
 from pathlib import Path
@@ -52,7 +53,9 @@ DRAFT_NOTE = "draft path: attachments total > 2.5 MiB"
 # --------------------------------------------------------------------------- folders
 
 
-def _folder_page(client: GraphClient, path: str, select: str, page_size: int, hidden: bool) -> list:
+def _folder_page(
+    client: GraphClient, path: str, select: str, page_size: int, hidden: bool
+) -> PageResult:
     params: dict[str, object] = {"$select": select}
     if hidden:
         params["includeHiddenFolders"] = True
@@ -63,7 +66,7 @@ def _folder_page(client: GraphClient, path: str, select: str, page_size: int, hi
         all_=True,
         cap=CAP_FOLDERS,
         page_size=page_size,
-    ).items
+    )
 
 
 def _children_path(folder_id: str) -> str:
@@ -83,7 +86,7 @@ def resolve_folder(client: GraphClient, value: str) -> str | None:
         return bare
     folders = _folder_page(
         client, "/me/mailFolders", FOLDER_RESOLVE_SELECT, PAGE_FOLDER_RESOLVE, False
-    )
+    ).items
     needle = bare.casefold()
     if not any((f.get("displayName") or "").casefold() == needle for f in folders):
         # Only descend when the top level has no match: one level, as spec §6.6 prescribes.
@@ -96,19 +99,24 @@ def resolve_folder(client: GraphClient, value: str) -> str | None:
                     FOLDER_RESOLVE_SELECT,
                     PAGE_FOLDER_RESOLVE,
                     False,
-                )
+                ).items
         folders = folders + children
     return resolve.pick_unique(folders, "displayName", bare, what="mail folder")["id"]
 
 
-def list_folders(client: GraphClient, *, depth: int, hidden: bool) -> list[dict]:
-    """The folder tree, `depth` levels deep, each folder carrying a `children` list."""
+def list_folders(client: GraphClient, *, depth: int, hidden: bool) -> PageResult:
+    """The folder tree, `depth` levels deep, each folder carrying a `children` list.
+
+    `PageResult.items` are the top-level folders; `truncated` is true when any level hit the
+    500-folder cap, so the caller can say the tree is incomplete.
+    """
+    truncated = False
 
     def level(path: str) -> list[dict]:
-        return [
-            {**f, "children": []}
-            for f in _folder_page(client, path, FOLDER_SELECT, PAGE_FOLDERS, hidden)
-        ]
+        nonlocal truncated
+        page = _folder_page(client, path, FOLDER_SELECT, PAGE_FOLDERS, hidden)
+        truncated = truncated or page.truncated
+        return [{**f, "children": []} for f in page.items]
 
     tree = level("/me/mailFolders")
     frontier = tree
@@ -119,7 +127,7 @@ def list_folders(client: GraphClient, *, depth: int, hidden: bool) -> list[dict]
                 folder["children"] = level(_children_path(folder["id"]))
                 deeper += folder["children"]
         frontier = deeper
-    return tree
+    return PageResult(items=tree, truncated=truncated, pages=1)
 
 
 # --------------------------------------------------------------------------- messages
@@ -299,6 +307,20 @@ class SendParams:
     importance: str = "normal"
     save_to_sent: bool = True
 
+    @cached_property
+    def sizes(self) -> list[int]:
+        """Each attachment's size on disk, statted once, rejecting what Outlook will not take."""
+        measured = []
+        for file in self.attachments:
+            size = file.stat().st_size
+            if size > MAX_ATTACHMENT:
+                raise UsageError(
+                    "USAGE",
+                    f"{file.name} is {size} bytes; Outlook attachments stop at 150 MB",
+                )
+            measured.append(size)
+        return measured
+
 
 def read_body(body: str | None, body_file: str | None) -> str:
     """The message body from `--body`, `--body-file FILE`, or `--body-file -` (stdin)."""
@@ -314,22 +336,29 @@ def _recipients(addresses: list[str]) -> list[dict]:
 
 
 def attachment_sizes(params: SendParams) -> list[int]:
-    """Each attachment's size on disk, rejecting anything Outlook will not take."""
-    sizes = []
-    for file in params.attachments:
-        size = file.stat().st_size
-        if size > MAX_ATTACHMENT:
-            raise UsageError(
-                "USAGE",
-                f"{file.name} is {size} bytes; Outlook attachments stop at 150 MB",
-            )
-        sizes.append(size)
-    return sizes
+    """Each attachment's size on disk (cached on `params`)."""
+    return params.sizes
 
 
 def needs_draft_path(params: SendParams) -> bool:
     """Whether the attachments are too big for one `/me/sendMail` request (spec §8.2)."""
-    return sum(attachment_sizes(params)) > config.MAIL_INLINE_TOTAL
+    return sum(params.sizes) > config.MAIL_INLINE_TOTAL
+
+
+def _send_needs_draft_path(params: SendParams) -> bool:
+    """`needs_draft_path` for `mail send`, where the draft path cannot honour every option.
+
+    Graph always files the draft in Sent Items when `POST /me/messages/{id}/send` sends it;
+    only `/me/sendMail` takes `saveToSentItems`. Refusing beats silently ignoring the flag.
+    """
+    draft = needs_draft_path(params)
+    if draft and not params.save_to_sent:
+        raise UsageError(
+            "USAGE",
+            "--no-save-to-sent is not supported with attachments over the inline limit "
+            "(Graph keeps a Sent Items copy on the draft path)",
+        )
+    return draft
 
 
 def _content_type(file: Path) -> str:
@@ -420,7 +449,7 @@ def _send_step(client: GraphClient, base: str) -> PlannedRequest:
 
 def plan_send(client: GraphClient, params: SendParams, *, for_plan: bool = False) -> Plan:
     """`mail send`: one `/me/sendMail`, or draft → attachments → send (spec §8.2)."""
-    if not needs_draft_path(params):
+    if not _send_needs_draft_path(params):
         payload = {
             "message": build_message(params, for_plan=for_plan),
             "saveToSentItems": params.save_to_sent,
@@ -452,7 +481,7 @@ def plan_send(client: GraphClient, params: SendParams, *, for_plan: bool = False
 
 def run_send(client: GraphClient, params: SendParams) -> dict:
     """Send for real, threading the new draft's id through the later steps."""
-    if not needs_draft_path(params):
+    if not _send_needs_draft_path(params):
         client.execute(plan_send(client, params)[0])
         return {"status": "sent"}
     draft = run_create_draft(client, params)

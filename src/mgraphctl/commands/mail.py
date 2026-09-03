@@ -175,7 +175,7 @@ def _tree_text(tree: list[dict]) -> str:
         for folder in folders:
             rows.append(
                 (
-                    "  " * level + str(folder.get("displayName") or ""),
+                    "  " * level + truncate(folder.get("displayName")),
                     str(folder.get("unreadItemCount") or 0),
                     str(folder.get("totalItemCount") or 0),
                     str(folder.get("id") or ""),
@@ -408,10 +408,16 @@ def folders(
     json_: JsonFlag = False,
 ):
     """Show the mail folder tree."""
-    tree = mail.list_folders(client, depth=depth, hidden=hidden)
+    page = mail.list_folders(client, depth=depth, hidden=hidden)
+    if page.truncated and not json_:
+        note(f"(hit the {mail.CAP_FOLDERS}-item cap — narrow the query)")
     return TextResult(
-        text=_tree_text(tree),
-        json_obj={"items": tree, "count": len(tree), "truncated": False},
+        text=_tree_text(page.items),
+        json_obj={
+            "items": page.items,
+            "count": len(page.items),
+            "truncated": page.truncated,
+        },
     )
 
 

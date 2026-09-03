@@ -422,6 +422,32 @@ def test_mail_folders_tree_depth_and_hidden(invoke, graph):
     assert hidden.called
 
 
+@covers("mail folders")
+def test_mail_folders_reports_the_cap(invoke, graph):
+    items = [
+        {
+            "id": f"AAMk-folder-{n:04d}",
+            "displayName": f"Folder {n}",
+            "childFolderCount": 0,
+            "unreadItemCount": 0,
+            "totalItemCount": 0,
+        }
+        for n in range(500)
+    ]
+    graph.get(FOLDERS).mock(
+        return_value=httpx.Response(
+            200, json={"value": items, "@odata.nextLink": f"{FOLDERS}?$skiptoken=page-2"}
+        )
+    )
+    r = invoke("mail", "folders", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["count"] == 500 and doc["truncated"] is True
+    assert r.stderr == ""  # notes are a text-mode diagnostic
+    r = invoke("mail", "folders")
+    assert r.exit_code == 0 and r.stderr == "(hit the 500-item cap — narrow the query)\n"
+
+
 # --------------------------------------------------------------------------- mail drafts list
 
 
@@ -705,6 +731,31 @@ def test_mail_send_attachment_over_150mb_exit_2(invoke, graph, tmp_path, monkeyp
     r = invoke("mail", "send", "--to", "ada@example.com", "--body", "x", "--attach", str(big))
     assert r.exit_code == 2 and graph.calls.call_count == 0
     assert r.stderr.startswith("error[USAGE]: huge.iso is 157286401 bytes")
+
+
+@covers("mail send")
+def test_mail_send_no_save_to_sent_rejected_on_the_draft_path(invoke, graph, tmp_path):
+    big = tmp_path / "big.bin"
+    big.write_bytes(b"\0" * 3_000_000)
+    for extra in (["--dry-run"], []):
+        r = invoke(
+            "mail",
+            "send",
+            "--to",
+            "ada@example.com",
+            "--body",
+            "x",
+            "--attach",
+            str(big),
+            "--no-save-to-sent",
+            *extra,
+        )
+        assert r.exit_code == 2 and r.stdout == ""
+        assert r.stderr.startswith(
+            "error[USAGE]: --no-save-to-sent is not supported with attachments over the inline "
+            "limit (Graph keeps a Sent Items copy on the draft path)"
+        )
+    assert graph.calls.call_count == 0
 
 
 @covers("mail send")
@@ -1049,6 +1100,25 @@ def test_mail_move_dry_run(invoke, graph):
     assert graph.calls.call_count == 0
 
 
+@covers("mail move")
+def test_mail_move_dry_run_resolves_a_folder_name(invoke, graph):
+    routes = mock_graph(graph, "mail/folders_resolve")
+    move = graph.post(f"{MSG}/move").mock(return_value=httpx.Response(201, json=message()))
+    r = invoke("mail", "move", "AAMk-msg-0001", "--folder", "Projects", "--dry-run", "--json")
+    assert r.exit_code == 0, r.stderr
+    # Resolution is a read, so a dry run still performs it; only the write is withheld.
+    assert [routes[0].call_count, routes[1].call_count] == [1, 1]
+    assert not move.called and graph.calls.call_count == 2
+    assert json.loads(r.stdout)["requests"] == [
+        {
+            "method": "POST",
+            "url": f"{MSG}/move",
+            "headers": {"Content-Type": "application/json"},
+            "body": {"destinationId": "AAMk-folder-0003"},
+        }
+    ]
+
+
 @covers("mail delete")
 def test_mail_delete(invoke, graph):
     route = graph.delete(MSG).mock(return_value=httpx.Response(204))
@@ -1063,6 +1133,10 @@ def test_mail_delete_dry_run(invoke, graph):
     r = invoke("mail", "delete", "AAMk-msg-0001", "--dry-run")
     assert r.exit_code == 0, r.stderr
     assert r.stdout == f"DRY RUN — nothing sent\n1. DELETE {MSG}\n"
+    r = invoke("mail", "delete", "AAMk-msg-0001", "--dry-run", "--json")
+    assert json.loads(r.stdout)["requests"] == [
+        {"method": "DELETE", "url": MSG, "headers": {}, "body": None}
+    ]
     assert graph.calls.call_count == 0
 
 
