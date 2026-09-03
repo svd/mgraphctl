@@ -10,7 +10,7 @@ one, put the canonical path in front of it:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl mail list --unread --limit 10
-${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel send TEAM CHANNEL --body "hi"
+${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel send TEAM CHANNEL --body "hi" --dry-run
 ```
 
 There is no alias and no shorter spelling: `${CLAUDE_PLUGIN_ROOT}` is the only variable that ever
@@ -22,8 +22,10 @@ appears in a command line.
   satisfies the gate. A scope marked *on-demand* is in neither named set; request it with
   `login --scope <name>`.
 - **Graph** — the call as sent. `{x}` is a resolved and URL-encoded id.
-- Every verb accepts `--json`. Every verb that sends a non-GET request accepts `--dry-run`, which
-  prints the request(s) and sends nothing.
+- Every verb accepts `--json`. Every verb that writes accepts `--dry-run`, which prints the
+  request(s) and sends nothing. A few read verbs post a query rather than fetch it
+  (`calendar availability`, `calendar find-times`, `presence get USER`); they write nothing and
+  have no `--dry-run`.
 - `--limit` must be at least 1, and cannot be combined with `--all`. The default limit and the
   `--all` cap per verb are in **Paging defaults** at the end of this file.
 
@@ -567,6 +569,7 @@ Every `calendar create` option except `--calendar` and `--transaction-id`; all o
 | `--all-day` / `--no-all-day` | — | Change the all-day flag. |
 | `--attendees` / `--optional ADDR` | — | Replace the attendee list. Repeatable. |
 | `--body TEXT` / `--html` | — | Replace the body. |
+| `--teams` / `--no-teams` | — | Add or remove the Teams online meeting. |
 | `--location` / `--reminder` / `--show-as` / `--category` | — | Change these fields. |
 | `--dry-run` | off | Show the request(s); send nothing. |
 | `--json` | off | Print JSON instead of text. |
@@ -1869,7 +1872,8 @@ Text mode prints `(more results available — rerun with --all)` or
 `(hit the <cap>-item cap — narrow the query)` on stderr; JSON sets `"truncated": true`.
 
 A default of "all" means the verb has no `--limit` and fetches everything up to the cap; a cap of
-"—" means the verb has no `--all`.
+"—" means the verb has no `--all`. Those verbs still stop at an internal maximum — 200 items for
+`onedrive shared-with-me` and `onedrive recent`, 500 for the OneNote lists.
 
 | Verb | Page size | Default `--limit` | `--all` cap |
 |---|---|---|---|
@@ -1889,11 +1893,12 @@ A default of "all" means the verb has no `--limit` and fetches everything up to 
 | `chats search`, `search`, `sharepoint search` | 25 | 25 | 200 |
 | `onedrive ls`, `sharepoint ls` | 200 | 50 | 1000 |
 | `onedrive search` | 200 | 50 | — |
-| `onedrive shared-with-me` | none | 50 | 200 |
-| `onedrive recent` | none | 20 | 200 |
+| `onedrive shared-with-me` | none | 50 | — |
+| `onedrive recent` | none | 20 | — |
 | `sharepoint sites` | 100 | 20 | — |
 | `sharepoint items` | 200 | 50 | 500 |
-| `onenote notebooks`, `onenote sections`, `onenote pages`, `onenote search` | 100 | 50 | 500 |
+| `onenote pages` | 100 | 50 | 500 |
+| `onenote notebooks`, `onenote sections`, `onenote search` | 100 | 50 | — |
 | `todo tasks` | 100 | 50 | 500 |
 | `planner plans`, `planner tasks`, `meetings list` | none (sliced client-side) | 50 | — |
 
