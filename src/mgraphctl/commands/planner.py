@@ -15,6 +15,7 @@ from mgraphctl.render import (
     ObjectResult,
     WriteResult,
     fmt_dt,
+    note,
     parse_dt,
 )
 
@@ -59,8 +60,11 @@ def plans(
     json_: JsonFlag = False,
 ):
     """List plans you own plus every plan of a Microsoft 365 group you belong to."""
-    items = planner.list_plans(client)[: limit if limit is not None else DEFAULT_LIMIT]
-    return ListResult(items=items, columns=PLAN_COLUMNS)
+    eff_limit = limit if limit is not None else DEFAULT_LIMIT
+    page = planner.list_plans(client, limit=eff_limit, on_skip=note)
+    return ListResult(
+        items=page.items, columns=PLAN_COLUMNS, truncated=page.truncated, hit_cap=eff_limit
+    )
 
 
 @app.command("plan")
@@ -109,22 +113,34 @@ def tasks(
     """List tasks in a plan, or your own tasks across every plan (--my)."""
     eff_limit = limit if limit is not None else DEFAULT_LIMIT
     if my:
-        items = planner.my_tasks(client, include_completed=include_completed, limit=eff_limit)
-        return ListResult(items=items, columns=_task_columns(client.tz, my=True))
+        page = planner.my_tasks(
+            client, include_completed=include_completed, limit=eff_limit, on_skip=note
+        )
+        return ListResult(
+            items=page.items,
+            columns=_task_columns(client.tz, my=True),
+            truncated=page.truncated,
+            hit_cap=eff_limit,
+        )
     if plan_ref is None:
         raise UsageError("USAGE", "PLAN is required unless --my is given")
     resolved = planner.resolve_plan(client, plan_ref)
     bucket_id = None
     if bucket is not None:
         bucket_id = planner.resolve_bucket(client, resolved["id"], bucket)["id"]
-    items = planner.list_tasks(
+    page = planner.list_tasks(
         client,
         resolved["id"],
         bucket_id=bucket_id,
         include_completed=include_completed,
         limit=eff_limit,
     )
-    return ListResult(items=items, columns=_task_columns(client.tz, my=False))
+    return ListResult(
+        items=page.items,
+        columns=_task_columns(client.tz, my=False),
+        truncated=page.truncated,
+        hit_cap=eff_limit,
+    )
 
 
 @app.command("task")

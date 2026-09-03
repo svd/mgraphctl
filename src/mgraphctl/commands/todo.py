@@ -13,6 +13,7 @@ from mgraphctl.cli import (
     make_noun_app,
     page_bounds,
 )
+from mgraphctl.errors import UsageError
 from mgraphctl.graph import todo
 from mgraphctl.http import GraphClient
 from mgraphctl.render import (
@@ -167,6 +168,8 @@ def update(
     json_: JsonFlag = False,
 ):
     """Update a task."""
+    if not any([title, due, body, importance, reminder, start, status]):
+        raise UsageError("USAGE", "give at least one field to update")
     resolved = todo.resolve_list(client, list_ref)
     opts = _create_opts(
         title=title,

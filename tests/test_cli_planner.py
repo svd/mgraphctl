@@ -112,10 +112,48 @@ def test_planner_tasks_limit_client_side(invoke, graph):
     r = invoke("planner", "tasks", "Roadmap", "--limit", "2", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
-    assert doc["count"] == 2
+    assert doc["count"] == 2 and doc["truncated"] is True
     assert [t["id"] for t in doc["items"]] == ["task-0001", "task-0002"]
     tasks_route = routes[3]
     assert tasks_route.calls.last.request.url.query == b""
+
+    text_result = invoke("planner", "tasks", "Roadmap", "--limit", "2")
+    assert "hit the 2-item cap" in text_result.stderr
+
+
+@covers("planner plans")
+def test_planner_plans_truncated_by_limit(invoke, graph):
+    mock_graph(graph, "planner/plans")
+    r = invoke("planner", "plans", "--limit", "1", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["count"] == 1 and doc["truncated"] is True
+
+    text_result = invoke("planner", "plans", "--limit", "1")
+    assert "hit the 1-item cap" in text_result.stderr
+
+
+@covers("planner tasks")
+def test_planner_tasks_my_truncated_by_limit(invoke, graph):
+    mock_graph(graph, "planner/my_tasks")
+    r = invoke("planner", "tasks", "--my", "--limit", "1", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["count"] == 1 and doc["truncated"] is True
+
+    text_result = invoke("planner", "tasks", "--my", "--limit", "1")
+    assert "hit the 1-item cap" in text_result.stderr
+
+
+@covers("planner plans")
+def test_planner_plans_batch_failure_degrades_gracefully(invoke, graph):
+    mock_graph(graph, "planner/plans_partial_failure")
+    r = invoke("planner", "plans", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    # The failed group's plan is skipped; the owned plan and the other group's plan remain.
+    assert doc["count"] == 2
+    assert "no planner access" in r.stderr
 
 
 @covers("planner task")

@@ -9,18 +9,30 @@ columns; JSON callers get them too since `render.emit` serialises `ListResult.it
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from mgraphctl import odata
 from mgraphctl.errors import GraphError, MsgraphError, UsageError
 from mgraphctl.graph import users
-from mgraphctl.http import BatchRequest, GraphClient, Plan, PlannedRequest
+from mgraphctl.http import BatchRequest, GraphClient, PageResult, Plan, PlannedRequest
 from mgraphctl.render import to_iso_offset
 from mgraphctl.resolve import looks_like_id, pick_unique, split_id_prefix
+
+# `on_skip`, when given, is called with one human-readable line per batch sub-request that
+# failed (e.g. a group without Planner enabled, or a plan deleted since `my_tasks` read the
+# task list). Both `list_plans` and `my_tasks` degrade gracefully on such a failure — the rest
+# of the merged/annotated result is still returned — rather than failing the whole command;
+# callers pass `render.note` so the omission is visible on stderr instead of silent. `graph/*`
+# functions never call `render` directly (spec §7.2), hence the injected callback.
+OnSkip = Callable[[str], None]
 
 JSON = {"Content-Type": "application/json"}
 MY_TASKS_PLAN_TITLE_CAP = 20
 PERCENT_VALUES = (0, 50, 100)
+# Not a user-facing cap: large enough that name resolution never misses a real match because
+# a display `--limit` truncated the merged list first.
+RESOLUTION_LIMIT = 10_000
 
 
 def _run(client: GraphClient, plan: Plan) -> Any:
@@ -34,14 +46,18 @@ def _run(client: GraphClient, plan: Plan) -> Any:
 # --------------------------------------------------------------------------- reads
 
 
-def list_plans(client: GraphClient) -> list[dict]:
+def list_plans(
+    client: GraphClient, *, limit: int = 50, on_skip: OnSkip | None = None
+) -> PageResult:
     """Plans the signed-in user owns, plus every plan of a group they belong to (§8.14).
 
     `GET /me/planner/plans` ∪ (for each unified group from `users.list_unified_groups`) a
     `$batch` of `GET /groups/{id}/planner/plans`, deduped by id. Plans found only via a group
     are annotated with `_groupName` (text column only); the owned list is authoritative and
     keeps no `_groupName`, but a plan seen in more than one place still gets one if a group
-    supplied it.
+    supplied it. A group whose batch sub-request fails (e.g. Planner not enabled there) is
+    skipped rather than failing the whole call — same policy as `my_tasks` below for a failed
+    plan-title lookup — reported through `on_skip` when given.
     """
     own = client.get("/me/planner/plans") or {}
     merged: dict[str, dict] = {item["id"]: item for item in own.get("value") or []}
@@ -56,14 +72,18 @@ def list_plans(client: GraphClient) -> list[dict]:
         responses = client.batch(requests)
         for group, response in zip(groups, responses, strict=True):
             if response.error is not None:
-                raise response.error
+                if on_skip is not None:
+                    name = group.get("displayName") or group["id"]
+                    on_skip(f"skipped plans for group {name}: {response.error.message}")
+                continue
             for item in (response.body or {}).get("value") or []:
                 existing = merged.get(item["id"])
                 if existing is not None:
                     existing.setdefault("_groupName", group.get("displayName"))
                 else:
                     merged[item["id"]] = {**item, "_groupName": group.get("displayName")}
-    return list(merged.values())
+    items = list(merged.values())
+    return PageResult(items=items[:limit], truncated=len(items) > limit, pages=1)
 
 
 def resolve_plan(client: GraphClient, value: str) -> dict:
@@ -71,7 +91,9 @@ def resolve_plan(client: GraphClient, value: str) -> dict:
     if looks_like_id(value, "planner"):
         bare, _ = split_id_prefix(value)
         return {"id": bare}
-    return pick_unique(list_plans(client), "title", value, what="plan")
+    # Resolution needs every visible plan, not just the first page a `--limit` would keep.
+    candidates = list_plans(client, limit=RESOLUTION_LIMIT)
+    return pick_unique(candidates.items, "title", value, what="plan")
 
 
 def get_plan(client: GraphClient, plan_id: str) -> dict:
@@ -114,7 +136,7 @@ def list_tasks(
     bucket_id: str | None = None,
     include_completed: bool = False,
     limit: int = 50,
-) -> list[dict]:
+) -> PageResult:
     """A plan's tasks, hiding completed ones and naming buckets, sliced to `limit` (§8.14)."""
     payload = client.get(odata.p("planner", "plans", plan_id, "tasks")) or {}
     items = payload.get("value") or []
@@ -125,13 +147,22 @@ def list_tasks(
     names = {b["id"]: b.get("name") for b in list_buckets(client, plan_id)}
     for item in items:
         item["_bucketName"] = names.get(item.get("bucketId"), "")
-    return items[:limit]
+    return PageResult(items=items[:limit], truncated=len(items) > limit, pages=1)
 
 
 def my_tasks(
-    client: GraphClient, *, include_completed: bool = False, limit: int = 50
-) -> list[dict]:
-    """The signed-in user's tasks across every plan, annotated with plan titles (§8.14 `--my`)."""
+    client: GraphClient,
+    *,
+    include_completed: bool = False,
+    limit: int = 50,
+    on_skip: OnSkip | None = None,
+) -> PageResult:
+    """The signed-in user's tasks across every plan, annotated with plan titles (§8.14 `--my`).
+
+    A plan whose title lookup fails (e.g. deleted since the task was created) is skipped —
+    that task just keeps a blank `_planTitle` — same graceful-degradation policy as
+    `list_plans` above for a failed group lookup, reported through `on_skip` when given.
+    """
     payload = client.get("/me/planner/tasks") or {}
     items = payload.get("value") or []
     if not include_completed:
@@ -148,9 +179,12 @@ def my_tasks(
         for pid, response in zip(plan_ids, responses, strict=True):
             if response.error is None and isinstance(response.body, dict):
                 titles[pid] = response.body.get("title", "")
+            elif on_skip is not None:
+                detail = response.error.message if response.error else "empty response"
+                on_skip(f"skipped plan title for {pid}: {detail}")
     for item in items:
         item["_planTitle"] = titles.get(item.get("planId"), "")
-    return items[:limit]
+    return PageResult(items=items[:limit], truncated=len(items) > limit, pages=1)
 
 
 def get_task(client: GraphClient, task_id: str) -> dict:

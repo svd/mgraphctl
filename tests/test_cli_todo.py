@@ -168,12 +168,22 @@ def test_todo_update_and_status(invoke, graph):
 
 @covers("todo update")
 def test_todo_update_dry_run(invoke, graph):
-    mock_graph(graph, "todo/update")
-    r = invoke("todo", "update", "Groceries", "task-0001", "--title", "New", "--dry-run", "--json")
+    # An id:-shaped LIST needs no lookup, so this reaches true zero Graph calls (unlike the
+    # name-resolving `test_todo_create_dry_run` above, which still issues the lists GET).
+    r = invoke(
+        "todo", "update", "id:list-0002", "task-0001", "--title", "New", "--dry-run", "--json"
+    )
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
     assert doc["requests"][0]["body"] == {"title": "New"}
-    assert all(c.request.method == "GET" for c in graph.calls)
+    assert graph.calls.call_count == 0
+
+
+@covers("todo update")
+def test_todo_update_with_no_fields_is_usage_error(invoke, graph):
+    result = invoke("todo", "update", "id:list-0002", "task-0001")
+    assert result.exit_code == 2 and graph.calls.call_count == 0
+    assert result.stderr.startswith("error[USAGE]: give at least one field to update")
 
 
 @covers("todo complete")
@@ -189,12 +199,11 @@ def test_todo_complete(invoke, graph):
 
 @covers("todo complete")
 def test_todo_complete_dry_run(invoke, graph):
-    mock_graph(graph, "todo/complete")
-    r = invoke("todo", "complete", "Groceries", "task-0001", "--dry-run", "--json")
+    r = invoke("todo", "complete", "id:list-0002", "task-0001", "--dry-run", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
     assert doc["requests"][0]["body"] == {"status": "completed"}
-    assert all(c.request.method == "GET" for c in graph.calls)
+    assert graph.calls.call_count == 0
 
 
 @covers("todo delete")
@@ -208,12 +217,11 @@ def test_todo_delete(invoke, graph):
 
 @covers("todo delete")
 def test_todo_delete_dry_run(invoke, graph):
-    mock_graph(graph, "todo/delete")
-    r = invoke("todo", "delete", "Groceries", "task-0001", "--dry-run", "--json")
+    r = invoke("todo", "delete", "id:list-0002", "task-0001", "--dry-run", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
     assert doc["requests"][0]["method"] == "DELETE"
-    assert all(c.request.method == "GET" for c in graph.calls)
+    assert graph.calls.call_count == 0
 
 
 @covers("todo from-mail")
