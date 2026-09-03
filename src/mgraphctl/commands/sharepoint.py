@@ -90,7 +90,9 @@ def sites(
 ):
     """List followed sites, or search all sites."""
     page = sharepoint.list_sites(client, search=search, limit=limit if limit is not None else 20)
-    return ListResult(items=page.items, truncated=page.truncated, columns=SITE_LIST_COLUMNS)
+    return ListResult(
+        items=page.items, truncated=page.truncated, supports_all=False, columns=SITE_LIST_COLUMNS
+    )
 
 
 @app.command("site")

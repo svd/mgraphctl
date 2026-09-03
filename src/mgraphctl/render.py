@@ -182,6 +182,8 @@ class ListResult:
     truncated: bool = False
     empty_text: str = "No results."
     hit_cap: int | None = None
+    # False on verbs with no `--all`, so the truncation note never suggests a flag they lack.
+    supports_all: bool = True
     extra: dict | None = None
 
 
@@ -503,11 +505,12 @@ def _emit_list(res: ListResult) -> None:
         natural_width = sum(widths) + 4 * (len(widths) - 1)
         _console(natural_width).print(table)
     if res.truncated:
-        note(
-            f"(hit the {res.hit_cap}-item cap — narrow the query)"
-            if res.hit_cap
-            else "(more results available — rerun with --all)"
-        )
+        if res.hit_cap:
+            note(f"(hit the {res.hit_cap}-item cap — narrow the query)")
+        elif res.supports_all:
+            note("(more results available — rerun with --all)")
+        else:
+            note("(more results available — raise --limit)")
 
 
 def _to_json(result: Result) -> Any:

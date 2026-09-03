@@ -49,6 +49,7 @@ def notebooks(
     return ListResult(
         items=page.items,
         truncated=page.truncated,
+        supports_all=False,
         columns=[
             Column("id", "id"),
             Column("name", "displayName"),
@@ -73,6 +74,7 @@ def sections(
     return ListResult(
         items=page.items,
         truncated=page.truncated,
+        supports_all=False,
         columns=[
             Column("id", "id"),
             Column("name", "displayName"),
@@ -185,6 +187,7 @@ def search(
     return ListResult(
         items=page.items,
         truncated=page.truncated,
+        supports_all=False,
         columns=[
             Column("id", "id"),
             Column("created", lambda pg: fmt_dt(pg.get("createdDateTime"), tz)),

@@ -137,6 +137,23 @@ def test_list_table_never_truncates_ids(capsys, monkeypatch):
     )
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "expected"),
+    [
+        ({}, "(more results available — rerun with --all)"),
+        ({"supports_all": False}, "(more results available — raise --limit)"),
+        ({"hit_cap": 200}, "(hit the 200-item cap — narrow the query)"),
+    ],
+    ids=["no-all-flag-given", "verb-without-all", "all-hit-cap"],
+)
+def test_list_truncation_note_matches_what_the_verb_supports(capsys, kwargs, expected):
+    res = render.ListResult(
+        items=[{"id": "1"}], columns=[render.Column("id", "id")], truncated=True, **kwargs
+    )
+    render.emit(res, json_mode=False)
+    assert capsys.readouterr().err.strip() == expected
+
+
 def test_list_json_envelope_and_notes(capsys):
     res = render.ListResult(
         items=[{"id": "1"}], columns=[render.Column("id", "id")], truncated=True
@@ -149,13 +166,6 @@ def test_list_json_envelope_and_notes(capsys):
     )
     render.emit(res, json_mode=False)
     assert capsys.readouterr().err.strip() == "(more results available — rerun with --all)"
-    render.emit(
-        render.ListResult(
-            items=[{"id": "1"}], columns=[render.Column("id", "id")], truncated=True, hit_cap=200
-        ),
-        json_mode=False,
-    )
-    assert capsys.readouterr().err.strip() == "(hit the 200-item cap — narrow the query)"
     render.emit(render.ListResult(items=[], columns=[render.Column("id", "id")]), json_mode=False)
     assert capsys.readouterr().out == "No results.\n"
     render.emit(render.ListResult(items=[], columns=[], extra={"note": "n"}), json_mode=True)

@@ -1872,8 +1872,9 @@ as an id; a leading `/` forces a drive path.
 ## Paging defaults
 
 `--limit` bounds a normal run; `--all` replaces it with the cap and is mutually exclusive with it.
-Text mode prints `(more results available — rerun with --all)` or
-`(hit the <cap>-item cap — narrow the query)` on stderr; JSON sets `"truncated": true`.
+Text mode prints `(more results available — rerun with --all)`, `(more results available —
+raise --limit)` on a verb with no `--all`, or `(hit the <cap>-item cap — narrow the query)`
+after an `--all` run, on stderr; JSON sets `"truncated": true`.
 
 A default of "all" means the verb has no `--limit` and fetches everything up to the cap; a cap of
 "—" means the verb has no `--all`. Those verbs still stop at an internal maximum — 200 items for

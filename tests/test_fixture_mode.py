@@ -68,8 +68,44 @@ def test_record_redacts_credentials_in_a_json_body(tmp_path):
 
     key = "POST /v1.0/me/drive/items/i1/createUploadSession"
     entry = json.loads(fixtures.fixture_path(tmp_path, key).read_text())["responses"][0]
-    assert entry["body"] == {"uploadUrl": "***", "id": "s1"}
+    # Only the query string (the session's bearer) is redacted; the path keeps the session
+    # replayable, since unauthenticated PUT keys drop the query anyway.
+    assert entry["body"] == {"uploadUrl": "https://up.example.com/s?<redacted>", "id": "s1"}
     assert "tempauth" not in json.dumps(entry)
+
+
+def test_upload_session_records_then_replays(tmp_path):
+    src = tmp_path / "small.bin"
+    src.write_bytes(b"y" * 1_000)
+    fixture_dir = tmp_path / "fx"
+    create_path = "/me/drive/root:/small.bin:/createUploadSession"
+    with respx.mock:
+        respx.post(f"{V1}{create_path}").mock(
+            return_value=httpx.Response(
+                200, json={"uploadUrl": "https://up.example.com/s?tempauth=abc", "id": "s1"}
+            )
+        )
+        puts = respx.put("https://up.example.com/s").mock(
+            return_value=httpx.Response(201, json={"id": "item-1", "name": "small.bin"})
+        )
+        recorder = fixtures.FixtureTransport(fixture_dir, record=True, inner=httpx.HTTPTransport())
+        with _client(recorder) as c:
+            first = c.upload_session(
+                create_path, {"item": {"name": "small.bin"}}, src, chunk_size=4096
+            )
+    assert first == {"id": "item-1", "name": "small.bin"}
+    assert puts.calls.last.request.url.params["tempauth"] == "abc"
+
+    assert fixtures.fixture_path(fixture_dir, "PUT /s").exists()
+    for recorded in fixture_dir.iterdir():
+        assert "tempauth" not in recorded.read_text()
+
+    replayer = fixtures.FixtureTransport(fixture_dir, record=False)
+    with _client(replayer) as c:
+        second = c.upload_session(
+            create_path, {"item": {"name": "small.bin"}}, src, chunk_size=4096
+        )
+    assert second == {"id": "item-1", "name": "small.bin"}
 
 
 def test_replay_binary_download_strips_query_on_unauthenticated_client(tmp_path):

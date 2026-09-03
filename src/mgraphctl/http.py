@@ -41,7 +41,16 @@ UPLOAD_STALL_LIMIT = 3
 
 Expect = Literal["json", "bytes", "text", "none", "response"]
 
-_TOKEN_IN_BODY = re.compile(r'("(?:access_token|refresh_token|uploadUrl)"\s*:\s*")[^"]*"')
+_TOKEN_IN_BODY = re.compile(r'("(?:access_token|refresh_token)"\s*:\s*")[^"]*"')
+# An upload session's bearer lives in the uploadUrl query string. The scheme, host and path
+# stay so a recorded session remains replayable (fixture keys drop the query on those PUTs).
+_UPLOAD_URL_QUERY = re.compile(r'("uploadUrl"\s*:\s*"[^"?]*)\?[^"]*"')
+
+
+def redact_body(text: str) -> str:
+    """Blank the OAuth tokens and the query string of any `uploadUrl` in a JSON body."""
+    return _UPLOAD_URL_QUERY.sub(r'\1?<redacted>"', _TOKEN_IN_BODY.sub(r'\1***"', text))
+
 
 # Hosts the bearer token may ever be sent to: the host of the configured Graph base URLs,
 # derived (not hard-coded) so this stays in lockstep with config.py. A caller can pass an
@@ -341,7 +350,7 @@ class GraphClient:
             log.debug("Prefer: %s", prefer)
         if self.debug >= 2 and not streaming and response.content:
             body = response.text[:LOG_BODY_LIMIT]
-            log.debug("body: %s", _TOKEN_IN_BODY.sub(r'\1***"', body))
+            log.debug("body: %s", redact_body(body))
 
     # -- single requests --------------------------------------------------------
 

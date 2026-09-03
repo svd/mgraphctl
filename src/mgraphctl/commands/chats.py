@@ -108,6 +108,7 @@ def members(client: GraphClient, chat: ChatArg, json_: JsonFlag = False):
     return ListResult(
         items=page.items,
         truncated=page.truncated,
+        supports_all=False,
         empty_text="No members.",
         columns=[
             Column("id", "id"),

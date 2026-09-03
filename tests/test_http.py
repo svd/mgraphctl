@@ -772,7 +772,8 @@ def test_debug_log_redacts(caplog, monkeypatch):
     )
     body_lines = [m for m in caplog.messages if "access_token" in m]
     assert body_lines and '"access_token": "***"' in body_lines[0]
-    # An upload session's uploadUrl is a bearer credential of its own (spec §5.4).
-    assert '"uploadUrl": "***"' in body_lines[0]
+    # An upload session's uploadUrl carries its bearer in the query string (spec §5.4); the
+    # path stays so a recorded session remains replayable.
+    assert '"uploadUrl": "https://up.example.com/s?<redacted>"' in body_lines[0]
     assert "s3cr3t-value" not in caplog.text and "t0ken" not in caplog.text
     assert "Authorization" not in caplog.text and "tok-1" not in caplog.text

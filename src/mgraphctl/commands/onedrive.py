@@ -101,7 +101,10 @@ def search(
     bound = limit if limit is not None else 50
     page = files.search_items(client, base, q, limit=bound, shared=shared)
     return ListResult(
-        items=page.items, truncated=page.truncated, columns=files.item_columns(client.tz)
+        items=page.items,
+        truncated=page.truncated,
+        supports_all=False,
+        columns=files.item_columns(client.tz),
     )
 
 
@@ -299,7 +302,9 @@ def shared_with_me(
         Column("sharedDriveId", lambda i: dig(i, "remoteItem.parentReference.driveId") or ""),
         Column("sharedItemId", lambda i: dig(i, "remoteItem.id") or ""),
     ]
-    return ListResult(items=page.items, truncated=page.truncated, columns=columns)
+    return ListResult(
+        items=page.items, truncated=page.truncated, supports_all=False, columns=columns
+    )
 
 
 @app.command("recent")
@@ -313,7 +318,10 @@ def recent(
     bound = limit if limit is not None else 20
     page = onedrive.recent(client, limit=bound)
     return ListResult(
-        items=page.items, truncated=page.truncated, columns=files.item_columns(client.tz)
+        items=page.items,
+        truncated=page.truncated,
+        supports_all=False,
+        columns=files.item_columns(client.tz),
     )
 
 
