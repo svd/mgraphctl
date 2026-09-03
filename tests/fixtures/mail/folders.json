@@ -1,0 +1,81 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/mailFolders",
+    "query": {
+      "$select": "id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMk-folder-0001",
+          "displayName": "Inbox",
+          "parentFolderId": "AAMk-folder-root",
+          "childFolderCount": 1,
+          "unreadItemCount": 12,
+          "totalItemCount": 340
+        },
+        {
+          "id": "AAMk-folder-0002",
+          "displayName": "Archive",
+          "parentFolderId": "AAMk-folder-root",
+          "childFolderCount": 1,
+          "unreadItemCount": 0,
+          "totalItemCount": 58
+        },
+        {
+          "id": "AAMk-folder-0004",
+          "displayName": "Sent Items",
+          "parentFolderId": "AAMk-folder-root",
+          "childFolderCount": 0,
+          "unreadItemCount": 0,
+          "totalItemCount": 91
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/mailFolders/AAMk-folder-0001/childFolders",
+    "query": {
+      "$select": "id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMk-folder-0003",
+          "displayName": "Projects",
+          "parentFolderId": "AAMk-folder-0001",
+          "childFolderCount": 1,
+          "unreadItemCount": 2,
+          "totalItemCount": 12
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/mailFolders/AAMk-folder-0002/childFolders",
+    "query": {
+      "$select": "id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMk-folder-0005",
+          "displayName": "2025",
+          "parentFolderId": "AAMk-folder-0002",
+          "childFolderCount": 0,
+          "unreadItemCount": 0,
+          "totalItemCount": 40
+        }
+      ]
+    }
+  }
+]

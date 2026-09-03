@@ -1,0 +1,52 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/messages/AAMk-msg-0001",
+    "status": 200,
+    "json": {
+      "id": "AAMk-msg-0001",
+      "subject": "Sprint review",
+      "isRead": false,
+      "hasAttachments": true,
+      "importance": "high",
+      "receivedDateTime": "2026-08-31T08:15:00Z",
+      "from": {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}},
+      "toRecipients": [{"emailAddress": {"name": "Bob Example", "address": "bob@example.com"}}],
+      "webLink": "https://outlook.example.com/mail/AAMk-msg-0001",
+      "body": {"contentType": "text", "content": "Deck attached."}
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/messages/AAMk-msg-0001/attachments",
+    "query": {"$select": "id,name,contentType,size,isInline"},
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          "id": "AAMk-att-0001",
+          "name": "plan.docx",
+          "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "size": 12,
+          "isInline": false
+        },
+        {
+          "@odata.type": "#microsoft.graph.itemAttachment",
+          "id": "AAMk-att-0002",
+          "name": "Forwarded note",
+          "contentType": null,
+          "size": 900,
+          "isInline": false
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/messages/AAMk-msg-0001/attachments/AAMk-att-0001/$value",
+    "status": 200,
+    "headers": {"content-type": "application/octet-stream"},
+    "b64": "aGVsbG8gd29ybGQh"
+  }
+]

@@ -1,0 +1,42 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/mailFolders/inbox/messages",
+    "query": {
+      "$select": "id,subject,from,toRecipients,ccRecipients,receivedDateTime,isRead,hasAttachments,importance,bodyPreview,conversationId,webLink,inferenceClassification",
+      "$orderby": "receivedDateTime desc",
+      "$top": "50"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMk-msg-0001",
+          "subject": "Sprint review",
+          "isRead": false,
+          "hasAttachments": true,
+          "importance": "high",
+          "receivedDateTime": "2026-08-31T08:15:00Z",
+          "from": {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}},
+          "toRecipients": [
+            {"emailAddress": {"name": "Bob Example", "address": "bob@example.com"}}
+          ],
+          "webLink": "https://outlook.example.com/mail/AAMk-msg-0001"
+        },
+        {
+          "id": "AAMk-msg-0002",
+          "subject": "Lunch",
+          "isRead": true,
+          "hasAttachments": false,
+          "importance": "normal",
+          "receivedDateTime": "2026-08-30T11:00:00Z",
+          "from": {"emailAddress": {"name": "Bob Example", "address": "bob@example.com"}},
+          "toRecipients": [
+            {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}}
+          ],
+          "webLink": "https://outlook.example.com/mail/AAMk-msg-0002"
+        }
+      ]
+    }
+  }
+]

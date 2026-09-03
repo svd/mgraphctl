@@ -1,0 +1,34 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/mailFolders/drafts/messages",
+    "query": {
+      "$select": "id,subject,from,toRecipients,ccRecipients,receivedDateTime,isRead,hasAttachments,importance,bodyPreview,conversationId,webLink,inferenceClassification",
+      "$orderby": "lastModifiedDateTime desc",
+      "$top": "50"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMk-draft-0001",
+          "subject": "Re: Sprint review",
+          "isRead": true,
+          "hasAttachments": false,
+          "importance": "normal",
+          "toRecipients": [
+            {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}}
+          ]
+        },
+        {
+          "id": "AAMk-draft-0002",
+          "subject": "(no subject)",
+          "isRead": true,
+          "hasAttachments": false,
+          "importance": "normal",
+          "toRecipients": []
+        }
+      ]
+    }
+  }
+]

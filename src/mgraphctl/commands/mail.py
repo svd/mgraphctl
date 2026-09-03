@@ -1,0 +1,336 @@
+"""Outlook mail commands (spec §8.2)."""
+
+from pathlib import Path
+from typing import Annotated
+
+import typer
+
+from mgraphctl.cli import (
+    AllFlag,
+    JsonFlag,
+    LimitOpt,
+    graph_command,
+    make_noun_app,
+    page_bounds,
+)
+from mgraphctl.errors import MsgraphError, NotFoundError, UsageError
+from mgraphctl.graph import mail
+from mgraphctl.http import GraphClient
+from mgraphctl.render import (
+    Column,
+    FileResult,
+    ListResult,
+    ObjectResult,
+    TextResult,
+    fmt_dt,
+    fmt_person,
+    fmt_size,
+    note,
+    parse_dt,
+    truncate,
+)
+
+app = make_noun_app("Outlook mail: list, read, send, reply, organise.")
+drafts = make_noun_app("Draft messages.")
+app.add_typer(drafts, name="drafts")
+
+BODY_LIMIT = 4000
+
+FolderOpt = Annotated[str, typer.Option("--folder", help="Folder name, id, or 'all'.")]
+
+
+def _split(values: list[str] | None) -> list[str]:
+    """`--to a,b --to c` → `["a", "b", "c"]`."""
+    out: list[str] = []
+    for value in values or []:
+        out += [part.strip() for part in value.split(",") if part.strip()]
+    return out
+
+
+def _read_fields(tz: str) -> list[tuple[str, object]]:
+    return [
+        ("Subject", "subject"),
+        ("From", lambda m: fmt_person(m.get("from"))),
+        ("To", lambda m: mail.recipients_text(m, "toRecipients")),
+        ("Cc", lambda m: mail.recipients_text(m, "ccRecipients")),
+        ("Received", lambda m: fmt_dt(m.get("receivedDateTime"), tz)),
+        ("Id", "id"),
+        ("Web link", "webLink"),
+    ]
+
+
+def _headers_block(message: dict) -> str:
+    rows = message.get("internetMessageHeaders") or []
+    lines = [f"  {row.get('name')}: {row.get('value')}" for row in rows]
+    return "\n".join(["Headers", *lines])
+
+
+def _tree_text(tree: list[dict]) -> str:
+    """The folder tree: children indented by two spaces, ids in full (spec §8.2 `folders`)."""
+    rows: list[tuple[str, str, str, str]] = []
+
+    def walk(folders: list[dict], level: int) -> None:
+        for folder in folders:
+            rows.append(
+                (
+                    "  " * level + str(folder.get("displayName") or ""),
+                    str(folder.get("unreadItemCount") or 0),
+                    str(folder.get("totalItemCount") or 0),
+                    str(folder.get("id") or ""),
+                )
+            )
+            walk(folder.get("children") or [], level + 1)
+
+    walk(tree, 0)
+    if not rows:
+        return "No results."
+    rows.insert(0, ("name", "unread", "total", "id"))
+    widths = [max(len(row[i]) for row in rows) for i in range(3)]
+    return "\n".join(
+        f"{name:<{widths[0]}}  {unread:>{widths[1]}}  {total:>{widths[2]}}  {folder_id}"
+        for name, unread, total, folder_id in rows
+    )
+
+
+# --------------------------------------------------------------------------- read verbs
+
+
+@app.command("list")
+@graph_command(scopes=["Mail.Read"])
+def list_(
+    client: GraphClient,
+    folder: FolderOpt = "inbox",
+    unread: Annotated[bool, typer.Option("--unread", help="Only unread messages.")] = False,
+    from_: Annotated[
+        list[str] | None, typer.Option("--from", help="Sender address (repeatable).")
+    ] = None,
+    to: Annotated[
+        list[str] | None, typer.Option("--to", help="Recipient address (repeatable).")
+    ] = None,
+    search: Annotated[str | None, typer.Option("--search", help="KQL query.")] = None,
+    after: Annotated[str | None, typer.Option("--after", help="Only messages after this.")] = None,
+    before: Annotated[
+        str | None, typer.Option("--before", help="Only messages before this.")
+    ] = None,
+    select: Annotated[
+        str | None, typer.Option("--select", help="Comma-separated $select override.")
+    ] = None,
+    limit: LimitOpt = None,
+    all_: AllFlag = False,
+    json_: JsonFlag = False,
+):
+    """List messages (default: Inbox, newest first)."""
+    limit, all_ = page_bounds(limit, all_, default=10)
+    tz = client.tz
+    page = mail.list_messages(
+        client,
+        folder_id=mail.resolve_folder(client, folder),
+        unread=unread,
+        search=search,
+        senders=_split(from_),
+        recipients=_split(to),
+        after=parse_dt(after, tz) if after else None,
+        before=parse_dt(before, tz, end_of_day=True) if before else None,
+        select=select,
+        limit=limit,
+        all_=all_,
+        tz=tz,
+    )
+    return ListResult(
+        items=page.items,
+        truncated=page.truncated,
+        hit_cap=mail.CAP_LIST if all_ else None,
+        columns=mail.message_columns(tz),
+    )
+
+
+@app.command("read")
+@graph_command(scopes=["Mail.Read"])
+def read(
+    client: GraphClient,
+    message_id: Annotated[str, typer.Argument(metavar="ID", help="Message id.")],
+    html: Annotated[bool, typer.Option("--html", help="Show the HTML body verbatim.")] = False,
+    full: Annotated[bool, typer.Option("--full", help="Do not truncate the body.")] = False,
+    headers: Annotated[
+        bool, typer.Option("--headers", help="Also show the internet message headers.")
+    ] = False,
+    output: Annotated[
+        Path | None, typer.Option("--output", help="Write the full body to this file.")
+    ] = None,
+    save_attachments: Annotated[
+        Path | None, typer.Option("--save-attachments", help="Save file attachments here.")
+    ] = None,
+    json_: JsonFlag = False,
+):
+    """Show one message."""
+    tz = client.tz
+    message = mail.get_message(client, message_id, headers=headers, html=html)
+    if save_attachments is not None:
+        for attachment in mail.list_attachments(client, message_id):
+            if not mail.is_file_attachment(attachment):
+                note(
+                    f"skipped {attachment.get('name')}: "
+                    f"{mail.attachment_type(attachment)} cannot be downloaded"
+                )
+                continue
+            name = Path(str(attachment.get("name") or attachment["id"])).name
+            mail.download_attachment(client, message_id, attachment["id"], save_attachments / name)
+    body = mail.body_text(message, html=html)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(body)
+        return FileResult(
+            path=output,
+            bytes=len(body.encode()),
+            meta={"chars": len(body)},
+            message=f"Wrote {len(body)} chars to {output}",
+        )
+    shown = body
+    if not full and len(body) > BODY_LIMIT:
+        shown = body[:BODY_LIMIT]
+        note(f"(body truncated to {BODY_LIMIT} chars; use --full)")
+    if headers:
+        shown = _headers_block(message) + "\n\n" + shown
+    return ObjectResult(obj=message, fields=_read_fields(tz), body=shown)
+
+
+@app.command("attachments")
+@graph_command(scopes=["Mail.Read"])
+def attachments(
+    client: GraphClient,
+    message_id: Annotated[str, typer.Argument(metavar="ID", help="Message id.")],
+    download: Annotated[
+        str | None, typer.Option("--download", help="Attachment id to download.")
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", help="Where to write the --download file.")
+    ] = None,
+    all_attachments: Annotated[
+        bool, typer.Option("--all-attachments", help="Download every file attachment.")
+    ] = False,
+    output_dir: Annotated[
+        Path | None, typer.Option("--output-dir", help="Directory for --all-attachments.")
+    ] = None,
+    json_: JsonFlag = False,
+):
+    """List a message's attachments, or download them."""
+    if download is not None and all_attachments:
+        raise UsageError("USAGE", "--download and --all-attachments are mutually exclusive")
+    if output is not None and download is None:
+        raise UsageError("USAGE", "--output names the file for --download; add --download")
+    if output_dir is not None and not all_attachments:
+        raise UsageError("USAGE", "--output-dir goes with --all-attachments")
+    items = mail.list_attachments(client, message_id)
+    if download is not None:
+        return _download_one(client, message_id, items, download, output)
+    if all_attachments:
+        return _download_all(client, message_id, items, output_dir or Path())
+    return ListResult(
+        items=items,
+        columns=[
+            Column("id", "id"),
+            Column("type", mail.attachment_kind),
+            Column("name", "name"),
+            Column("size", lambda a: fmt_size(a.get("size"))),
+            Column("inline", lambda a: "yes" if a.get("isInline") else "no"),
+        ],
+    )
+
+
+def _find_attachment(items: list[dict], attachment_id: str) -> dict:
+    for attachment in items:
+        if attachment.get("id") == attachment_id:
+            return attachment
+    raise NotFoundError("NOT_FOUND", f"attachment {attachment_id!r} not found on this message")
+
+
+def _download_one(
+    client: GraphClient,
+    message_id: str,
+    items: list[dict],
+    attachment_id: str,
+    output: Path | None,
+) -> FileResult:
+    attachment = _find_attachment(items, attachment_id)
+    name = str(attachment.get("name") or attachment_id)
+    if not mail.is_file_attachment(attachment):
+        raise MsgraphError(
+            "ATTACHMENT_NOT_A_FILE",
+            f"{mail.attachment_type(attachment)} {name!r} cannot be downloaded",
+            hint="only fileAttachment items have bytes; open the message in Outlook instead",
+        )
+    got = mail.download_attachment(
+        client, message_id, attachment_id, output or Path(Path(name).name)
+    )
+    return FileResult(
+        path=got.path,
+        bytes=got.bytes,
+        meta={"id": attachment_id, "name": name, "contentType": got.content_type},
+        message=f"Downloaded {name} ({fmt_size(got.bytes)}) to {got.path}",
+    )
+
+
+def _download_all(
+    client: GraphClient, message_id: str, items: list[dict], output_dir: Path
+) -> ListResult:
+    saved: list[dict] = []
+    for attachment in items:
+        name = str(attachment.get("name") or attachment["id"])
+        if not mail.is_file_attachment(attachment):
+            note(f"skipped {name}: {mail.attachment_type(attachment)} cannot be downloaded")
+            continue
+        got = mail.download_attachment(
+            client, message_id, attachment["id"], output_dir / Path(name).name
+        )
+        saved.append(
+            {"id": attachment["id"], "name": name, "bytes": got.bytes, "path": str(got.path)}
+        )
+    return ListResult(
+        items=saved,
+        empty_text="No file attachments.",
+        columns=[
+            Column("id", "id"),
+            Column("name", "name"),
+            Column("size", lambda a: fmt_size(a.get("bytes"))),
+            Column("path", "path"),
+        ],
+    )
+
+
+@app.command("folders")
+@graph_command(scopes=["Mail.Read"])
+def folders(
+    client: GraphClient,
+    depth: Annotated[int, typer.Option("--depth", min=1, help="How many levels to show.")] = 2,
+    hidden: Annotated[bool, typer.Option("--hidden", help="Include hidden folders.")] = False,
+    json_: JsonFlag = False,
+):
+    """Show the mail folder tree."""
+    tree = mail.list_folders(client, depth=depth, hidden=hidden)
+    return TextResult(
+        text=_tree_text(tree),
+        json_obj={"items": tree, "count": len(tree), "truncated": False},
+    )
+
+
+@drafts.command("list")
+@graph_command(scopes=["Mail.Read"])
+def drafts_list(
+    client: GraphClient,
+    limit: LimitOpt = None,
+    all_: AllFlag = False,
+    json_: JsonFlag = False,
+):
+    """List draft messages, most recently changed first."""
+    limit, all_ = page_bounds(limit, all_, default=20)
+    page = mail.list_drafts(client, limit=limit, all_=all_)
+    return ListResult(
+        items=page.items,
+        truncated=page.truncated,
+        hit_cap=mail.CAP_LIST if all_ else None,
+        columns=[
+            Column("id", "id"),
+            Column("to", lambda m: truncate(mail.recipients_text(m))),
+            Column("subject", lambda m: truncate(m.get("subject"))),
+        ],
+    )
