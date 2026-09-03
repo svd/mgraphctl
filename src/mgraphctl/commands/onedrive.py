@@ -6,22 +6,33 @@ Every verb targets the signed-in user's own drive unless `--drive DRIVE_ID` name
 """
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 
-from mgraphctl.cli import AllFlag, JsonFlag, LimitOpt, graph_command, make_noun_app, page_bounds
+from mgraphctl.cli import (
+    AllFlag,
+    DryRunFlag,
+    JsonFlag,
+    LimitOpt,
+    graph_command,
+    make_noun_app,
+    page_bounds,
+)
 from mgraphctl.graph import files, onedrive
 from mgraphctl.http import GraphClient
 from mgraphctl.render import (
     Column,
+    DryRunResult,
     FileResult,
     ListResult,
     ObjectResult,
+    WriteResult,
     dig,
     fmt_dt,
     fmt_size,
     note,
+    parse_dt,
 )
 
 app = make_noun_app("OneDrive files.")
@@ -128,6 +139,138 @@ def download(
         meta=dict(contentType=got.content_type),
         message=f"Downloaded {item['name']} ({fmt_size(got.bytes)}) to {got.path}",
     )
+
+
+# --------------------------------------------------------------------------- writes
+
+
+@app.command("upload")
+@graph_command(scopes=["Files.ReadWrite"])
+def upload(
+    client: GraphClient,
+    file: Annotated[Path, typer.Argument(metavar="FILE", help="Local file to upload.")],
+    drive: DriveOpt = None,
+    dest: Annotated[
+        str | None,
+        typer.Option(
+            "--dest", help="Destination path (default: /<basename>; trailing / = folder)."
+        ),
+    ] = None,
+    conflict: Annotated[
+        Literal["rename", "replace", "fail"], typer.Option("--conflict", help="On a name clash.")
+    ] = "replace",
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Upload a local file (simple PUT under 4 MiB, an upload session above it)."""
+    base = onedrive.base_for(drive)
+    if dry_run:
+        return DryRunResult(files.plan_upload(client, base, file, dest, conflict))
+    item = files.run_upload(client, base, file, dest, conflict)
+    return WriteResult(obj=item, message=f"Uploaded {file.name}.")
+
+
+@app.command("mkdir")
+@graph_command(scopes=["Files.ReadWrite"])
+def mkdir(
+    client: GraphClient,
+    path: Annotated[str, typer.Argument(metavar="PATH")],
+    drive: DriveOpt = None,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Create a folder."""
+    base = onedrive.base_for(drive)
+    if dry_run:
+        return DryRunResult(files.plan_mkdir(client, base, path))
+    item = files.run_mkdir(client, base, path)
+    return WriteResult(obj=item, message=f"Created {item.get('name', path)}.")
+
+
+@app.command("move")
+@graph_command(scopes=["Files.ReadWrite"])
+def move(
+    client: GraphClient,
+    ref: RefArg,
+    to: Annotated[str, typer.Option("--to", help="Destination folder path, or 'id:ID'.")] = ...,
+    drive: DriveOpt = None,
+    name: Annotated[str | None, typer.Option("--name", help="Rename while moving.")] = None,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Move (and optionally rename) a file or folder."""
+    base = onedrive.base_for(drive)
+    if dry_run:
+        return DryRunResult(files.plan_move(client, base, ref, to, name))
+    item = files.run_move(client, base, ref, to, name)
+    return WriteResult(obj=item, message=f"Moved {ref} to {to}.")
+
+
+@app.command("rename")
+@graph_command(scopes=["Files.ReadWrite"])
+def rename(
+    client: GraphClient,
+    ref: RefArg,
+    name: Annotated[str, typer.Argument(metavar="NAME")],
+    drive: DriveOpt = None,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Rename a file or folder."""
+    base = onedrive.base_for(drive)
+    if dry_run:
+        return DryRunResult(files.plan_rename(client, base, ref, name))
+    item = files.run_rename(client, base, ref, name)
+    return WriteResult(obj=item, message=f"Renamed to {name}.")
+
+
+@app.command("delete")
+@graph_command(scopes=["Files.ReadWrite"])
+def delete(
+    client: GraphClient,
+    ref: RefArg,
+    drive: DriveOpt = None,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Delete a file or folder (moves it to the recycle bin)."""
+    base = onedrive.base_for(drive)
+    if dry_run:
+        return DryRunResult(files.plan_delete(client, base, ref))
+    item_id = files.resolve_item_id(client, base, ref)
+    files.run_delete(client, base, ref)
+    return WriteResult(obj={"status": "deleted", "id": item_id}, message=f"Deleted {item_id}.")
+
+
+@app.command("share")
+@graph_command(scopes=["Files.ReadWrite"])
+def share(
+    client: GraphClient,
+    ref: RefArg,
+    drive: DriveOpt = None,
+    link_type: Annotated[
+        Literal["view", "edit"], typer.Option("--type", help="Kind of link to create.")
+    ] = "view",
+    scope: Annotated[
+        Literal["organization", "anonymous"], typer.Option("--scope", help="Who can use it.")
+    ] = "organization",
+    expires: Annotated[
+        str | None, typer.Option("--expires", help="When the link stops working.")
+    ] = None,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Create a sharing link."""
+    base = onedrive.base_for(drive)
+    expires_dt = parse_dt(expires, client.tz) if expires else None
+    if dry_run:
+        return DryRunResult(
+            files.plan_share(
+                client, base, ref, link_type=link_type, scope=scope, expires=expires_dt
+            )
+        )
+    link = files.run_share(client, base, ref, link_type=link_type, scope=scope, expires=expires_dt)
+    return WriteResult(obj=link, message=dig(link, "link.webUrl") or "")
 
 
 # --------------------------------------------------------------------------- own-drive listings
