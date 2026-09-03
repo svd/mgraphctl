@@ -1,0 +1,33 @@
+[
+  {
+    "method": "POST",
+    "path": "/v1.0/search/query",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "hitsContainers": [
+            {
+              "hits": [
+                {
+                  "hitId": "1",
+                  "rank": 1,
+                  "summary": "",
+                  "resource": {
+                    "@odata.type": "#microsoft.graph.person",
+                    "id": "00000000-0000-0000-0000-00000000000a",
+                    "displayName": "Ada Example",
+                    "jobTitle": "Budget Analyst",
+                    "scoredEmailAddresses": [{"address": "ada@example.com", "relevanceScore": 1.0}]
+                  }
+                }
+              ],
+              "total": 1,
+              "moreResultsAvailable": false
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

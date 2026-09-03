@@ -1,0 +1,66 @@
+[
+  {
+    "method": "POST",
+    "path": "/v1.0/search/query",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "hitsContainers": [
+            {
+              "hits": [
+                {
+                  "hitId": "1",
+                  "rank": 1,
+                  "summary": "sprint planning",
+                  "resource": {
+                    "@odata.type": "#microsoft.graph.event",
+                    "id": "AAMk-evt-0001",
+                    "subject": "Sprint planning",
+                    "start": {"dateTime": "2026-08-10T09:00:00.0000000", "timeZone": "UTC"},
+                    "organizer": {
+                      "emailAddress": {"name": "Ada Example", "address": "ada@example.com"}
+                    },
+                    "webUrl": "https://outlook.office.com/calendar/AAMk-evt-0001"
+                  }
+                },
+                {
+                  "hitId": "2",
+                  "rank": 2,
+                  "summary": "budget review meeting",
+                  "resource": {
+                    "@odata.type": "#microsoft.graph.event",
+                    "id": "AAMk-evt-0002",
+                    "subject": "Budget review",
+                    "start": {"dateTime": "2026-08-20T09:00:00.0000000", "timeZone": "UTC"},
+                    "organizer": {
+                      "emailAddress": {"name": "Bob Example", "address": "bob@example.com"}
+                    },
+                    "webUrl": "https://outlook.office.com/calendar/AAMk-evt-0002"
+                  }
+                },
+                {
+                  "hitId": "3",
+                  "rank": 3,
+                  "summary": "budget close-out",
+                  "resource": {
+                    "@odata.type": "#microsoft.graph.event",
+                    "id": "AAMk-evt-0003",
+                    "subject": "Budget close-out",
+                    "start": {"dateTime": "2026-08-28T09:00:00.0000000", "timeZone": "UTC"},
+                    "organizer": {
+                      "emailAddress": {"name": "Cleo Example", "address": "cleo@example.com"}
+                    },
+                    "webUrl": "https://outlook.office.com/calendar/AAMk-evt-0003"
+                  }
+                }
+              ],
+              "total": 3,
+              "moreResultsAvailable": false
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

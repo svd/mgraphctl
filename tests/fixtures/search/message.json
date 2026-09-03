@@ -1,0 +1,87 @@
+[
+  {
+    "method": "POST",
+    "path": "/v1.0/search/query",
+    "responses": [
+      {
+        "status": 200,
+        "json": {
+          "value": [
+            {
+              "hitsContainers": [
+                {
+                  "hits": [
+                    {
+                      "hitId": "1",
+                      "rank": 1,
+                      "summary": "the budget review is ready",
+                      "resource": {
+                        "@odata.type": "#microsoft.graph.message",
+                        "id": "AAMk-msg-0001",
+                        "subject": "Budget review",
+                        "receivedDateTime": "2026-08-15T09:00:00Z",
+                        "from": {
+                          "emailAddress": {"name": "Ada Example", "address": "ada@example.com"}
+                        },
+                        "webUrl": "https://outlook.office.com/mail/AAMk-msg-0001"
+                      }
+                    },
+                    {
+                      "hitId": "2",
+                      "rank": 2,
+                      "summary": "following up on the budget",
+                      "resource": {
+                        "@odata.type": "#microsoft.graph.message",
+                        "id": "AAMk-msg-0002",
+                        "subject": "Budget follow-up",
+                        "receivedDateTime": "2026-08-20T09:00:00Z",
+                        "from": {
+                          "emailAddress": {"name": "Bob Example", "address": "bob@example.com"}
+                        },
+                        "webUrl": "https://outlook.office.com/mail/AAMk-msg-0002"
+                      }
+                    }
+                  ],
+                  "total": 3,
+                  "moreResultsAvailable": true
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "status": 200,
+        "json": {
+          "value": [
+            {
+              "hitsContainers": [
+                {
+                  "hits": [
+                    {
+                      "hitId": "3",
+                      "rank": 3,
+                      "summary": "Q3 budget notes attached",
+                      "resource": {
+                        "@odata.type": "#microsoft.graph.message",
+                        "id": "AAMk-msg-0003",
+                        "subject": "Q3 budget notes",
+                        "receivedDateTime": "2026-08-25T09:00:00Z",
+                        "from": {
+                          "emailAddress": {"name": "Cleo Example", "address": "cleo@example.com"}
+                        },
+                        "webUrl": "https://outlook.office.com/mail/AAMk-msg-0003"
+                      }
+                    }
+                  ],
+                  "total": 3,
+                  "moreResultsAvailable": false
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

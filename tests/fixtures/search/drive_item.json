@@ -1,0 +1,34 @@
+[
+  {
+    "method": "POST",
+    "path": "/v1.0/search/query",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "hitsContainers": [
+            {
+              "hits": [
+                {
+                  "hitId": "1",
+                  "rank": 1,
+                  "summary": "quarterly budget workbook",
+                  "resource": {
+                    "@odata.type": "#microsoft.graph.driveItem",
+                    "id": "01ABCDE-0001",
+                    "name": "Budget.xlsx",
+                    "lastModifiedDateTime": "2026-08-22T10:30:00Z",
+                    "lastModifiedBy": {"user": {"displayName": "Ada Example"}},
+                    "webUrl": "https://contoso.example.sharepoint.com/Shared/Budget.xlsx"
+                  }
+                }
+              ],
+              "total": 1,
+              "moreResultsAvailable": false
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
