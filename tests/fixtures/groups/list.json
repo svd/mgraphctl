@@ -1,0 +1,46 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/memberOf/microsoft.graph.group",
+    "query": {
+      "$select": "id,displayName,mail,groupTypes,description",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "grp-0001",
+          "displayName": "Platform Guild",
+          "mail": "platform@example.com",
+          "groupTypes": ["Unified"],
+          "description": "Platform engineering guild"
+        },
+        {
+          "id": "grp-0002",
+          "displayName": "Legacy Distro",
+          "mail": null,
+          "groupTypes": [],
+          "description": null
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/memberOf/microsoft.graph.group",
+    "query": {
+      "$filter": "groupTypes/any(c:c eq 'Unified')",
+      "$count": "true",
+      "$select": "id,displayName",
+      "$top": "999"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "grp-0001", "displayName": "Platform Guild"},
+        {"id": "grp-0003", "displayName": "Release Managers"}
+      ]
+    }
+  }
+]

@@ -1,0 +1,49 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/memberOf/microsoft.graph.group",
+    "query": {
+      "$select": "id,displayName,mail,groupTypes,description",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "grp-0001",
+          "displayName": "Platform Guild",
+          "mail": "platform@example.com",
+          "groupTypes": ["Unified"],
+          "description": "Platform engineering guild"
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/groups/grp-0001/members",
+    "query": {
+      "$select": "id,displayName,userPrincipalName,mail,jobTitle",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "00000000-0000-0000-0000-00000000000a",
+          "displayName": "Ada Example",
+          "userPrincipalName": "ada@example.com",
+          "mail": "ada@example.com",
+          "jobTitle": "Principal Engineer"
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000000b",
+          "displayName": "Adam Example",
+          "userPrincipalName": "adam@example.com",
+          "mail": "adam@example.com",
+          "jobTitle": "Analyst"
+        }
+      ]
+    }
+  }
+]
