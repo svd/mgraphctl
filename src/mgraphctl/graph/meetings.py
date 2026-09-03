@@ -13,7 +13,7 @@ from pathlib import Path
 from mgraphctl import odata
 from mgraphctl.errors import GraphError, NotFoundError, UsageError
 from mgraphctl.html import vtt_to_text
-from mgraphctl.http import BatchRequest, DownloadResult, GraphClient
+from mgraphctl.http import BatchRequest, DownloadResult, GraphClient, PageResult
 from mgraphctl.render import to_iso_offset
 
 EVENT_SELECT = "id,subject,start,end,organizer,isOnlineMeeting,onlineMeeting"
@@ -36,8 +36,13 @@ def list_online_events(
     subject: str | None,
     limit: int,
     tz: str,
-) -> list[dict]:
-    """Calendar events in `[start, end]` that are online meetings with a join URL."""
+) -> PageResult:
+    """Calendar events in `[start, end]` that are online meetings with a join URL.
+
+    `truncated` (and `pages`) are threaded through from the underlying `calendarView`
+    pagination unchanged: filtering to online meetings (and by `--subject`) only ever removes
+    items, so a page that was truncated before filtering still means "there may be more".
+    """
     params = {
         "startDateTime": to_iso_offset(start),
         "endDateTime": to_iso_offset(end),
@@ -60,7 +65,7 @@ def list_online_events(
     if subject:
         needle = subject.casefold()
         events = [e for e in events if needle in (e.get("subject") or "").casefold()]
-    return events
+    return PageResult(items=events, truncated=page.truncated, pages=page.pages)
 
 
 def resolve_meetings(client: GraphClient, events: list[dict]) -> dict[str, dict]:
@@ -133,6 +138,26 @@ def select_meeting(
     return _by_join_url(client, join_url)
 
 
+def get_meeting(
+    client: GraphClient,
+    meeting: str | None = None,
+    *,
+    join_url: str | None = None,
+    event: str | None = None,
+) -> dict:
+    """The full online meeting record, however it was selected (`meetings get`, spec §8.10).
+
+    `select_meeting` costs no request for a bare id (it hands back `{"id": meeting}` so the
+    cheaper verbs never over-fetch); `get` always wants the full record, so a bare id gets one
+    extra `GET /me/onlineMeetings/{id}` here. `--join-url` and `--event` already resolve
+    through the `$filter` lookup, which returns the full record, so no second call is needed.
+    """
+    selected = select_meeting(client, meeting, join_url, event)
+    if meeting is not None:
+        return client.get(odata.p("me", "onlineMeetings", selected["id"]))
+    return selected
+
+
 def list_transcripts(client: GraphClient, meeting_id: str) -> list[dict]:
     result = client.get(odata.p("me", "onlineMeetings", meeting_id, "transcripts"))
     return (result or {}).get("value") or []
@@ -144,7 +169,9 @@ def get_transcript_content(
     """The transcript body: WebVTT converted to `[HH:MM:SS] Speaker: line`, or raw for `fmt="vtt"`.
 
     A 403 `SpeakerAttributionNotAllowed` is retried once with an `Accept` header that asks
-    Graph for the plain-text representation directly (already speaker-scrubbed).
+    Graph for the plain-text representation directly (already speaker-scrubbed). That fallback
+    has no WebVTT form to fall back to, so it always returns plain text — `fmt` is ignored on
+    this path, by design, not by omission.
     """
     path = odata.p("me", "onlineMeetings", meeting_id, "transcripts", transcript_id, "content")
     try:
@@ -162,12 +189,16 @@ def insights(client: GraphClient, oid: str, meeting_id: str) -> tuple[list[dict]
     """AI insights: v1.0 first, `/beta` on 404; per-item detail from whichever base answered.
 
     A 403 at either stage becomes a soft "needs a Copilot license" note, not an error; a
-    per-item detail failure keeps the summary list entry instead of dropping it.
+    per-item detail failure keeps the summary list entry instead of dropping it. The summary
+    call passes no explicit `beta=`, so it honours the client's global `--beta` flag like any
+    other call; `beta` here tracks whichever base actually answered (the client's own setting
+    when the first call succeeded, or `True` when the 404 fallback to `/beta` was needed) so
+    the per-item detail GETs land on the same base as the summary that named them.
     """
     path = odata.p("copilot", "users", oid, "onlineMeetings", meeting_id, "aiInsights")
     try:
         summary = client.get(path)
-        beta = False
+        beta = client.beta
     except GraphError as exc:
         if exc.status == 403:
             return [], NO_LICENSE_NOTE

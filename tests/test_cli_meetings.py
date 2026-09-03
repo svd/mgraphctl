@@ -120,6 +120,40 @@ def test_meetings_list_limit_zero_is_usage_error(invoke):
 
 
 @covers("meetings list")
+def test_meetings_list_truncated_reports_the_cap(invoke, graph):
+    def online_event(event_id: str, subject: str, join_url: str) -> dict:
+        return {
+            "id": event_id,
+            "subject": subject,
+            "isOnlineMeeting": True,
+            "onlineMeeting": {"joinUrl": join_url},
+            "start": {"dateTime": "2026-08-10T09:00:00.0000000", "timeZone": "Europe/Warsaw"},
+            "end": {"dateTime": "2026-08-10T09:30:00.0000000", "timeZone": "Europe/Warsaw"},
+            "organizer": {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}},
+        }
+
+    graph.get(f"{GRAPH}/v1.0/me/calendarView").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    online_event("AAMkEvent-0001", "One", "https://teams.example.com/l/1"),
+                    online_event("AAMkEvent-0002", "Two", "https://teams.example.com/l/2"),
+                ]
+            },
+        )
+    )
+    r = invoke("meetings", "list", "--limit", "1", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["count"] == 1 and doc["truncated"] is True
+
+    r = invoke("meetings", "list", "--limit", "1")
+    assert r.exit_code == 0, r.stderr
+    assert "hit the 1-item cap" in r.stderr
+
+
+@covers("meetings list")
 @pytest.mark.scopes(["Calendars.Read"])
 def test_meetings_list_resolve_requires_online_meetings_scope(invoke, graph):
     route = graph.get(f"{GRAPH}/v1.0/me/calendarView").mock(
@@ -320,6 +354,28 @@ def test_meetings_insights_v1_404_then_beta_keeps_failed_item(invoke, graph):
     }
     assert doc["items"][1] == {"id": "insight-2", "title": "Action items"}
     assert "note" not in doc
+
+
+@covers("meetings insights")
+def test_meetings_insights_global_beta_flag_keeps_item_detail_on_beta(invoke, graph):
+    """`--beta` makes the summary call land on `/beta` directly (no 404 fallback needed); the
+    per-item detail GET must follow it there rather than defaulting back to v1.0."""
+    oid = auth.FIXTURE_OID
+    beta_base = f"{GRAPH}/beta/copilot/users/{oid}/onlineMeetings/MSpk-4/aiInsights"
+    graph.get(beta_base).mock(
+        return_value=httpx.Response(200, json={"value": [{"id": "insight-9", "title": "Recap"}]})
+    )
+    detail_route = graph.get(f"{beta_base}/insight-9").mock(
+        return_value=httpx.Response(
+            200, json={"id": "insight-9", "title": "Recap", "content": "All good."}
+        )
+    )
+    r = invoke("--beta", "meetings", "insights", "MSpk-4", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["items"] == [{"id": "insight-9", "title": "Recap", "content": "All good."}]
+    assert detail_route.called
+    assert "/beta/" in str(detail_route.calls.last.request.url)
 
 
 @covers("meetings insights")

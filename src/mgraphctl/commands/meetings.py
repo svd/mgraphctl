@@ -6,7 +6,7 @@ from typing import Annotated
 
 import typer
 
-from mgraphctl import auth, odata, render
+from mgraphctl import auth, render
 from mgraphctl.cli import JsonFlag, LimitOpt, gate, graph_command, make_noun_app
 from mgraphctl.errors import UsageError
 from mgraphctl.graph import meetings
@@ -79,9 +79,10 @@ def list_(
     tz = client.tz
     start_dt, end_dt = _window(start, end, tz)
     bound = limit if limit is not None else DEFAULT_LIMIT
-    events = meetings.list_online_events(
+    page = meetings.list_online_events(
         client, start=start_dt, end=end_dt, subject=subject, limit=bound, tz=tz
     )
+    events = page.items
     do_resolve = resolve or with_transcripts
     resolved: dict[str, dict] = {}
     if do_resolve:
@@ -113,6 +114,8 @@ def list_(
         )
     return ListResult(
         items=items,
+        truncated=page.truncated,
+        hit_cap=bound if page.truncated else None,
         columns=[
             Column("start", lambda it: fmt_dtz(it.get("start"), tz)),
             Column("subject", lambda it: truncate(it.get("subject"))),
@@ -133,14 +136,7 @@ def get(
     json_: JsonFlag = False,
 ):
     """Show one online meeting."""
-    selected = meetings.select_meeting(client, meeting, join_url, event)
-    # A bare positional id costs no request in select_meeting; fetch the full record here.
-    # --join-url and --event already resolve through a $filter lookup that returns it.
-    obj = (
-        client.get(odata.p("me", "onlineMeetings", selected["id"]))
-        if meeting is not None
-        else selected
-    )
+    obj = meetings.get_meeting(client, meeting, join_url=join_url, event=event)
     return ObjectResult(obj=obj, fields=list(GET_FIELDS))
 
 
