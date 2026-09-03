@@ -91,13 +91,23 @@ def resolve_item_id(client: GraphClient, base: str, ref: str) -> str:
     return get_item(client, base, ref)["id"]
 
 
+def _action_path(base: str, ref: str, action: str) -> str:
+    """`item_ref(...)` plus an action segment, colon-fenced correctly for each ref form.
+
+    An id-form ref (`{base}/items/{id}`) takes the action as a plain path segment
+    (`/items/{id}/action`); a path-form ref (`{base}/root:/{path}`) needs the path's closing
+    colon before the action segment (`root:/{path}:/action`) or Graph 400s.
+    """
+    value, forced = _split_id_prefix(ref)
+    sep = "/" if (forced or _looks_like_id(value)) else ":/"
+    return item_ref(base, ref) + sep + action
+
+
 def download_item(
     client: GraphClient, base: str, ref: str, dest: Path | None
 ) -> tuple[dict, DownloadResult]:
     item = get_item(client, base, ref)
-    value, forced = _split_id_prefix(ref)
-    suffix = "/content" if (forced or _looks_like_id(value)) else ":/content"
-    result = client.download(item_ref(base, ref) + suffix, dest or Path(item["name"]))
+    result = client.download(_action_path(base, ref, "content"), dest or Path(item["name"]))
     return item, result
 
 
@@ -216,7 +226,7 @@ def plan_share(
     body: dict[str, Any] = {"type": link_type, "scope": scope}
     if expires is not None:
         body["expirationDateTime"] = to_iso_offset(expires)
-    url = client.url(item_ref(base, ref) + "/createLink")
+    url = client.url(_action_path(base, ref, "createLink"))
     return [PlannedRequest("POST", url, dict(JSON), body)]
 
 

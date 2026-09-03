@@ -125,6 +125,23 @@ def test_download_item_uses_content_and_item_name(client, tmp_path, monkeypatch)
     assert result.path.read_bytes() == b"data"
 
 
+@respx.mock
+def test_download_item_path_form_colon_fences_content(client, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    respx.get(f"{V1}/me/drive/root:/Docs/report.pdf").mock(
+        return_value=httpx.Response(200, json={"id": "y", "name": "report.pdf"})
+    )
+    content_route = respx.get(f"{V1}/me/drive/root:/Docs/report.pdf:/content").mock(
+        return_value=httpx.Response(
+            200, content=b"data", headers={"Content-Type": "application/pdf"}
+        )
+    )
+    item, result = files.download_item(client, "/me/drive", "Docs/report.pdf", None)
+    assert item["name"] == "report.pdf"
+    assert content_route.called
+    assert result.path == Path("report.pdf")
+
+
 def test_plan_upload_small_put(client, tmp_path):
     file = tmp_path / "f.bin"
     file.write_bytes(b"x" * (3 * 1024 * 1024))
@@ -293,6 +310,11 @@ def test_rename_delete_share_plans(client):
         "expirationDateTime": "2026-12-31T23:59:59+00:00",
     }
 
+    path_share_plan = files.plan_share(
+        client, "/me/drive", "Docs/report.pdf", link_type="view", scope="organization", expires=None
+    )
+    assert path_share_plan[0].url == f"{V1}/me/drive/root:/Docs/report.pdf:/createLink"
+
 
 @respx.mock
 def test_run_rename_delete_share(client):
@@ -317,6 +339,15 @@ def test_run_rename_delete_share(client):
     )
     assert result == {"link": {"webUrl": "https://x/link"}}
     assert share_route.called
+
+    path_share_route = respx.post(f"{V1}/me/drive/root:/Docs/report.pdf:/createLink").mock(
+        return_value=httpx.Response(201, json={"link": {"webUrl": "https://x/link2"}})
+    )
+    path_result = files.run_share(
+        client, "/me/drive", "Docs/report.pdf", link_type="view", scope="organization", expires=None
+    )
+    assert path_result == {"link": {"webUrl": "https://x/link2"}}
+    assert path_share_route.called
 
 
 @respx.mock
