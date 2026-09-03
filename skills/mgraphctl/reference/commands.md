@@ -23,9 +23,12 @@ appears in a command line.
   `login --scope <name>`.
 - **Graph** — the call as sent. `{x}` is a resolved and URL-encoded id.
 - Every verb accepts `--json`. Every verb that writes accepts `--dry-run`, which prints the
-  request(s) and sends nothing. A few read verbs post a query rather than fetch it
-  (`calendar availability`, `calendar find-times`, `presence get USER`); they write nothing and
-  have no `--dry-run`.
+  request(s) it would send. `--dry-run` withholds the write; the GET lookups that turn names into
+  ids (folder, calendar, team/channel, chat by UPN, section, plan/bucket, To Do list, assignee UPN,
+  and the message read by `todo from-mail`) still run — pass ids (`id:`, GUID, `19:…`) for a fully
+  offline dry run. `chats dm --dry-run` alone makes no request. A few read verbs post a query
+  rather than fetch it (`calendar availability`, `calendar find-times`, `presence get USER`);
+  they write nothing and have no `--dry-run`.
 - `--limit` must be at least 1, and cannot be combined with `--all`. The default limit and the
   `--all` cap per verb are in **Paging defaults** at the end of this file.
 
@@ -766,7 +769,8 @@ Every `calendar create` option except `--calendar` and `--transaction-id`; all o
   `GET /users/{id}/manager` one level at a time, up to `--max`.
 - **Scopes:** `User.Read`; the iterative fallback additionally checks `User.Read.All` (*on-demand*).
 - **Tier:** P1
-- **Notes:** text prints one line per level, from the user upward.
+- **Notes:** text prints one line per level, from the user upward; `--json` prints the same order
+  in the list envelope `{"items": [...], "count": N, "truncated": false}`.
 
 ## `groups`
 

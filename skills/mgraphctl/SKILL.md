@@ -274,8 +274,11 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl people search "Anna" --json
    `onedrive mkdir`, `onedrive move`, `onedrive rename`, `onedrive delete`, `onedrive share`,
    `sharepoint upload`, `onenote create`, `planner create`, `planner update`, `planner complete`,
    `planner delete`, `todo create`, `todo update`, `todo complete`, `todo delete`,
-   `todo from-mail`, and any `api` call whose method is not GET. Each accepts `--dry-run`, which
-   prints the exact requests and sends nothing.
+   `todo from-mail`, and any `api` call whose method is not GET. `--dry-run` withholds the
+   write; the GET lookups that turn names into ids (folder, calendar, team/channel, chat by
+   UPN, section, plan/bucket, To Do list, assignee UPN, and the message read by
+   `todo from-mail`) still run — pass ids (`id:`, GUID, `19:…`) for a fully offline dry run.
+   `chats dm --dry-run` alone makes no request.
 2. **Never run `login`.** Give the user the command and wait. No data command ever opens a browser.
 3. **Use `--json` when you are parsing, text when you are showing the user.** Text tables are made
    for reading; JSON is stable and complete.
