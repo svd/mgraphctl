@@ -1,0 +1,294 @@
+"""CLI tests for the chats noun (spec §8.8)."""
+
+import json
+
+import httpx
+import pytest
+
+from helpers import GRAPH, covers, graph_error, mock_graph
+from mgraphctl import config
+
+CHAT = "19:chat-0001@thread.v2"
+CHAT_URL = f"{GRAPH}/v1.0/chats/19%3Achat-0001%40thread.v2"
+ME = "00000000-0000-0000-0000-000000000001"
+BOB = "00000000-0000-0000-0000-0000000000b0"
+
+
+def bind(user_id: str) -> dict:
+    return {
+        "@odata.type": "#microsoft.graph.aadUserConversationMember",
+        "roles": ["owner"],
+        "user@odata.bind": f"{GRAPH}/v1.0/users('{user_id}')",
+    }
+
+
+@covers("chats list")
+def test_chats_list_query_unread_and_titles(invoke, graph):
+    routes = mock_graph(graph, "chats/list")
+    r = invoke("chats", "list")
+    assert r.exit_code == 0, r.stderr
+    params = routes[0].calls.last.request.url.params
+    assert params["$top"] == "50"
+    assert params["$expand"] == "members,lastMessagePreview"
+    assert params["$orderby"] == "lastMessagePreview/createdDateTime desc"
+    assert params["$select"] == "id,topic,chatType,lastUpdatedDateTime,viewpoint,webUrl"
+    assert "$filter" not in params
+    lines = r.stdout.splitlines()
+    assert lines[0].split() == ["id", "flags", "type", "updated", "title"]
+    assert lines[1].startswith(CHAT) and "*" in lines[1]
+    assert lines[1].rstrip().endswith("Bob Example")
+    assert lines[2].rstrip().endswith("Launch plan") and "*" not in lines[2]
+    assert lines[3].rstrip().endswith("Bob Example, Cleo Example, Dan Example")
+
+
+@covers("chats list")
+def test_chats_list_unread_only(invoke, graph):
+    mock_graph(graph, "chats/list")
+    r = invoke("chats", "list", "--unread", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["count"] == 1 and [c["id"] for c in doc["items"]] == [CHAT]
+
+
+@covers("chats list")
+def test_chats_list_type_filter(invoke, graph):
+    routes = mock_graph(graph, "chats/list_group")
+    r = invoke("chats", "list", "--type", "group")
+    assert r.exit_code == 0, r.stderr
+    assert routes[0].calls.last.request.url.params["$filter"] == "chatType eq 'group'"
+    bad = invoke("chats", "list", "--type", "nope")
+    assert bad.exit_code == 2
+    assert bad.stderr.startswith("error[USAGE]: unknown chat type 'nope'; use one of oneOnOne")
+
+
+@covers("chats list")
+def test_chats_list_limit_zero_is_usage_error(invoke, graph):
+    assert invoke("chats", "list", "--limit", "0").exit_code == 2
+    assert graph.calls.call_count == 0
+
+
+@covers("chats get")
+@covers("chats members")
+def test_chats_get_and_members(invoke, graph):
+    routes = mock_graph(graph, "chats/get")
+    r = invoke("chats", "get", CHAT)
+    assert r.exit_code == 0, r.stderr
+    assert routes[0].calls.last.request.url.params["$expand"] == "members"
+    assert f"Chat id : {CHAT}" in r.stdout
+    assert "Title   : Bob Example" in r.stdout
+    assert "Type    : oneOnOne" in r.stdout
+
+    member_routes = mock_graph(graph, "chats/members")
+    r = invoke("chats", "members", CHAT)
+    assert r.exit_code == 0, r.stderr
+    assert member_routes[0].calls.last.request.url.query == b""
+    lines = r.stdout.splitlines()
+    assert lines[0].split() == ["id", "name", "email", "userId"]
+    assert "Bob Example" in r.stdout and BOB in r.stdout
+
+
+@covers("chats messages")
+def test_chats_messages_after_filter_and_order(invoke, graph):
+    routes = mock_graph(graph, "chats/messages")
+    r = invoke("chats", "messages", CHAT)
+    assert r.exit_code == 0, r.stderr
+    params = routes[0].calls.last.request.url.params
+    assert params["$top"] == "50" and params["$orderby"] == "createdDateTime desc"
+    assert "$filter" not in params
+    lines = [line for line in r.stdout.splitlines() if line.strip()]
+    assert lines[0].split() == ["created", "id", "from", "body"]
+    assert lines[1].startswith("2026-08-30T13:00+02:00")  # oldest first
+    assert lines[2].startswith("2026-08-31T10:15+02:00")
+    assert "@Ada Example" in r.stdout and "[image: hostedContents/aWQ=]" in r.stdout
+    doc = json.loads(invoke("chats", "messages", CHAT, "--json").stdout)
+    assert [m["id"] for m in doc["items"]] == ["AAMk-chat-0003", "AAMk-chat-0002"]
+
+    after_routes = mock_graph(graph, "chats/messages_after")
+    r = invoke("chats", "messages", CHAT, "--after", "2026-08-01")
+    assert r.exit_code == 0, r.stderr
+    assert after_routes[0].calls.last.request.url.params["$filter"] == (
+        "createdDateTime gt 2026-08-01T00:00:00+02:00"
+    )
+
+
+@covers("chats messages")
+@pytest.mark.parametrize(
+    "status,code,exit_code",
+    [(404, "ErrorItemNotFound", 4), (403, "Forbidden", 3), (400, "BadRequest", 1)],
+)
+def test_chats_messages_error_exit_codes(invoke, graph, status, code, exit_code):
+    graph.get(f"{CHAT_URL}/messages").mock(return_value=graph_error(status, code))
+    r = invoke("chats", "messages", CHAT)
+    assert r.exit_code == exit_code and r.stdout == ""
+    assert r.stderr.startswith(f"error[{code}]: boom\n  request-id: req-0001\n")
+
+
+@covers("chats messages")
+def test_chats_chat_by_upn_resolves_one_on_one(invoke, graph):
+    routes = mock_graph(graph, "chats/by_upn")
+    r = invoke("chats", "messages", "bob@example.com")
+    assert r.exit_code == 0, r.stderr
+    assert routes[0].calls.last.request.url.params["$select"] == "id,displayName"
+    assert routes[1].calls.last.request.url.params["$filter"] == "chatType eq 'oneOnOne'"
+    assert routes[2].called
+    bad = invoke("chats", "messages", "Team standup")
+    assert bad.exit_code == 2
+    assert bad.stderr.startswith("error[USAGE]: 'Team standup' is not a chat id or a UPN;")
+
+
+@covers("chats send")
+def test_chats_send_text(invoke, graph):
+    route = graph.post(f"{CHAT_URL}/messages").mock(
+        return_value=httpx.Response(201, json={"id": "AAMk-chat-0100", "chatId": CHAT})
+    )
+    r = invoke("chats", "send", CHAT, "--body", "On my way")
+    assert r.exit_code == 0, r.stderr
+    assert r.stdout == "Sent.\n"
+    assert json.loads(route.calls.last.request.content) == {
+        "body": {"contentType": "text", "content": "On my way"}
+    }
+    r = invoke("chats", "send", CHAT, "--body", "<p>Hi</p>", "--html", "--json")
+    assert json.loads(r.stdout)["id"] == "AAMk-chat-0100"
+    assert json.loads(route.calls.last.request.content)["body"]["contentType"] == "html"
+
+
+@covers("chats send")
+def test_chats_send_dry_run(invoke, graph):
+    r = invoke("chats", "send", CHAT, "--body", "Hi", "--dry-run", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(r.stdout) == {
+        "dryRun": True,
+        "requests": [
+            {
+                "method": "POST",
+                "url": f"{CHAT_URL}/messages",
+                "headers": {"Content-Type": "application/json"},
+                "body": {"body": {"contentType": "text", "content": "Hi"}},
+            }
+        ],
+    }
+    assert graph.calls.call_count == 0
+
+
+@covers("chats dm")
+def test_chats_dm_existing_chat(invoke, graph):
+    routes = mock_graph(graph, "chats/dm_existing")
+    send = graph.post(f"{CHAT_URL}/messages").mock(
+        return_value=httpx.Response(201, json={"id": "AAMk-chat-0100", "chatId": CHAT})
+    )
+    r = invoke("chats", "dm", "bob@example.com", "--body", "Ping")
+    assert r.exit_code == 0, r.stderr
+    assert r.stdout == "Sent.\n"
+    assert routes[0].calls.last.request.url.params["$select"] == "id,displayName"
+    params = routes[1].calls.last.request.url.params
+    assert params["$filter"] == "chatType eq 'oneOnOne'"
+    assert params["$expand"] == "members" and params["$top"] == "50"
+    assert json.loads(send.calls.last.request.content) == {
+        "body": {"contentType": "text", "content": "Ping"}
+    }
+
+
+@covers("chats dm")
+def test_chats_dm_creates_chat(invoke, graph):
+    mock_graph(graph, "chats/dm_new")
+    created = graph.post(f"{GRAPH}/v1.0/chats").mock(
+        return_value=httpx.Response(201, json={"id": "19:chat-0009@thread.v2"})
+    )
+    send = graph.post(f"{GRAPH}/v1.0/chats/19%3Achat-0009%40thread.v2/messages").mock(
+        return_value=httpx.Response(201, json={"id": "AAMk-chat-0200"})
+    )
+    r = invoke("chats", "dm", "bob@example.com", "--body", "Ping", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(created.calls.last.request.content) == {
+        "chatType": "oneOnOne",
+        "members": [bind(ME), bind(BOB)],
+    }
+    assert send.called
+    doc = json.loads(r.stdout)
+    assert doc["id"] == "AAMk-chat-0200" and doc["chatId"] == "19:chat-0009@thread.v2"
+
+
+@covers("chats dm")
+@pytest.mark.scopes(config.DEFAULT_SCOPES)
+def test_chats_dm_create_requires_chat_create(invoke, graph):
+    routes = mock_graph(graph, "chats/dm_new")
+    r = invoke("chats", "dm", "bob@example.com", "--body", "Ping")
+    assert r.exit_code == 3 and r.stdout == ""
+    assert r.stderr.startswith("error[MISSING_SCOPE]: this command needs Chat.Create;")
+    assert routes[0].called and routes[1].called
+    assert graph.calls.call_count == 2  # the lookups only; no POST /chats
+
+
+@covers("chats dm")
+def test_chats_dm_dry_run_shows_both_steps(invoke, graph):
+    r = invoke("chats", "dm", "bob@example.com", "--body", "Ping", "--dry-run", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["dryRun"] is True
+    assert [step["method"] for step in doc["requests"]] == ["POST", "POST"]
+    assert doc["requests"][0]["url"] == f"{GRAPH}/v1.0/chats"
+    assert doc["requests"][0]["note"] == "only when no 1:1 chat exists"
+    assert doc["requests"][1]["url"] == f"{GRAPH}/v1.0/chats/{{chatId}}/messages"
+    assert doc["requests"][1]["body"] == {"body": {"contentType": "text", "content": "Ping"}}
+    assert graph.calls.call_count == 0
+
+
+@covers("chats create")
+def test_chats_create_group_and_one_on_one(invoke, graph):
+    route = graph.post(f"{GRAPH}/v1.0/chats").mock(
+        return_value=httpx.Response(201, json={"id": "19:chat-0009@thread.v2", "chatType": "group"})
+    )
+    r = invoke(
+        "chats",
+        "create",
+        "--members",
+        "bob@example.com",
+        "--members",
+        "cleo@example.com",
+        "--topic",
+        "Launch plan",
+    )
+    assert r.exit_code == 0, r.stderr
+    assert r.stdout == "Created chat 19:chat-0009@thread.v2.\n"
+    assert json.loads(route.calls.last.request.content) == {
+        "chatType": "group",
+        "topic": "Launch plan",
+        "members": [bind(ME), bind("bob@example.com"), bind("cleo@example.com")],
+    }
+    r = invoke("chats", "create", "--members", "bob@example.com", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(route.calls.last.request.content) == {
+        "chatType": "oneOnOne",
+        "members": [bind(ME), bind("bob@example.com")],
+    }
+
+
+@covers("chats create")
+def test_chats_create_dry_run(invoke, graph):
+    r = invoke("chats", "create", "--members", "bob@example.com", "--dry-run", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["requests"] == [
+        {
+            "method": "POST",
+            "url": f"{GRAPH}/v1.0/chats",
+            "headers": {"Content-Type": "application/json"},
+            "body": {"chatType": "oneOnOne", "members": [bind(ME), bind("bob@example.com")]},
+        }
+    ]
+    assert graph.calls.call_count == 0
+    bare = invoke("chats", "create", "--dry-run")
+    assert bare.exit_code == 2
+    assert bare.stderr.startswith("error[USAGE]: give at least one --members UPN")
+
+
+@covers("chats create")
+@pytest.mark.scopes(config.DEFAULT_SCOPES)
+def test_chats_create_scope_gate(invoke, graph):
+    r = invoke("chats", "create", "--members", "bob@example.com")
+    assert r.exit_code == 3 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[MISSING_SCOPE]: this command needs Chat.Create;")
+
+
+def test_chats_group_help_exits_zero(invoke):
+    assert invoke("chats").exit_code == 0

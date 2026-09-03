@@ -1,0 +1,48 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/chats/19%3Achat-0001%40thread.v2/messages",
+    "query": {
+      "$top": "50",
+      "$orderby": "createdDateTime desc",
+      "$filter": "createdDateTime gt 2026-08-01T00:00:00+02:00"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMk-chat-0003",
+          "messageType": "message",
+          "createdDateTime": "2026-08-31T08:15:00Z",
+          "chatId": "19:chat-0001@thread.v2",
+          "from": {
+            "user": {
+              "displayName": "Bob Example",
+              "id": "00000000-0000-0000-0000-0000000000b0"
+            }
+          },
+          "body": {
+            "contentType": "html",
+            "content": "<div>Numbers for <at id=\"0\">Ada Example</at> <img src=\"https://graph.microsoft.com/v1.0/chats/19%3Achat-0001%40thread.v2/messages/AAMk-chat-0003/hostedContents/aWQ=/$value\"></div>"
+          }
+        },
+        {
+          "id": "AAMk-chat-0002",
+          "messageType": "message",
+          "createdDateTime": "2026-08-30T11:00:00Z",
+          "chatId": "19:chat-0001@thread.v2",
+          "from": {
+            "user": {
+              "displayName": "Ada Example",
+              "id": "00000000-0000-0000-0000-000000000001"
+            }
+          },
+          "body": {
+            "contentType": "text",
+            "content": "Sending the deck now"
+          }
+        }
+      ]
+    }
+  }
+]

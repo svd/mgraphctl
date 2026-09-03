@@ -1,0 +1,65 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/users/bob%40example.com",
+    "query": {
+      "$select": "id,displayName"
+    },
+    "status": 200,
+    "json": {
+      "id": "00000000-0000-0000-0000-0000000000b0",
+      "displayName": "Bob Example"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/chats",
+    "query": {
+      "$filter": "chatType eq 'oneOnOne'",
+      "$expand": "members",
+      "$top": "50"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "19:chat-0001@thread.v2",
+          "topic": null,
+          "chatType": "oneOnOne",
+          "lastUpdatedDateTime": "2026-08-31T09:00:00Z",
+          "viewpoint": {
+            "isHidden": false,
+            "lastMessageReadDateTime": "2026-08-31T08:00:00Z"
+          },
+          "webUrl": "https://teams.microsoft.com/l/chat/19%3Achat-0001%40thread.v2",
+          "members": [
+            {
+              "@odata.type": "#microsoft.graph.aadUserConversationMember",
+              "id": "MCMjMSMj-me",
+              "displayName": "Ada Example",
+              "userId": "00000000-0000-0000-0000-000000000001",
+              "email": "ada@example.com",
+              "roles": [
+                "owner"
+              ]
+            },
+            {
+              "@odata.type": "#microsoft.graph.aadUserConversationMember",
+              "id": "MCMjMSMj-bob",
+              "displayName": "Bob Example",
+              "userId": "00000000-0000-0000-0000-0000000000b0",
+              "email": "bob@example.com",
+              "roles": [
+                "owner"
+              ]
+            }
+          ],
+          "lastMessagePreview": {
+            "id": "AAMk-chat-0003",
+            "createdDateTime": "2026-08-31T09:00:00Z"
+          }
+        }
+      ]
+    }
+  }
+]
