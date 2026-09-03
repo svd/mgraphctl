@@ -2,8 +2,8 @@
 
 import httpx
 import pytest
-from helpers import GRAPH, mock_graph
 
+from helpers import GRAPH, mock_graph
 from mgraphctl.errors import UsageError
 from mgraphctl.graph import users
 from mgraphctl.http import GraphClient, PageResult

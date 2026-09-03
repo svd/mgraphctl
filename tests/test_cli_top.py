@@ -10,8 +10,8 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
-from helpers import GRAPH, covers, mock_graph
 
+from helpers import GRAPH, covers, mock_graph
 from mgraphctl import auth, config
 from mgraphctl.errors import AuthError
 

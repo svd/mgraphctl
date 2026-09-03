@@ -34,6 +34,9 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["mgraphctl", "helpers"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

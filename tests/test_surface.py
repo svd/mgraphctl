@@ -1,7 +1,8 @@
 """Every registered verb is covered by a test and carries --json (spec §11)."""
 
-import helpers
 import typer.main
+
+import helpers
 
 
 def walk(app):
