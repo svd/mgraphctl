@@ -114,7 +114,8 @@ def test_sharepoint_ls_site_drive_and_named_drive(invoke, graph):
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
     assert doc["items"][0]["id"] == "item-1"
-    assert routes[0].called and routes[1].called
+    # SITE_ID is already a composite id, so resolving it costs no Graph call.
+    assert not routes[0].called and routes[1].called
 
     r2 = invoke("sharepoint", "ls", SITE_ID, "Sub", "--drive", "Documents")
     assert r2.exit_code == 0, r2.stderr
@@ -156,7 +157,8 @@ def test_sharepoint_download_uses_site_drive(invoke, graph, tmp_path, monkeypatc
     routes = mock_graph(graph, "sharepoint/download")
     r = invoke("sharepoint", "download", SITE_ID, "AAAAAAAAAAAAAAAAAAAAAAAA")
     assert r.exit_code == 0, r.stderr
-    assert routes[0].called and routes[1].called and routes[2].called
+    # SITE_ID is already a composite id, so resolving it costs no Graph call.
+    assert not routes[0].called and routes[1].called and routes[2].called
     assert (tmp_path / "Report.pdf").read_bytes() == b"hello world"
     assert "Downloaded Report.pdf" in r.stdout
 
@@ -358,10 +360,9 @@ def test_sharepoint_url_personal_hint(invoke, graph):
 
 @covers("sharepoint upload")
 def test_sharepoint_upload_site_drive(invoke, graph, tmp_path):
-    site_route = graph.get(
-        f"{V1}/sites/{SITE_ID}", params__eq={"$select": sharepoint.SITE_SELECT}
-    ).mock(return_value=httpx.Response(200, json={"id": SITE_ID, "displayName": "Eng"}))
-
+    # SITE_ID is already a composite id: resolving it to a base costs no Graph call, so no
+    # /sites/{SITE_ID} route is mocked here — an unexpected call to it would fail the test
+    # (respx's default assert_all_mocked=True raises on any unmocked request).
     small = tmp_path / "a.txt"
     small.write_bytes(b"hello")
     put_route = graph.put(
@@ -374,7 +375,7 @@ def test_sharepoint_upload_site_drive(invoke, graph, tmp_path):
     )
     r = invoke("sharepoint", "upload", SITE_ID, str(small), "--dest", "Docs/a.txt", "--json")
     assert r.exit_code == 0, r.stderr
-    assert site_route.called and put_route.called
+    assert put_route.called
     assert json.loads(r.stdout)["id"] == "up-1"
 
     big = tmp_path / "b.bin"
@@ -405,14 +406,10 @@ def test_sharepoint_upload_site_drive(invoke, graph, tmp_path):
 
 @covers("sharepoint upload")
 def test_sharepoint_upload_dry_run(invoke, graph, tmp_path):
-    site_route = graph.get(
-        f"{V1}/sites/{SITE_ID}", params__eq={"$select": sharepoint.SITE_SELECT}
-    ).mock(return_value=httpx.Response(200, json={"id": SITE_ID, "displayName": "Eng"}))
+    # SITE_ID is already a composite id, so resolving it and building the plan take zero Graph
+    # calls; no route is mocked at all, so any request would fail the test.
     small = tmp_path / "a.txt"
     small.write_bytes(b"hello")
-    put_route = graph.put(f"{V1}/sites/{SITE_ID}/drive/root:/Docs/a.txt:/content").mock(
-        return_value=httpx.Response(201, json={"id": "up-1"})
-    )
 
     r = invoke(
         "sharepoint", "upload", SITE_ID, str(small), "--dest", "Docs/a.txt", "--dry-run", "--json"
@@ -429,9 +426,7 @@ def test_sharepoint_upload_dry_run(invoke, graph, tmp_path):
             "body": {"$file": str(small), "bytes": 5, "contentType": "text/plain"},
         }
     ]
-    # Resolving SITE to a dict needs a real lookup, but the write itself never happens.
-    assert site_route.called
-    assert not put_route.called
+    assert graph.calls.call_count == 0
 
 
 @covers("sharepoint upload")

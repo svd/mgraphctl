@@ -35,22 +35,27 @@ SITE_FIELDS = [
     ("Description", "description"),
     ("Id", "id"),
 ]
+# Shared by `sites` and `lists`: both show id, a display name, and a webUrl.
 SITE_LIST_COLUMNS = [Column("id", "id"), Column("name", "displayName"), Column("webUrl", "webUrl")]
+LIST_COLUMNS = SITE_LIST_COLUMNS
 DRIVE_COLUMNS = [
     Column("id", "id"),
     Column("name", "name"),
     Column("type", "driveType"),
     Column("webUrl", "webUrl"),
 ]
-LIST_COLUMNS = [Column("id", "id"), Column("name", "displayName"), Column("webUrl", "webUrl")]
 
 DriveOpt = Annotated[str | None, typer.Option("--drive", help="Drive name or id.")]
 
 
 def _open_drive(client: GraphClient, site: str, drive: str | None) -> tuple[str, str]:
-    """Resolve `SITE` (and `--drive`, if given) to `(site_id, base)`."""
-    site_obj = sharepoint.resolve_site(client, site)
-    site_id = site_obj["id"]
+    """Resolve `SITE` (and `--drive`, if given) to `(site_id, base)`.
+
+    Uses `resolve_site_id`, not `resolve_site`, so an already-known site id (composite
+    `host,guid,guid`, or `id:`-forced) needs no Graph call — required for `upload --dry-run`
+    to make zero requests.
+    """
+    site_id = sharepoint.resolve_site_id(client, site)
     drive_id = sharepoint.resolve_drive(client, site_id, drive) if drive else None
     return site_id, sharepoint.drive_base(site_id, drive_id)
 

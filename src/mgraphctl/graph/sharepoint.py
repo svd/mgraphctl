@@ -75,6 +75,17 @@ def resolve_site(client: GraphClient, value: str) -> dict:
     return resolve.pick_unique(items, "displayName", value, what="site")
 
 
+def resolve_site_id(client: GraphClient, value: str) -> str:
+    """The site's id, offline when `value` already IS one: `id:`-forced, or the composite
+    `host,guid,guid` form Graph returns from `site` (no lookup needed to know its own id).
+    A URL / `host:/a/b` reference still needs a live fetch to learn the real id; so does a name.
+    """
+    bare, forced = resolve.split_id_prefix(value)
+    if forced or "," in bare:
+        return bare
+    return resolve_site(client, value)["id"]
+
+
 # --------------------------------------------------------------------------- drives
 
 
