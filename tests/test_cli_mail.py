@@ -881,6 +881,224 @@ def test_mail_drafts_send_dry_run(invoke, graph):
     assert graph.calls.call_count == 0
 
 
+# --------------------------------------------------------------------------- mail mark
+
+
+@covers("mail mark")
+def test_mail_mark_single_patch_and_list_envelope(invoke, graph):
+    updated = message(isRead=True, categories=["Red"], importance="low")
+    route = graph.patch(MSG).mock(return_value=httpx.Response(200, json=updated))
+    r = invoke(
+        "mail",
+        "mark",
+        "AAMk-msg-0001",
+        "--read",
+        "--flag",
+        "--category",
+        "Red",
+        "--importance",
+        "low",
+        "--json",
+    )
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(route.calls.last.request.content) == {
+        "isRead": True,
+        "flag": {"flagStatus": "flagged"},
+        "categories": ["Red"],
+        "importance": "low",
+    }
+    assert json.loads(r.stdout) == {"items": [updated], "count": 1, "truncated": False}
+
+
+@covers("mail mark")
+def test_mail_mark_many_uses_batch(invoke, graph):
+    ids = ["AAMk-msg-0001", "AAMk-msg-0002", "AAMk-msg-0003"]
+    route = graph.post(f"{GRAPH}/v1.0/$batch").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "responses": [
+                    {
+                        "id": str(n),
+                        "status": 200,
+                        "headers": {},
+                        "body": message(id=mid, isRead=True),
+                    }
+                    for n, mid in enumerate(ids, 1)
+                ]
+            },
+        )
+    )
+    r = invoke("mail", "mark", *ids, "--unflag", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert [m["id"] for m in json.loads(r.stdout)["items"]] == ids
+    assert route.call_count == 1
+    requests = json.loads(route.calls.last.request.content)["requests"]
+    assert [s["method"] for s in requests] == ["PATCH", "PATCH", "PATCH"]
+    assert [s["url"] for s in requests] == [f"/me/messages/{mid}" for mid in ids]
+    assert requests[0]["headers"]["Content-Type"] == "application/json"
+    assert requests[0]["body"] == {"flag": {"flagStatus": "notFlagged"}}
+
+
+@covers("mail mark")
+def test_mail_mark_batch_sub_error_exit_4(invoke, graph):
+    graph.post(f"{GRAPH}/v1.0/$batch").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "responses": [
+                    {"id": "1", "status": 200, "headers": {}, "body": message()},
+                    {
+                        "id": "2",
+                        "status": 404,
+                        "headers": {},
+                        "body": {
+                            "error": {
+                                "code": "ErrorItemNotFound",
+                                "message": "The specified object was not found.",
+                                "innerError": {"request-id": "req-0001"},
+                            }
+                        },
+                    },
+                ]
+            },
+        )
+    )
+    r = invoke("mail", "mark", "AAMk-msg-0001", "AAMk-msg-9999", "--read")
+    assert r.exit_code == 4 and r.stdout == ""
+    assert r.stderr.startswith("error[ErrorItemNotFound]: The specified object was not found.\n")
+
+
+@covers("mail mark")
+def test_mail_mark_conflicting_flags_exit_2(invoke, graph):
+    r = invoke("mail", "mark", "AAMk-msg-0001", "--read", "--unread")
+    assert r.exit_code == 2 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: --read and --unread are mutually exclusive")
+    r = invoke("mail", "mark", "AAMk-msg-0001", "--flag", "--unflag")
+    assert r.exit_code == 2 and "at most one of" in r.stderr
+    r = invoke("mail", "mark", "AAMk-msg-0001", "--category", "Red", "--clear-categories")
+    assert r.exit_code == 2 and "--category and --clear-categories" in r.stderr
+    r = invoke("mail", "mark", "AAMk-msg-0001")
+    assert r.exit_code == 2 and "nothing to change" in r.stderr
+    assert graph.calls.call_count == 0
+
+
+@covers("mail mark")
+def test_mail_mark_dry_run(invoke, graph):
+    r = invoke(
+        "mail", "mark", "AAMk-msg-0001", "AAMk-msg-0002", "--flag-complete", "--dry-run", "--json"
+    )
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert [s["method"] for s in doc["requests"]] == ["PATCH", "PATCH"]
+    assert doc["requests"][0]["url"] == MSG
+    assert doc["requests"][0]["body"] == {"flag": {"flagStatus": "complete"}}
+    assert "$batch" in doc["requests"][0]["note"]
+    assert graph.calls.call_count == 0
+
+
+@covers("mail mark")
+@pytest.mark.scopes(["User.Read", "Mail.Read"])
+def test_mail_mark_missing_scope(invoke, graph):
+    r = invoke("mail", "mark", "AAMk-msg-0001", "--read")
+    assert r.exit_code == 3 and graph.calls.call_count == 0
+    assert r.stderr.startswith(
+        "error[MISSING_SCOPE]: this command needs Mail.ReadWrite; the current token has Mail.Read\n"
+    )
+    assert "login --scopes extended" in r.stderr
+
+
+# --------------------------------------------------------------------------- move / delete
+
+
+@covers("mail move")
+def test_mail_move_returns_new_message(invoke, graph):
+    moved = message(id="AAMk-msg-0099")
+    route = graph.post(f"{MSG}/move").mock(return_value=httpx.Response(201, json=moved))
+    r = invoke("mail", "move", "AAMk-msg-0001", "--folder", "Archive")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(route.calls.last.request.content) == {"destinationId": "archive"}
+    assert r.stdout == "Moved to Archive; new id: AAMk-msg-0099\n"
+    r = invoke("mail", "move", "AAMk-msg-0001", "--folder", "Archive", "--json")
+    assert json.loads(r.stdout) == moved
+
+
+@covers("mail move")
+def test_mail_move_by_folder_name_resolves(invoke, graph):
+    mock_graph(graph, "mail/folders_resolve")
+    route = graph.post(f"{MSG}/move").mock(
+        return_value=httpx.Response(201, json=message(id="AAMk-msg-0098"))
+    )
+    r = invoke("mail", "move", "AAMk-msg-0001", "--folder", "Projects", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(route.calls.last.request.content) == {"destinationId": "AAMk-folder-0003"}
+
+
+@covers("mail move")
+def test_mail_move_dry_run(invoke, graph):
+    r = invoke("mail", "move", "AAMk-msg-0001", "--folder", "archive", "--dry-run", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(r.stdout)["requests"] == [
+        {
+            "method": "POST",
+            "url": f"{MSG}/move",
+            "headers": {"Content-Type": "application/json"},
+            "body": {"destinationId": "archive"},
+        }
+    ]
+    assert graph.calls.call_count == 0
+
+
+@covers("mail delete")
+def test_mail_delete(invoke, graph):
+    route = graph.delete(MSG).mock(return_value=httpx.Response(204))
+    r = invoke("mail", "delete", "AAMk-msg-0001", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(r.stdout) == {"status": "deleted", "id": "AAMk-msg-0001"}
+    assert route.called
+
+
+@covers("mail delete")
+def test_mail_delete_dry_run(invoke, graph):
+    r = invoke("mail", "delete", "AAMk-msg-0001", "--dry-run")
+    assert r.exit_code == 0, r.stderr
+    assert r.stdout == f"DRY RUN — nothing sent\n1. DELETE {MSG}\n"
+    assert graph.calls.call_count == 0
+
+
+# --------------------------------------------------------------------------- rules / categories
+
+
+@covers("mail rules list")
+def test_mail_rules_list(invoke, graph):
+    mock_graph(graph, "mail/rules")
+    r = invoke("mail", "rules", "list")
+    assert r.exit_code == 0, r.stderr
+    lines = r.stdout.splitlines()
+    assert lines[0].split() == ["id", "sequence", "enabled", "name", "actions"]
+    assert lines[1].startswith("AQAAAJ-rule-0001")
+    assert "moveToFolder, markAsRead, stopProcessingRules" in lines[1]
+    assert "yes" in lines[1] and "no" in lines[2]
+
+
+@covers("mail categories")
+def test_mail_categories(invoke, graph):
+    mock_graph(graph, "mail/categories")
+    r = invoke("mail", "categories", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["count"] == 2 and doc["items"][0]["displayName"] == "Red category"
+    r = invoke("mail", "categories")
+    lines = r.stdout.splitlines()
+    assert lines[0].split() == ["id", "name", "color"]
+    assert lines[1].split() == [
+        "00000000-0000-0000-0000-0000000000c1",
+        "Red",
+        "category",
+        "preset0",
+    ]
+
+
 # --------------------------------------------------------------------------- help
 
 

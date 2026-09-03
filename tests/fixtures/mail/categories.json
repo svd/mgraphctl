@@ -1,0 +1,21 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/outlook/masterCategories",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "00000000-0000-0000-0000-0000000000c1",
+          "displayName": "Red category",
+          "color": "preset0"
+        },
+        {
+          "id": "00000000-0000-0000-0000-0000000000c2",
+          "displayName": "Blue category",
+          "color": "preset7"
+        }
+      ]
+    }
+  }
+]

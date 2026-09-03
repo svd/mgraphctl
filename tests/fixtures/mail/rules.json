@@ -1,0 +1,32 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/mailFolders/inbox/messageRules",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AQAAAJ-rule-0001",
+          "displayName": "Newsletters",
+          "sequence": 1,
+          "isEnabled": true,
+          "actions": {
+            "moveToFolder": "AAMk-folder-0002",
+            "markAsRead": true,
+            "stopProcessingRules": true,
+            "delete": false
+          }
+        },
+        {
+          "id": "AQAAAJ-rule-0002",
+          "displayName": "VIP",
+          "sequence": 2,
+          "isEnabled": false,
+          "actions": {
+            "forwardTo": [{"emailAddress": {"address": "ada@example.com"}}]
+          }
+        }
+      ]
+    }
+  }
+]

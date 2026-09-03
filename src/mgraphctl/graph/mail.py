@@ -17,7 +17,14 @@ from typing import Any
 from mgraphctl import config, odata, resolve
 from mgraphctl.errors import UsageError
 from mgraphctl.html import to_markdown
-from mgraphctl.http import DownloadResult, GraphClient, PageResult, Plan, PlannedRequest
+from mgraphctl.http import (
+    BatchRequest,
+    DownloadResult,
+    GraphClient,
+    PageResult,
+    Plan,
+    PlannedRequest,
+)
 from mgraphctl.render import Column, fmt_dt, fmt_person, kql_date, truncate
 
 LIST_SELECT = (
@@ -533,3 +540,69 @@ def plan_forward(
 def run_plan(client: GraphClient, plan: Plan) -> list:
     """Execute a plan whose steps are independent (no ids threaded between them)."""
     return [client.execute(step) for step in plan]
+
+
+# --------------------------------------------------------------------------- organising
+
+
+def plan_mark(client: GraphClient, message_ids: list[str], patch: dict) -> Plan:
+    """One PATCH per message; more than one goes out as a single `$batch` (spec §5.4)."""
+    batched = len(message_ids) > 1
+    steps: Plan = []
+    for position, message_id in enumerate(message_ids):
+        note = None
+        if batched and position == 0:
+            note = f"sent as one $batch with {len(message_ids)} PATCH sub-requests"
+        steps.append(
+            PlannedRequest(
+                "PATCH",
+                client.url(_message_base(message_id)),
+                dict(JSON),
+                dict(patch),
+                note=note,
+            )
+        )
+    return steps
+
+
+def run_mark(client: GraphClient, message_ids: list[str], patch: dict) -> list[dict]:
+    if len(message_ids) == 1:
+        return [client.execute(plan_mark(client, message_ids, patch)[0])]
+    requests = [
+        BatchRequest(str(n), "PATCH", _message_base(message_id), body=dict(patch))
+        for n, message_id in enumerate(message_ids, 1)
+    ]
+    updated = []
+    for response in client.batch(requests):
+        if response.error is not None:
+            raise response.error
+        updated.append(response.body)
+    return updated
+
+
+def plan_move(client: GraphClient, message_id: str, folder: str) -> Plan:
+    destination = resolve_folder(client, folder)
+    if destination is None:
+        raise UsageError("USAGE", "--folder all is not a destination; name one folder")
+    return [
+        PlannedRequest(
+            "POST",
+            client.url(_message_base(message_id) + "/move"),
+            dict(JSON),
+            {"destinationId": destination},
+        )
+    ]
+
+
+def plan_delete(client: GraphClient, message_id: str) -> Plan:
+    return [
+        PlannedRequest("DELETE", client.url(_message_base(message_id)), {}, None, expect="none")
+    ]
+
+
+def list_rules(client: GraphClient) -> list[dict]:
+    return (client.get("/me/mailFolders/inbox/messageRules") or {}).get("value") or []
+
+
+def list_categories(client: GraphClient) -> list[dict]:
+    return (client.get("/me/outlook/masterCategories") or {}).get("value") or []

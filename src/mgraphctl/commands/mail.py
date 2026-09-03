@@ -37,6 +37,8 @@ from mgraphctl.render import (
 app = make_noun_app("Outlook mail: list, read, send, reply, organise.")
 drafts = make_noun_app("Draft messages.")
 app.add_typer(drafts, name="drafts")
+rules = make_noun_app("Inbox rules.")
+app.add_typer(rules, name="rules")
 
 BODY_LIMIT = 4000
 
@@ -110,6 +112,53 @@ def _send_params(
         importance=importance,
         save_to_sent=save_to_sent,
     )
+
+
+def _mark_patch(
+    *,
+    read: bool,
+    unread: bool,
+    flag: bool,
+    unflag: bool,
+    flag_complete: bool,
+    category: list[str] | None,
+    clear_categories: bool,
+    importance: str | None,
+) -> dict:
+    """The PATCH body `mail mark` sends; every contradictory pair is a usage error."""
+    if read and unread:
+        raise UsageError("USAGE", "--read and --unread are mutually exclusive")
+    if sum([flag, unflag, flag_complete]) > 1:
+        raise UsageError("USAGE", "give at most one of --flag, --unflag or --flag-complete")
+    categories = _split(category)
+    if categories and clear_categories:
+        raise UsageError("USAGE", "--category and --clear-categories are mutually exclusive")
+    patch: dict[str, object] = {}
+    if read or unread:
+        patch["isRead"] = read
+    for wanted, status in ((flag, "flagged"), (unflag, "notFlagged"), (flag_complete, "complete")):
+        if wanted:
+            patch["flag"] = {"flagStatus": status}
+    if categories or clear_categories:
+        patch["categories"] = categories
+    if importance is not None:
+        if importance not in mail.IMPORTANCE:
+            raise UsageError(
+                "USAGE",
+                f"--importance must be one of {', '.join(mail.IMPORTANCE)} (got {importance!r})",
+            )
+        patch["importance"] = importance
+    if not patch:
+        raise UsageError(
+            "USAGE",
+            "nothing to change; give --read/--unread, --flag/--unflag/--flag-complete, "
+            "--category/--clear-categories or --importance",
+        )
+    return patch
+
+
+def _actions_summary(rule: dict) -> str:
+    return ", ".join(name for name, value in (rule.get("actions") or {}).items() if value)
 
 
 def _headers_block(message: dict) -> str:
@@ -459,6 +508,116 @@ def forward(
         return DryRunResult(plan)
     mail.run_plan(client, plan)
     return WriteResult(obj={"status": "sent"}, message="Sent.")
+
+
+@app.command("mark")
+@graph_command(scopes=["Mail.ReadWrite"])
+def mark(
+    client: GraphClient,
+    message_ids: Annotated[list[str], typer.Argument(metavar="ID...", help="Message ids.")],
+    read: Annotated[bool, typer.Option("--read", help="Mark as read.")] = False,
+    unread: Annotated[bool, typer.Option("--unread", help="Mark as unread.")] = False,
+    flag: Annotated[bool, typer.Option("--flag", help="Flag for follow-up.")] = False,
+    unflag: Annotated[bool, typer.Option("--unflag", help="Remove the flag.")] = False,
+    flag_complete: Annotated[
+        bool, typer.Option("--flag-complete", help="Mark the flag complete.")
+    ] = False,
+    category: Annotated[
+        list[str] | None, typer.Option("--category", help="Category to set (repeatable).")
+    ] = None,
+    clear_categories: Annotated[
+        bool, typer.Option("--clear-categories", help="Remove every category.")
+    ] = False,
+    importance: Annotated[
+        str | None, typer.Option("--importance", help="low, normal or high.")
+    ] = None,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Change read state, flag, categories or importance on one or more messages."""
+    patch = _mark_patch(
+        read=read,
+        unread=unread,
+        flag=flag,
+        unflag=unflag,
+        flag_complete=flag_complete,
+        category=category,
+        clear_categories=clear_categories,
+        importance=importance,
+    )
+    if dry_run:
+        return DryRunResult(mail.plan_mark(client, message_ids, patch))
+    return ListResult(
+        items=mail.run_mark(client, message_ids, patch),
+        columns=mail.message_columns(client.tz),
+    )
+
+
+@app.command("move")
+@graph_command(scopes=["Mail.ReadWrite"])
+def move(
+    client: GraphClient,
+    message_id: MessageIdArg,
+    folder: Annotated[str, typer.Option("--folder", help="Destination folder name or id.")],
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Move a message to another folder. The message gets a new id."""
+    plan = mail.plan_move(client, message_id, folder)
+    if dry_run:
+        return DryRunResult(plan)
+    moved = mail.run_plan(client, plan)[0]
+    return WriteResult(obj=moved, message=f"Moved to {folder}; new id: {moved.get('id')}")
+
+
+@app.command("delete")
+@graph_command(scopes=["Mail.ReadWrite"])
+def delete(
+    client: GraphClient,
+    message_id: MessageIdArg,
+    dry_run: DryRunFlag = False,
+    json_: JsonFlag = False,
+):
+    """Delete a message (Outlook moves it to Deleted Items)."""
+    plan = mail.plan_delete(client, message_id)
+    if dry_run:
+        return DryRunResult(plan)
+    mail.run_plan(client, plan)
+    return WriteResult(
+        obj={"status": "deleted", "id": message_id}, message=f"Deleted {message_id}."
+    )
+
+
+@rules.command("list")
+@graph_command(scopes=["MailboxSettings.Read"])
+def rules_list(client: GraphClient, json_: JsonFlag = False):
+    """List the inbox rules."""
+    return ListResult(
+        items=mail.list_rules(client),
+        empty_text="No inbox rules.",
+        columns=[
+            Column("id", "id"),
+            Column("sequence", "sequence"),
+            Column("enabled", lambda r: "yes" if r.get("isEnabled") else "no"),
+            Column("name", "displayName"),
+            Column("actions", _actions_summary),
+        ],
+    )
+
+
+@app.command("categories")
+@graph_command(scopes=["MailboxSettings.Read"])
+def categories(client: GraphClient, json_: JsonFlag = False):
+    """List the mailbox's categories."""
+    return ListResult(
+        items=mail.list_categories(client),
+        empty_text="No categories.",
+        columns=[
+            Column("id", "id"),
+            Column("name", "displayName"),
+            Column("color", "color"),
+        ],
+    )
 
 
 @drafts.command("create")
