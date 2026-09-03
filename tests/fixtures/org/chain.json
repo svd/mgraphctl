@@ -1,0 +1,29 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me",
+    "query": {
+      "$expand": "manager($levels=max;$select=id,displayName,userPrincipalName,jobTitle)",
+      "$count": "true"
+    },
+    "status": 200,
+    "json": {
+      "id": "00000000-0000-0000-0000-00000000000a",
+      "displayName": "Ada Example",
+      "userPrincipalName": "ada@example.com",
+      "jobTitle": "Engineer",
+      "manager": {
+        "id": "00000000-0000-0000-0000-0000000000b1",
+        "displayName": "Bob Manager",
+        "userPrincipalName": "bob@example.com",
+        "jobTitle": "Team Lead",
+        "manager": {
+          "id": "00000000-0000-0000-0000-0000000000c1",
+          "displayName": "Carol Director",
+          "userPrincipalName": "carol@example.com",
+          "jobTitle": "Director"
+        }
+      }
+    }
+  }
+]

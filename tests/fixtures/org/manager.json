@@ -1,0 +1,34 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/manager",
+    "query": {
+      "$select": "id,displayName,userPrincipalName,mail,jobTitle,department"
+    },
+    "status": 200,
+    "json": {
+      "id": "00000000-0000-0000-0000-0000000000b1",
+      "displayName": "Bob Manager",
+      "userPrincipalName": "bob@example.com",
+      "mail": "bob@example.com",
+      "jobTitle": "Engineering Director",
+      "department": "R&D"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/users/bob@example.com/manager",
+    "query": {
+      "$select": "id,displayName,userPrincipalName,mail,jobTitle,department"
+    },
+    "status": 200,
+    "json": {
+      "id": "00000000-0000-0000-0000-0000000000c1",
+      "displayName": "Carol Manager",
+      "userPrincipalName": "carol@example.com",
+      "mail": "carol@example.com",
+      "jobTitle": "VP Engineering",
+      "department": "R&D"
+    }
+  }
+]

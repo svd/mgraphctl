@@ -1,0 +1,31 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/directReports",
+    "query": {
+      "$select": "id,displayName,userPrincipalName,mail,jobTitle,department",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "00000000-0000-0000-0000-0000000000d1",
+          "displayName": "Dana Report",
+          "userPrincipalName": "dana@example.com",
+          "mail": "dana@example.com",
+          "jobTitle": "Engineer",
+          "department": "R&D"
+        },
+        {
+          "id": "00000000-0000-0000-0000-0000000000d2",
+          "displayName": "Eli Report",
+          "userPrincipalName": "eli@example.com",
+          "mail": "eli@example.com",
+          "jobTitle": "Engineer",
+          "department": "R&D"
+        }
+      ]
+    }
+  }
+]
