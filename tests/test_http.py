@@ -240,6 +240,24 @@ def test_absolute_url_used_verbatim(client):
 
 
 @respx.mock
+def test_bearer_refused_for_non_graph_host(client):
+    with pytest.raises(errors.UsageError) as info:
+        client.get("https://evil.example/me")
+    assert info.value.exit_code == 2
+    assert "evil.example" in info.value.message
+    assert "https://graph.microsoft.com" in info.value.message
+    assert respx.calls.call_count == 0
+
+
+@respx.mock
+def test_bearer_refused_for_non_https_graph_host(client):
+    with pytest.raises(errors.UsageError) as info:
+        client.get("http://graph.microsoft.com/v1.0/me")
+    assert info.value.exit_code == 2
+    assert respx.calls.call_count == 0
+
+
+@respx.mock
 def test_expect_none_on_empty_body(client):
     respx.post(f"{V1}/me/messages/m1/send").mock(return_value=httpx.Response(202))
     assert client.post("/me/messages/m1/send", expect="none") is None

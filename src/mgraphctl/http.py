@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -40,6 +41,27 @@ UPLOAD_STALL_LIMIT = 3
 Expect = Literal["json", "bytes", "text", "none", "response"]
 
 _TOKEN_IN_BODY = re.compile(r'("(?:access|refresh)_token"\s*:\s*")[^"]*"')
+
+# Hosts the bearer token may ever be sent to: the host of the configured Graph base URLs,
+# derived (not hard-coded) so this stays in lockstep with config.py. A caller can pass an
+# absolute URL straight through GraphClient.url()/request() — e.g. one scraped from a
+# document, or `api GET <url>` — and without this check that URL would receive the user's
+# Graph token no matter which host it points at.
+_BEARER_ALLOWED_HOSTS = frozenset(
+    urlsplit(base).hostname for base in (config.GRAPH_V1, config.GRAPH_BETA)
+)
+
+
+def _ensure_bearer_host(url: str) -> None:
+    """Refuse to attach the Authorization header to any URL off the Graph allow-list."""
+    parsed = urlsplit(url)
+    if parsed.scheme == "https" and parsed.hostname in _BEARER_ALLOWED_HOSTS:
+        return
+    allowed = ", ".join(f"https://{host}" for host in sorted(_BEARER_ALLOWED_HOSTS))
+    raise UsageError(
+        "USAGE",
+        f"refusing to send credentials to {parsed.hostname or url}; only {allowed} is allowed",
+    )
 
 
 @dataclass(frozen=True)
@@ -223,6 +245,7 @@ class GraphClient:
             hdrs["Prefer"] = ", ".join(prefer)
         hdrs.update(headers or {})
         if client is self._api:
+            _ensure_bearer_host(url)
             hdrs["Authorization"] = f"Bearer {self._token_provider(False)}"
         if json_body is not None:
             content = jsonlib.dumps(json_body, ensure_ascii=False).encode()
