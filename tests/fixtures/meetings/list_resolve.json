@@ -1,0 +1,82 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/calendarView",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "AAMkEvent-0001",
+          "subject": "Sprint Planning",
+          "isOnlineMeeting": true,
+          "onlineMeeting": {"joinUrl": "https://teams.example.com/l/1"},
+          "start": {"dateTime": "2026-08-28T09:00:00.0000000", "timeZone": "Europe/Warsaw"},
+          "end": {"dateTime": "2026-08-28T09:30:00.0000000", "timeZone": "Europe/Warsaw"},
+          "organizer": {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}}
+        },
+        {
+          "id": "AAMkEvent-0002",
+          "subject": "Retro",
+          "isOnlineMeeting": true,
+          "onlineMeeting": {"joinUrl": "https://teams.example.com/l/2"},
+          "start": {"dateTime": "2026-08-29T09:00:00.0000000", "timeZone": "Europe/Warsaw"},
+          "end": {"dateTime": "2026-08-29T09:30:00.0000000", "timeZone": "Europe/Warsaw"},
+          "organizer": {"emailAddress": {"name": "Bob Example", "address": "bob@example.com"}}
+        },
+        {
+          "id": "AAMkEvent-0003",
+          "subject": "Offsite Lunch",
+          "isOnlineMeeting": false,
+          "start": {"dateTime": "2026-08-30T12:00:00.0000000", "timeZone": "Europe/Warsaw"},
+          "end": {"dateTime": "2026-08-30T13:00:00.0000000", "timeZone": "Europe/Warsaw"},
+          "organizer": {"emailAddress": {"name": "Ada Example", "address": "ada@example.com"}}
+        }
+      ]
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1.0/$batch",
+    "status": 200,
+    "json": {
+      "responses": [
+        {
+          "id": "1",
+          "status": 200,
+          "headers": {},
+          "body": {
+            "value": [
+              {
+                "id": "MSpk-1",
+                "subject": "Sprint Planning",
+                "joinWebUrl": "https://teams.example.com/l/1"
+              }
+            ]
+          }
+        },
+        {
+          "id": "2",
+          "status": 200,
+          "headers": {},
+          "body": {
+            "value": [
+              {"id": "MSpk-2", "subject": "Retro", "joinWebUrl": "https://teams.example.com/l/2"}
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onlineMeetings/MSpk-1/transcripts",
+    "status": 200,
+    "json": {"value": [{"id": "tr-1", "createdDateTime": "2026-08-28T10:05:00Z"}]}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onlineMeetings/MSpk-2/transcripts",
+    "status": 200,
+    "json": {"value": [{"id": "tr-2", "createdDateTime": "2026-08-29T10:35:00Z"}]}
+  }
+]

@@ -1,0 +1,55 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onlineMeetings/MSpk-1",
+    "status": 200,
+    "json": {
+      "id": "MSpk-1",
+      "subject": "Sprint Planning",
+      "joinWebUrl": "https://teams.example.com/l/1",
+      "startDateTime": "2026-08-28T07:00:00Z",
+      "endDateTime": "2026-08-28T07:30:00Z"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onlineMeetings",
+    "query": {"$filter": "JoinWebUrl eq 'https://teams.example.com/l/2'"},
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "MSpk-2",
+          "subject": "Design Review",
+          "joinWebUrl": "https://teams.example.com/l/2",
+          "startDateTime": "2026-08-29T07:00:00Z",
+          "endDateTime": "2026-08-29T07:30:00Z"
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/events/AAMkEvent-0009",
+    "query": {"$select": "onlineMeeting"},
+    "status": 200,
+    "json": {"onlineMeeting": {"joinUrl": "https://teams.example.com/l/9"}}
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onlineMeetings",
+    "query": {"$filter": "JoinWebUrl eq 'https://teams.example.com/l/9'"},
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "MSpk-9",
+          "subject": "Ops Sync",
+          "joinWebUrl": "https://teams.example.com/l/9",
+          "startDateTime": "2026-08-30T07:00:00Z",
+          "endDateTime": "2026-08-30T07:30:00Z"
+        }
+      ]
+    }
+  }
+]
