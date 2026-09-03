@@ -275,7 +275,10 @@ def update(
     dry_run: DryRunFlag = False,
     json_: JsonFlag = False,
 ):
-    """Update a calendar event; only the given fields change."""
+    """Update a calendar event; only the given fields change.
+
+    Any `create` option except --calendar (Graph cannot move an event between calendars).
+    """
     _validate_show_as(show_as)
     tz = client.tz
     start_dt, end_dt, dur_td = _resolve_window(start, end, duration, tz)

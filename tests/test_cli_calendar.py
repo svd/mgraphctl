@@ -430,6 +430,40 @@ def test_calendar_update_only_given_fields(invoke, graph):
 
 
 @covers("calendar update")
+def test_calendar_update_no_teams_disables_online_meeting(invoke, graph):
+    route = graph.patch(f"{GRAPH}/v1.0/me/events/AAMkEvt-3002").mock(
+        return_value=httpx.Response(200, json={"id": "AAMkEvt-3002"})
+    )
+    r = invoke("calendar", "update", "AAMkEvt-3002", "--no-teams", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(route.calls.last.request.content) == {"isOnlineMeeting": False}
+
+
+@covers("calendar update")
+def test_calendar_update_teams_enables_online_meeting(invoke, graph):
+    route = graph.patch(f"{GRAPH}/v1.0/me/events/AAMkEvt-3003").mock(
+        return_value=httpx.Response(200, json={"id": "AAMkEvt-3003"})
+    )
+    r = invoke("calendar", "update", "AAMkEvt-3003", "--teams", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(route.calls.last.request.content) == {
+        "isOnlineMeeting": True,
+        "onlineMeetingProvider": "teamsForBusiness",
+    }
+
+
+@covers("calendar update")
+def test_calendar_update_without_teams_flag_leaves_online_meeting_untouched(invoke, graph):
+    route = graph.patch(f"{GRAPH}/v1.0/me/events/AAMkEvt-3004").mock(
+        return_value=httpx.Response(200, json={"id": "AAMkEvt-3004"})
+    )
+    r = invoke("calendar", "update", "AAMkEvt-3004", "--subject", "New", "--json")
+    assert r.exit_code == 0, r.stderr
+    body = json.loads(route.calls.last.request.content)
+    assert "isOnlineMeeting" not in body and "onlineMeetingProvider" not in body
+
+
+@covers("calendar update")
 def test_calendar_update_dry_run(invoke, graph):
     r = invoke("calendar", "update", "AAMkEvt-3001", "--subject", "New", "--dry-run", "--json")
     assert r.exit_code == 0, r.stderr

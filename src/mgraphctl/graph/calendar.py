@@ -193,9 +193,10 @@ def event_body(p: EventParams, tz: str, *, partial: bool) -> dict:
         body["body"] = {"contentType": "HTML" if p.html else "Text", "content": p.body}
     if p.location is not None:
         body["location"] = {"displayName": p.location}
-    if p.teams:
-        body["isOnlineMeeting"] = True
-        body["onlineMeetingProvider"] = "teamsForBusiness"
+    if p.teams is not None:
+        body["isOnlineMeeting"] = p.teams
+        if p.teams:
+            body["onlineMeetingProvider"] = "teamsForBusiness"
     if p.reminder is not None:
         body["reminderMinutesBeforeStart"] = p.reminder
     if p.show_as is not None:
