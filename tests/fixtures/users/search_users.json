@@ -1,0 +1,35 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/users",
+    "query": {
+      "$search": "\"displayName:ada\" OR \"mail:ada\"",
+      "$count": "true",
+      "$select": "id,displayName,userPrincipalName,mail,jobTitle,department,officeLocation",
+      "$top": "100"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "00000000-0000-0000-0000-00000000000a",
+          "displayName": "Ada Example",
+          "userPrincipalName": "ada@example.com",
+          "mail": "ada@example.com",
+          "jobTitle": "Principal Engineer",
+          "department": "R&D",
+          "officeLocation": "Remote"
+        },
+        {
+          "id": "00000000-0000-0000-0000-00000000000b",
+          "displayName": "Adam Example",
+          "userPrincipalName": "adam@example.com",
+          "mail": "adam@example.com",
+          "jobTitle": "Analyst",
+          "department": "Finance",
+          "officeLocation": "Warsaw"
+        }
+      ]
+    }
+  }
+]

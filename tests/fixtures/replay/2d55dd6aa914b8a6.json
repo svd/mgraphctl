@@ -1,0 +1,23 @@
+{
+  "key": "GET /v1.0/me?$select=id%2CdisplayName%2CuserPrincipalName%2Cmail%2CjobTitle%2Cdepartment%2CofficeLocation%2CbusinessPhones%2CmobilePhone%2CpreferredLanguage",
+  "responses": [
+    {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "displayName": "Fixture User",
+        "userPrincipalName": "fixture-user@example.com",
+        "mail": "fixture-user@example.com",
+        "jobTitle": "Engineer",
+        "department": "R&D",
+        "officeLocation": "Remote",
+        "businessPhones": [],
+        "mobilePhone": null,
+        "preferredLanguage": "en-US"
+      }
+    }
+  ]
+}

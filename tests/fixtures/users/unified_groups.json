@@ -1,0 +1,19 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/memberOf/microsoft.graph.group",
+    "query": {
+      "$filter": "groupTypes/any(c:c eq 'Unified')",
+      "$count": "true",
+      "$select": "id,displayName",
+      "$top": "999"
+    },
+    "status": 200,
+    "json": {
+      "value": [
+        {"id": "00000000-0000-0000-0000-0000000000c1", "displayName": "Platform Guild"},
+        {"id": "00000000-0000-0000-0000-0000000000c2", "displayName": "Release Managers"}
+      ]
+    }
+  }
+]

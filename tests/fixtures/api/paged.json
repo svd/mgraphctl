@@ -1,0 +1,19 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/me/messages",
+    "query": {},
+    "status": 200,
+    "json": {
+      "value": [{"id": "AAMk-msg-0001"}, {"id": "AAMk-msg-0002"}],
+      "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/messages?$skiptoken=page-2"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/messages",
+    "query": {"$skiptoken": "page-2"},
+    "status": 200,
+    "json": {"value": [{"id": "AAMk-msg-0003"}]}
+  }
+]

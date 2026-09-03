@@ -1,0 +1,21 @@
+[
+  {
+    "method": "GET",
+    "path": "/v1.0/users/ada@example.com",
+    "query": {
+      "$select": "id,displayName,userPrincipalName,mail,jobTitle,department,officeLocation,businessPhones,mobilePhone"
+    },
+    "status": 200,
+    "json": {
+      "id": "00000000-0000-0000-0000-00000000000a",
+      "displayName": "Ada Example",
+      "userPrincipalName": "ada@example.com",
+      "mail": "ada@example.com",
+      "jobTitle": "Principal Engineer",
+      "department": "R&D",
+      "officeLocation": "Remote",
+      "businessPhones": [],
+      "mobilePhone": null
+    }
+  }
+]
