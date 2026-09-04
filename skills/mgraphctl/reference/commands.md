@@ -2014,6 +2014,9 @@ an internal one: `NOT_LOGGED_IN`, `MISSING_SCOPE`, `CONSENT_REQUIRED`, `AMBIGUOU
 | `MGRAPHCTL_TOKEN_CACHE` | `~/.mgraphctl/token_cache.json` | Where the msal cache lives (mode 0600). |
 | `MGRAPHCTL_TZ` | the detected local zone | IANA zone for `Prefer: outlook.timezone`, naive input, and rendering. `--tz` overrides it. |
 | `MGRAPHCTL_DEBUG` | unset | `1` behaves like `--debug`. |
+| `MGRAPHCTL_RETRIES` | `4` | Retries after the first attempt; `0` disables retrying. |
+| `MGRAPHCTL_TIMEOUT_MS` | `60000` | Read/write timeout. Uploads and downloads get 5× it. |
+| `MGRAPHCTL_RETRY_BASE_MS` | `1000` | Base of the exponential backoff, and of its jitter. |
 | `MGRAPHCTL_FIXTURE_DIR` | unset | Replay recorded responses and bypass authentication (developer tool). |
 | `MGRAPHCTL_RECORD` | unset | `1`, with `MGRAPHCTL_FIXTURE_DIR`, records live responses. |
 | `NO_COLOR`, `COLUMNS` | — | Honoured by the text renderer. |

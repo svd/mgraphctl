@@ -26,8 +26,24 @@ from mgraphctl.errors import AuthError, GraphError, MsgraphError, UsageError
 
 log = logging.getLogger("mgraphctl.http")
 
-TIMEOUT = httpx.Timeout(connect=10, read=60, write=60, pool=10)
-LONG = httpx.Timeout(connect=10, read=300, write=300, pool=10)
+
+def timeouts(timeout_ms: int) -> tuple[httpx.Timeout, httpx.Timeout]:
+    """The normal and long-running timeouts for a configured budget (`MGRAPHCTL_TIMEOUT_MS`).
+
+    The long profile keeps its multiplier off whatever base is configured, so raising the
+    timeout for a slow link raises the upload and download budget with it.
+    """
+    seconds = timeout_ms / 1000
+    long_seconds = seconds * config.LONG_TIMEOUT_FACTOR
+    connect = config.CONNECT_TIMEOUT
+    return (
+        httpx.Timeout(connect=connect, read=seconds, write=seconds, pool=connect),
+        httpx.Timeout(connect=connect, read=long_seconds, write=long_seconds, pool=connect),
+    )
+
+
+# The defaults; a client built from settings gets its own from `timeouts(timeout_ms)`.
+TIMEOUT, LONG = timeouts(config.TIMEOUT_MS_DEFAULT)
 BATCH_CHUNK = 20
 JSON_HEADERS = {"Content-Type": "application/json"}
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
@@ -251,17 +267,25 @@ class GraphClient:
         beta: bool = False,
         debug: int = 0,
         transport: httpx.BaseTransport | None = None,
+        retries: int = config.RETRIES_DEFAULT,
+        timeout_ms: int = config.TIMEOUT_MS_DEFAULT,
+        retry_base_ms: int = config.RETRY_BASE_MS_DEFAULT,
     ) -> None:
         self._token_provider = token_provider
         self.tz = tz
         self.beta = beta
         self.debug = int(debug)
+        # `retries` counts the attempts after the first, so 0 disables retrying outright.
+        self.max_attempts = max(retries, 0) + 1
+        self.retry_base_ms = retry_base_ms
+        timeout, long = timeouts(timeout_ms)
+        self.long_timeout = long
         # Both clients share one transport so record/replay also covers downloads and uploads.
         self._api = httpx.Client(
-            timeout=TIMEOUT, follow_redirects=False, trust_env=True, transport=transport
+            timeout=timeout, follow_redirects=False, trust_env=True, transport=transport
         )
         self._plain = httpx.Client(
-            timeout=LONG,
+            timeout=long,
             follow_redirects=True,
             max_redirects=5,
             trust_env=True,
@@ -335,7 +359,7 @@ class GraphClient:
                 retryable = request.method in IDEMPOTENT_METHODS or isinstance(
                     exc, CONNECT_PHASE_ERRORS
                 )
-                if not retryable or attempt >= config.MAX_ATTEMPTS:
+                if not retryable or attempt >= self.max_attempts:
                     raise _network_error(exc) from exc
                 delay = self._backoff(attempt, None)
                 self._log_retry(delay, type(exc).__name__)
@@ -354,7 +378,7 @@ class GraphClient:
                     )
                 request.headers["Authorization"] = f"Bearer {new_token}"
                 continue
-            if response.status_code in config.RETRY_STATUSES and attempt < config.MAX_ATTEMPTS:
+            if response.status_code in config.RETRY_STATUSES and attempt < self.max_attempts:
                 delay = self._backoff(attempt, response.headers.get("Retry-After"))
                 response.close()
                 self._log_retry(delay, f"HTTP {response.status_code}")
@@ -362,8 +386,12 @@ class GraphClient:
                 continue
             return response
 
-    @staticmethod
-    def _backoff(attempt: int, retry_after: str | None) -> float:
+    def _backoff(self, attempt: int, retry_after: str | None) -> float:
+        """How long to wait before the next attempt: `Retry-After` when the server sent one.
+
+        Otherwise exponential from the configured base (`MGRAPHCTL_RETRY_BASE_MS`), capped,
+        with jitter proportional to that base so a small base stays small.
+        """
         if retry_after:
             value = retry_after.strip()
             if value.isdigit():
@@ -372,7 +400,8 @@ class GraphClient:
                 when = email.utils.parsedate_to_datetime(value)
                 seconds = (when - datetime.now(UTC)).total_seconds()
                 return max(0.0, min(seconds, config.RETRY_AFTER_CAP))
-        return min(2**attempt, 30) + random.uniform(0, 1)
+        base = self.retry_base_ms / 1000
+        return min(2**attempt * base, config.BACKOFF_CAP) + random.uniform(0, base)
 
     def _log_retry(self, delay: float, reason: str) -> None:
         if self.debug >= 1:
@@ -587,7 +616,7 @@ class GraphClient:
                     answered.add(key)
                     status = int(sub.get("status") or 0)
                     headers = {k.lower(): v for k, v in (sub.get("headers") or {}).items()}
-                    if status == 429 and attempt < config.MAX_ATTEMPTS:
+                    if status == 429 and attempt < self.max_attempts:
                         retrying[key] = request
                         retry_delays.append(self._backoff(attempt, headers.get("retry-after")))
                         continue
@@ -652,7 +681,7 @@ class GraphClient:
                         "Content-Range": f"bytes {offset}-{end}/{total}",
                         "Content-Length": str(len(chunk)),
                     },
-                    timeout=LONG,
+                    timeout=self.long_timeout,
                 )
                 response = self._send(self._plain, request)
                 if response.status_code == 404:
@@ -693,7 +722,11 @@ class GraphClient:
 
     def download(self, path_or_url: str, dest: Path, *, beta: bool | None = None) -> DownloadResult:
         request = self._build(
-            self._api, "GET", self.url(path_or_url, beta=beta), accept="*/*", timeout=LONG
+            self._api,
+            "GET",
+            self.url(path_or_url, beta=beta),
+            accept="*/*",
+            timeout=self.long_timeout,
         )
         response = self._send(self._api, request, stream=True)
         try:
@@ -703,7 +736,9 @@ class GraphClient:
                     response.read()
                     raise self._error(response)
                 response.close()
-                request = self._build(self._plain, "GET", location, accept="*/*", timeout=LONG)
+                request = self._build(
+                    self._plain, "GET", location, accept="*/*", timeout=self.long_timeout
+                )
                 response = self._send(self._plain, request, stream=True)
             if response.status_code >= 400:
                 response.read()

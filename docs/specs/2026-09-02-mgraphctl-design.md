@@ -113,6 +113,9 @@ All configuration is environment-based; there is no config file. `config.py` rea
 | `MGRAPHCTL_TOKEN_CACHE` | `~/.mgraphctl/token_cache.json` | msal cache file (0600) |
 | `MGRAPHCTL_TZ` | detected local zone (§6.3) | IANA zone for `Prefer: outlook.timezone`, naive input, and rendering; `--tz` overrides |
 | `MGRAPHCTL_DEBUG` | unset | `1` = same as `--debug` |
+| `MGRAPHCTL_RETRIES` | `4` | retries after the first attempt; `0` disables retrying entirely |
+| `MGRAPHCTL_TIMEOUT_MS` | `60000` | read/write timeout; the long profile for uploads/downloads is `LONG_TIMEOUT_FACTOR`× it, so it tracks whatever base is configured. The connect budget is separate (`CONNECT_TIMEOUT`) |
+| `MGRAPHCTL_RETRY_BASE_MS` | `1000` | base of the exponential backoff (`min(2**attempt * base, 30s)`) and of its jitter, so a small base stays small |
 | `MGRAPHCTL_FIXTURE_DIR` | unset | replay recorded responses, bypass auth (§5.8) |
 | `MGRAPHCTL_RECORD` | unset | `1` with `MGRAPHCTL_FIXTURE_DIR` = live calls, record responses |
 | `NO_COLOR`, `COLUMNS` | — | honoured by the text renderer |
@@ -311,7 +314,7 @@ Text mode converts HTML bodies (Teams, OneNote, mail with `--html` absent when t
 
 - Local zone detection (no `tzlocal`): `MGRAPHCTL_TZ` → `TZ` env if it is a valid IANA key → `os.readlink("/etc/localtime")` suffix after `zoneinfo/` → on Windows `time.tzname` mapped through the small Windows→IANA table shipped in `render.py` (the ~140 CLDR primary mappings, generated once, committed) → `UTC` with a one-time stderr warning.
 - Input (`--start`, `--end`, `--after`, `--before`, `--due`, `--reminder`, `--expires`, `--propose-start/--propose-end`): `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM[:SS]`, either with optional `Z`/`±HH:MM`; naive values are in `--tz`; date-only is start of day, except range-end options (`--end`, `--before`) which become end of day (`23:59:59`). Keywords: `now`, `today`, `tomorrow`, `yesterday`, `+Nd`/`-Nd`/`+Nh`. Durations only (`--duration`, `--expiration`): `30m`, `2h`, `1d`, or ISO 8601 `PT30M`; a datetime is rejected there (exit 2).
-- Graph `dateTimeTimeZone` `{dateTime, timeZone}`: fractional seconds truncated to 6 digits, `timeZone` `UTC` or an IANA key → aware datetime → converted to `--tz`; a Windows zone name (only possible when we did not send `Prefer`) → rendered verbatim as `<dateTime> (<timeZone>)`, never guessed. Plain `Z` strings (`receivedDateTime`, Planner) → aware → `--tz`. This fixes quirk 1.
+- Graph `dateTimeTimeZone` `{dateTime, timeZone}`: fractional seconds truncated to 6 digits, an absent or empty `timeZone` read as `UTC` (Graph's documented default when no `Prefer: outlook.timezone` was sent — reachable via `getSchedule`, search event hits and the mailbox OOF block), `timeZone` `UTC` or an IANA key → aware datetime → converted to `--tz`; a Windows zone name (only possible when we did not send `Prefer`) → rendered verbatim as `<dateTime> (<timeZone>)`, never guessed. Plain `Z` strings (`receivedDateTime`, Planner) → aware → `--tz`. This fixes quirk 1.
 - Rendering: `YYYY-MM-DDTHH:MM±HH:MM`; all-day events `YYYY-MM-DD (all day)`; `N/A` for null. KQL dates (`received>=`) are day-granular: rendered as `YYYY-MM-DD` in `--tz`. Because that loses the time of day, a KQL-mode command re-applies a bound that carries one against the item's own timestamp after paging (`render.has_time_of_day` decides, `http.filter_page` applies); a date-only bound already means what the KQL date means and is not re-filtered.
 - Request bodies: `start/end` sent as `{"dateTime": "YYYY-MM-DDTHH:MM:SS", "timeZone": "<tz>"}` in `--tz`; `calendarView` `startDateTime/endDateTime` sent as ISO with offset.
 

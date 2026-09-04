@@ -87,8 +87,25 @@ MAIL_SMALL_ATTACHMENT = 3_145_728
 DRIVE_SIMPLE_UPLOAD = 4_194_304
 
 RETRY_STATUSES = frozenset({429, 503, 504})
-MAX_ATTEMPTS = 5
+# Retries after the first attempt (`MGRAPHCTL_RETRIES`); 0 disables retrying outright.
+RETRIES_DEFAULT = 4
 RETRY_AFTER_CAP = 300
+TIMEOUT_MS_DEFAULT = 60_000
+RETRY_BASE_MS_DEFAULT = 1_000
+# Uploads and downloads move whole files, so they get a multiple of the configured timeout.
+LONG_TIMEOUT_FACTOR = 5
+CONNECT_TIMEOUT = 10.0
+BACKOFF_CAP = 30.0
+
+
+def _positive_int(raw: str | None, default: int) -> int:
+    """An env var as a non-negative int; anything unusable falls back to `default`."""
+    if raw is None:
+        return default
+    text = raw.strip()
+    if not text.isdigit():  # rejects "", "-1", "abc" and "1.5" alike
+        return default
+    return int(text)
 
 
 @dataclass(frozen=True)
@@ -104,6 +121,14 @@ class Settings:
     debug: int
     fixture_dir: Path | None
     record: bool
+    # Retries after the first attempt; 0 disables retrying entirely.
+    retries: int
+    timeout_ms: int
+    retry_base_ms: int
+
+    @property
+    def max_attempts(self) -> int:
+        return self.retries + 1
 
 
 def resolve_scopes(spec: str | None, extra: Iterable[str] = ()) -> tuple[str, list[str]]:
@@ -152,6 +177,9 @@ def settings() -> Settings:
         debug=debug,
         fixture_dir=Path(fixture_dir).expanduser() if fixture_dir else None,
         record=(env.get("MGRAPHCTL_RECORD") or "") == "1",
+        retries=_positive_int(env.get("MGRAPHCTL_RETRIES"), RETRIES_DEFAULT),
+        timeout_ms=_positive_int(env.get("MGRAPHCTL_TIMEOUT_MS"), TIMEOUT_MS_DEFAULT),
+        retry_base_ms=_positive_int(env.get("MGRAPHCTL_RETRY_BASE_MS"), RETRY_BASE_MS_DEFAULT),
     )
 
 

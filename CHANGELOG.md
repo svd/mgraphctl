@@ -39,9 +39,18 @@
 - `chats search` hits carry structured `kind`/`chatId`/`teamId`/`channelId` beside the `where`
   text column, so a hit can be followed into `teams channel messages --after …` without parsing
   `where` apart. A hit with no routing reports `kind: "unknown"`.
+- `MGRAPHCTL_RETRIES`, `MGRAPHCTL_TIMEOUT_MS` and `MGRAPHCTL_RETRY_BASE_MS` tune retrying and
+  timeouts; `MGRAPHCTL_RETRIES=0` disables retrying outright. An unusable value takes the
+  default rather than failing the command. The long timeout for uploads and downloads keeps its
+  multiplier off whatever base is configured.
 
 ### Fixed
 
+- `fmt_dtz` printed a literal `(None)` beside an unformatted Graph timestamp when the
+  `dateTimeTimeZone` object carried no `timeZone`. An absent or empty zone now reads as UTC,
+  which is Graph's documented default when no `Prefer: outlook.timezone` was sent — reachable
+  through `calendar availability`, search event hits and the mailbox out-of-office block. A
+  Windows zone name still renders verbatim.
 - `meetings transcript` reported the format that was asked for rather than the one it got. The
   speaker-attribution fallback answers in plain text even to a vtt request, so `--format vtt`
   could label plain text as `vtt`; the format is now sniffed from the body, on the `--output` path

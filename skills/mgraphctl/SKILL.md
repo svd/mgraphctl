@@ -344,6 +344,9 @@ Errors are one stderr block: `error[<CODE>]: <message>`, an optional `request-id
 | `MGRAPHCTL_CLIENT_ID` | the shared public client id | Entra application to authenticate as. |
 | `MGRAPHCTL_TENANT_ID` | `common` | Authority tenant. |
 | `MGRAPHCTL_DEBUG` | unset | `1` behaves like `--debug`. |
+| `MGRAPHCTL_RETRIES` | `4` | Retries after the first attempt; `0` disables retrying. |
+| `MGRAPHCTL_TIMEOUT_MS` | `60000` | Read/write timeout. Uploads and downloads get 5× it. |
+| `MGRAPHCTL_RETRY_BASE_MS` | `1000` | Base of the exponential backoff, and of its jitter. |
 | `NO_COLOR`, `COLUMNS` | — | Honoured by the text renderer. |
 | `HTTPS_PROXY`, `HTTP_PROXY` | — | Honoured by the HTTP client. |
 

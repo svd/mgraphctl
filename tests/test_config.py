@@ -38,5 +38,31 @@ def test_settings_reads_env_each_call(monkeypatch, tmp_path):
     assert config.settings().fixture_dir == tmp_path and config.settings().record is True
 
 
+def test_retry_and_timeout_knobs_default_and_parse(monkeypatch):
+    s = config.settings()
+    assert s.retries == config.RETRIES_DEFAULT and s.max_attempts == 5
+    assert s.timeout_ms == config.TIMEOUT_MS_DEFAULT
+    assert s.retry_base_ms == config.RETRY_BASE_MS_DEFAULT
+
+    monkeypatch.setenv("MGRAPHCTL_RETRIES", "0")
+    monkeypatch.setenv("MGRAPHCTL_TIMEOUT_MS", "5000")
+    monkeypatch.setenv("MGRAPHCTL_RETRY_BASE_MS", "50")
+    s = config.settings()
+    assert s.retries == 0 and s.max_attempts == 1
+    assert s.timeout_ms == 5000 and s.retry_base_ms == 50
+
+
+def test_retry_and_timeout_knobs_fall_back_on_junk(monkeypatch):
+    """An unusable value takes the default rather than crashing a data command."""
+    for bad in ("", "  ", "abc", "-1", "1.5", "1e3"):
+        monkeypatch.setenv("MGRAPHCTL_RETRIES", bad)
+        monkeypatch.setenv("MGRAPHCTL_TIMEOUT_MS", bad)
+        monkeypatch.setenv("MGRAPHCTL_RETRY_BASE_MS", bad)
+        s = config.settings()
+        assert s.retries == config.RETRIES_DEFAULT, bad
+        assert s.timeout_ms == config.TIMEOUT_MS_DEFAULT, bad
+        assert s.retry_base_ms == config.RETRY_BASE_MS_DEFAULT, bad
+
+
 def test_shim_path_points_at_scripts_dir():
     assert config.shim_path().endswith("/mgraphctl")

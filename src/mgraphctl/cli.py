@@ -104,12 +104,16 @@ def open_client(g: Globals, scopes: list[str]) -> GraphClient:
     """Run the local scope gate, then build the client every command shares."""
     token = auth.get_access_token(False)
     auth.require_scopes(token, scopes)
+    cfg = config.settings()
     return GraphClient(
         auth.get_access_token,
         tz=g.tz,
         beta=g.beta,
         debug=g.debug,
-        transport=fixtures.transport_from_env(config.settings()),
+        transport=fixtures.transport_from_env(cfg),
+        retries=cfg.retries,
+        timeout_ms=cfg.timeout_ms,
+        retry_base_ms=cfg.retry_base_ms,
     )
 
 

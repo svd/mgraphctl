@@ -12,7 +12,7 @@ import httpx
 import pytest
 import respx
 
-from mgraphctl import errors
+from mgraphctl import config, errors
 from mgraphctl.http import (
     BatchRequest,
     GraphClient,
@@ -23,6 +23,7 @@ from mgraphctl.http import (
     plan_to_text,
     with_routing,
 )
+from mgraphctl.http import timeouts as http_timeouts
 
 V1 = "https://graph.microsoft.com/v1.0"
 
@@ -864,3 +865,43 @@ def test_with_routing_fills_a_null_id_but_keeps_a_real_one():
     # Stamping ids is not a fetch, so everything the fetch reported survives it.
     assert stamped.truncated is True and stamped.pages == 2
     assert stamped.cap == 50 and stamped.fetched == 9 and stamped.query == {"$top": "50"}
+
+
+@respx.mock
+def test_retries_zero_disables_retrying(monkeypatch):
+    """`MGRAPHCTL_RETRIES=0` means one attempt: the error surfaces immediately."""
+    monkeypatch.setattr(GraphClient, "sleep", staticmethod(lambda _s: None))
+    client = GraphClient(lambda force: "tok", tz="UTC", retries=0)
+    route = respx.get(f"{V1}/me").mock(return_value=httpx.Response(503))
+    with pytest.raises(errors.GraphError):
+        client.get("/me")
+    assert route.call_count == 1
+    client.close()
+
+
+@respx.mock
+def test_retry_base_ms_scales_the_backoff_and_its_jitter():
+    sleeps: list[float] = []
+    client = GraphClient(lambda force: "tok", tz="UTC", retry_base_ms=10)
+    client.sleep = sleeps.append  # type: ignore[method-assign]
+    respx.get(f"{V1}/me").mock(return_value=httpx.Response(503))
+    with pytest.raises(errors.GraphError):
+        client.get("/me")
+    # Base 10 ms: 20, 40, 80, 160 ms, each with at most 10 ms of jitter on top.
+    assert [round(s, 3) for s in sleeps] == pytest.approx([0.02, 0.04, 0.08, 0.16], abs=0.011)
+    client.close()
+
+
+def test_timeouts_scale_the_long_profile_off_the_configured_base():
+    normal, long = http_timeouts(30_000)
+    assert normal.read == 30.0 and normal.write == 30.0
+    assert long.read == 30.0 * config.LONG_TIMEOUT_FACTOR
+    # The connect budget is not part of the configured read/write budget.
+    assert normal.connect == config.CONNECT_TIMEOUT and long.connect == config.CONNECT_TIMEOUT
+
+
+@respx.mock
+def test_timeout_ms_reaches_both_clients():
+    client = GraphClient(lambda force: "tok", tz="UTC", timeout_ms=7_000)
+    assert client.long_timeout.read == 7.0 * config.LONG_TIMEOUT_FACTOR
+    client.close()
