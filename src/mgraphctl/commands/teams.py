@@ -17,7 +17,15 @@ from mgraphctl.cli import (
 from mgraphctl.errors import UsageError
 from mgraphctl.graph import teams
 from mgraphctl.http import GraphClient
-from mgraphctl.render import Column, DryRunResult, ListResult, ObjectResult, WriteResult, truncate
+from mgraphctl.render import (
+    Column,
+    DryRunResult,
+    ListResult,
+    ObjectResult,
+    WriteResult,
+    parse_dt,
+    truncate,
+)
 
 READ_TEAM = ["Team.ReadBasic.All|Group.Read.All"]
 READ_CHANNEL = ["Channel.ReadBasic.All|Group.Read.All"]
@@ -148,6 +156,13 @@ def channel_messages(
         str | None,
         typer.Option("--replies", metavar="MSGID", help="List the replies to one message."),
     ] = None,
+    after: Annotated[
+        str | None, typer.Option("--after", metavar="DT", help="Only messages touched after this.")
+    ] = None,
+    before: Annotated[
+        str | None,
+        typer.Option("--before", metavar="DT", help="Only messages touched before this."),
+    ] = None,
     limit: LimitOpt = None,
     all_: AllFlag = False,
     json_: JsonFlag = False,
@@ -155,6 +170,13 @@ def channel_messages(
     """List channel messages, oldest first in text mode."""
     if replies is not None and with_replies:
         raise UsageError("USAGE", "--replies and --with-replies are mutually exclusive")
+    if replies is not None and (after is not None or before is not None):
+        raise UsageError("USAGE", "--after/--before do not apply to --replies")
+    tz = client.tz
+    after_dt = parse_dt(after, tz) if after else None
+    before_dt = parse_dt(before, tz, end_of_day=True) if before else None
+    if after_dt is not None and before_dt is not None and after_dt > before_dt:
+        raise UsageError("USAGE", "--after must not be later than --before")
     limit, all_ = page_bounds(limit, all_, default=20)
     team_id = teams.resolve_team(client, team)["id"]
     channel_id = teams.resolve_channel(client, team_id, chan)["id"]
@@ -162,7 +184,14 @@ def channel_messages(
         page = teams.channel_replies(client, team_id, channel_id, replies, limit=limit, all_=all_)
     else:
         page = teams.channel_messages(
-            client, team_id, channel_id, with_replies=with_replies, limit=limit, all_=all_
+            client,
+            team_id,
+            channel_id,
+            with_replies=with_replies,
+            after=after_dt,
+            before=before_dt,
+            limit=limit,
+            all_=all_,
         )
     # JSON keeps the Graph order (newest first); text reads better oldest first (§10 quirk 17).
     return ListResult(

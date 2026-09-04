@@ -128,6 +128,7 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl groups members "Design Guild"
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channels "Platform" --json
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel messages "Platform" "General" --limit 20
+${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel messages "Platform" "General" --after -7d --all
 ```
 
 **chats** — `list`, `get`, `members`, `messages`, `send`, `dm`, `create`, `search`,

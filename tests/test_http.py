@@ -805,3 +805,44 @@ def test_filter_page_chains_keep_the_original_fetch_count():
     once = filter_page(page, lambda item: item["n"] > 1)
     twice = filter_page(once, lambda item: item["n"] > 2)
     assert twice.fetched_count == 3 and len(twice.items) == 1
+
+
+def _page(client, items, *, next_link=False, **kw):
+    """One mocked page of `items`, fetched through `paginate` with `kw`."""
+    url = f"{V1}/me/things"
+    payload = {"value": items}
+    if next_link:
+        payload["@odata.nextLink"] = f"{url}?$skiptoken=more"
+    respx.get(url__startswith=url).mock(return_value=httpx.Response(200, json=payload))
+    return client.paginate("/me/things", page_size=None, cap=500, **kw)
+
+
+@respx.mock
+def test_paginate_stop_ends_the_fetch_without_calling_it_truncated(client):
+    """Everything ahead of the boundary fits, so the tail past it is not a truncation."""
+    items = [{"n": n} for n in range(50)]
+    page = _page(client, items, next_link=True, limit=20, all_=False, stop=lambda i: i["n"] >= 5)
+    assert page.truncated is False
+    assert [i["n"] for i in page.items] == list(range(20))
+
+
+@respx.mock
+def test_paginate_stop_still_reports_the_cap_that_cut_real_results(client):
+    """The boundary sits past the bound, so results the caller asked for were left behind."""
+    items = [{"n": n} for n in range(50)]
+    page = _page(client, items, next_link=True, limit=20, all_=False, stop=lambda i: i["n"] >= 30)
+    assert page.truncated is True
+
+
+@respx.mock
+def test_paginate_stop_at_exactly_the_bound_is_not_truncated(client):
+    items = [{"n": n} for n in range(50)]
+    page = _page(client, items, next_link=True, limit=20, all_=False, stop=lambda i: i["n"] >= 20)
+    assert page.truncated is False
+
+
+@respx.mock
+def test_paginate_without_stop_still_truncates_on_the_bound(client):
+    items = [{"n": n} for n in range(5)]
+    page = _page(client, items, next_link=True, limit=3, all_=False)
+    assert page.truncated is True and len(page.items) == 3

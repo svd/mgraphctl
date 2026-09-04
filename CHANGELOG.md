@@ -16,3 +16,8 @@
 - `mail list` search mode now re-filters the page on `receivedDateTime` when `--after`/`--before`
   carry a time of day, so a bound like `--after 2026-09-02T14:00` no longer returns the whole of
   2026-09-02. Date-only bounds are unaffected.
+- `teams channel messages` takes `--after`/`--before`, so a channel hit from `search` or
+  `chats search` can be followed up over a time window. The window is applied client-side on the
+  reply chain's last-modified time, and paging stops at the first message older than `--after`;
+  Graph documents no `$filter` support on that endpoint, and an unsupported one is either rejected
+  or silently ignored.

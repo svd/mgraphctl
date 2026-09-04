@@ -871,6 +871,8 @@ Every `calendar create` option except `--calendar` and `--transaction-id`; all o
 | `--full` | off | Print whole bodies, not the first 300 characters. |
 | `--with-replies` | off | Expand each message's replies. |
 | `--replies MSGID` | — | List the replies to one message instead. |
+| `--after DT` | — | Only messages whose reply chain was touched after this. |
+| `--before DT` | — | Only messages whose reply chain was touched before this. |
 | `--limit N` | 20 | Maximum items. |
 | `--all` | off | Fetch every page, cap 200. |
 | `--json` | off | Print JSON instead of text. |
@@ -881,6 +883,17 @@ Every `calendar create` option except `--calendar` and `--transaction-id`; all o
 - **Tier:** P0
 - **Notes:** deleted messages and system placeholders are dropped. Text mode prints oldest first
   with HTML bodies converted to Markdown; JSON keeps Graph's order, newest first.
+  `--after`/`--before` add no query parameter: Graph documents `$top` and `$expand` as the only
+  ones this endpoint supports, in v1.0 and beta alike, so a `$filter` there would be rejected or —
+  worse — ignored, and an ignored one would return an unfiltered page dressed up as a window. The
+  window is applied client-side instead, on the last-modified time of the whole reply chain, which
+  is the order Graph returns messages in. Because that order is newest first, paging stops at the
+  first message older than `--after` rather than walking to the cap. `truncated` then counts
+  only the messages inside the window: reaching the far edge is not a truncation, but a cap
+  that cut in-window messages short still is. The cap stays 200 for both chat and channel messages — a window that needs more than
+  200 messages should be narrowed. `--after`/`--before` do not apply to `--replies` (exit 2), and
+  `--after` later than `--before` is a usage error.
+  Without `--after`/`--before` the request is byte-for-byte what it was.
 
 ### `teams channel send TEAM CHANNEL`
 

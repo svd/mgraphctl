@@ -5,10 +5,20 @@ Pure: client and parameters in, Graph dicts, a `PageResult` or a `Plan` out.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import datetime
+
 from mgraphctl import odata, resolve
 from mgraphctl.html import to_markdown
-from mgraphctl.http import JSON_HEADERS, GraphClient, PageResult, Plan, PlannedRequest
-from mgraphctl.render import Column, fmt_dt, truncate
+from mgraphctl.http import (
+    JSON_HEADERS,
+    GraphClient,
+    PageResult,
+    Plan,
+    PlannedRequest,
+    filter_page,
+)
+from mgraphctl.render import Column, fmt_dt, parse_graph_dt, truncate
 
 CHANNEL_SELECT = "id,displayName,description,membershipType"
 # The Teams endpoints reject a `$top` above 50.
@@ -77,11 +87,53 @@ def _renderable(message: dict) -> bool:
 
 
 def _keep(page: PageResult) -> PageResult:
-    return PageResult(
-        items=[m for m in page.items if _renderable(m)],
-        truncated=page.truncated,
-        pages=page.pages,
-    )
+    return filter_page(page, _renderable)
+
+
+def chain_modified(message: dict) -> datetime | None:
+    """When the message's whole reply chain was last touched, which is how Graph orders it.
+
+    Graph sorts channel messages "by the last modified date of the entire reply chain", so a
+    root message's own `lastModifiedDateTime` is not the key the feed is in order of. With
+    `--with-replies` the replies are in hand and the real key can be computed; without them
+    the root's own timestamp is the best available approximation.
+    """
+    stamps = [
+        parse_graph_dt(m.get("lastModifiedDateTime") or m.get("createdDateTime"))
+        for m in [message, *(message.get("replies") or [])]
+    ]
+    known = [s for s in stamps if s is not None]
+    return max(known) if known else None
+
+
+def _window_filter(
+    after: datetime | None, before: datetime | None
+) -> Callable[[dict], bool] | None:
+    """Keep the messages whose reply chain was last touched inside the window."""
+    if after is None and before is None:
+        return None
+
+    def keep(message: dict) -> bool:
+        stamp = chain_modified(message)
+        if stamp is None:  # undatable: keep it rather than silently drop a message
+            return True
+        if after is not None and stamp <= after:
+            return False
+        return before is None or stamp < before
+
+    return keep
+
+
+def _before_window(after: datetime | None) -> Callable[[dict], bool] | None:
+    """Page no further once a message's chain was last touched at or before `after`."""
+    if after is None:
+        return None
+
+    def past_it(message: dict) -> bool:
+        stamp = chain_modified(message)
+        return stamp is not None and stamp <= after
+
+    return past_it
 
 
 def channel_messages(
@@ -90,10 +142,21 @@ def channel_messages(
     channel_id: str,
     *,
     with_replies: bool,
+    after: datetime | None = None,
+    before: datetime | None = None,
     limit: int | None,
     all_: bool,
 ) -> PageResult:
+    """Channel messages, newest-modified first, optionally narrowed to a time window.
+
+    The window is applied here rather than as a `$filter`: Graph documents `$top` and
+    `$expand` as the only query parameters this endpoint supports (v1.0 and beta alike), so a
+    `$filter` would be rejected or — worse — ignored, and an ignored one would dress an
+    unfiltered page up as a window. Since the feed is ordered newest-first, paging can still
+    stop at the far edge of the window instead of walking to the cap.
+    """
     params = {"$expand": "replies"} if with_replies else None
+    keep = _window_filter(after, before)
     page = client.paginate(
         odata.p("teams", team_id, "channels", channel_id, "messages"),
         params=params,
@@ -101,8 +164,10 @@ def channel_messages(
         all_=all_,
         cap=CAP_MESSAGES,
         page_size=PAGE_MESSAGES,
+        stop=_before_window(after),
     )
-    return _keep(page)
+    page = _keep(page)
+    return page if keep is None else filter_page(page, keep)
 
 
 def channel_replies(

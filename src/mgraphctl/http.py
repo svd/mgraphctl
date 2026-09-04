@@ -466,7 +466,15 @@ class GraphClient:
         all_: bool,
         cap: int,
         page_size: int | None,
+        stop: Callable[[dict], bool] | None = None,
     ) -> PageResult:
+        """Follow `@odata.nextLink` until `limit`/`cap`, or until `stop` says we are past the end.
+
+        `stop` suits a feed the server already orders the way the caller reads it: the first
+        item it accepts ends the fetch, and the page is then *not* truncated — everything the
+        caller asked for was seen. The item that tripped it is still returned, so the caller's
+        own post-filter (`filter_page`) decides what to keep.
+        """
         if all_:
             bound = cap
         elif limit is None or limit < 1:
@@ -480,19 +488,33 @@ class GraphClient:
         items: list[dict] = []
         pages = 0
         next_link: str | None = None
+        end: int | None = None  # index of the first item `stop` accepted, once it has
         while True:
             payload = (
                 self.request("GET", url, headers=headers, beta=beta, outlook_tz=outlook_tz) or {}
             )
             pages += 1
-            items.extend(payload.get("value") or [])
+            batch = payload.get("value") or []
+            base = len(items)
+            items.extend(batch)
             next_link = payload.get("@odata.nextLink")
+            if stop is not None:
+                end = next(
+                    (base + i for i, item in enumerate(batch) if stop(item)),
+                    None,
+                )
+                if end is not None:
+                    break
             if not next_link or len(items) >= bound:
                 break
             url = next_link
         return PageResult(
             items=items[:bound],
-            truncated=len(items) > bound or bool(next_link),
+            # Truncation means results the caller asked for were left behind. Once `stop` has
+            # found the end, only the items ahead of it were ever asked for, so the count that
+            # matters is that one — not the whole fetch, whose tail is past the end anyway, and
+            # not the unfollowed nextLink, which leads further past it.
+            truncated=end > bound if end is not None else len(items) > bound or bool(next_link),
             pages=pages,
         )
 
