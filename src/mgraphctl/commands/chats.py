@@ -17,6 +17,7 @@ from mgraphctl.cli import (
     page_bounds,
     read_body,
 )
+from mgraphctl.errors import UsageError
 from mgraphctl.graph import chats, teams, users
 from mgraphctl.http import GraphClient
 from mgraphctl.render import (
@@ -127,6 +128,9 @@ def messages(
     after: Annotated[
         str | None, typer.Option("--after", metavar="DT", help="Only messages after this time.")
     ] = None,
+    before: Annotated[
+        str | None, typer.Option("--before", metavar="DT", help="Only messages before this time.")
+    ] = None,
     full: Annotated[
         bool, typer.Option("--full", help="Print whole bodies, not 300 chars.")
     ] = False,
@@ -135,10 +139,14 @@ def messages(
     json_: JsonFlag = False,
 ):
     """List chat messages, oldest first in text mode."""
+    tz = client.tz
+    since = parse_dt(after, tz) if after else None
+    until = parse_dt(before, tz, end_of_day=True) if before else None
+    if since is not None and until is not None and since > until:
+        raise UsageError("USAGE", "--after must not be later than --before")
     limit, all_ = page_bounds(limit, all_, default=20)
-    since = parse_dt(after, client.tz) if after else None
     chat_id = chats.resolve_chat(client, chat)
-    page = chats.chat_messages(client, chat_id, after=since, limit=limit, all_=all_)
+    page = chats.chat_messages(client, chat_id, after=since, before=until, limit=limit, all_=all_)
     # JSON keeps the Graph order (newest first); text reads better oldest first (§10 quirk 17).
     # A chat message is the same Graph resource as a channel message, rendered by `graph.teams`.
     return ListResult(

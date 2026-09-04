@@ -4,8 +4,8 @@
     "path": "/v1.0/chats/19%3Achat-0001%40thread.v2/messages",
     "query": {
       "$top": "50",
-      "$orderby": "createdDateTime desc",
-      "$filter": "createdDateTime gt 2026-08-01T00:00:00+02:00"
+      "$orderby": "lastModifiedDateTime desc",
+      "$filter": "lastModifiedDateTime gt 2026-08-01T00:00:00+02:00"
     },
     "status": 200,
     "json": {

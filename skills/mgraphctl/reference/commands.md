@@ -956,17 +956,25 @@ Every `calendar create` option except `--calendar` and `--transaction-id`; all o
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--after DT` | — | Only messages created after this. |
+| `--after DT` | — | Only messages last touched after this. |
+| `--before DT` | — | Only messages last touched before this. |
 | `--full` | off | Print whole bodies, not the first 300 characters. |
 | `--limit N` | 20 | Maximum items. |
 | `--all` | off | Fetch every page, cap 200. |
 | `--json` | off | Print JSON instead of text. |
 
-- **Graph:** `GET /chats/{id}/messages?$top=50&$orderby=createdDateTime desc[&$filter=createdDateTime gt {after}]`.
+- **Graph:** `GET /chats/{id}/messages?$top=50&$orderby=createdDateTime desc`; with a window,
+  `$orderby=lastModifiedDateTime desc&$filter=lastModifiedDateTime gt {after} and lastModifiedDateTime lt {before}`.
 - **Scopes:** `Chat.Read`
 - **Tier:** P0
 - **Notes:** text prints oldest first with Markdown bodies and `[image: hostedContents/<id>]`
   markers; JSON keeps Graph's order, newest first.
+  A window filters and orders on `lastModifiedDateTime`, not `createdDateTime`: Graph supports
+  `gt`/`lt` only on that property (`createdDateTime` takes `lt` alone), and ignores a `$filter`
+  whose property `$orderby` does not also name. So the bounds are the *last touched* time — an
+  edited message sorts and filters by its edit, and the oldest-first text order follows that
+  same property rather than creation time. Without a window the order stays
+  `createdDateTime desc`. `--after` later than `--before` is a usage error.
 
 ### `chats send CHAT`
 

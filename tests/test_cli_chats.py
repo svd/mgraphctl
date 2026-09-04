@@ -106,12 +106,40 @@ def test_chats_messages_after_filter_and_order(invoke, graph):
     doc = json.loads(invoke("chats", "messages", CHAT, "--json").stdout)
     assert [m["id"] for m in doc["items"]] == ["AAMk-chat-0003", "AAMk-chat-0002"]
 
+    # A window switches both $filter and $orderby to lastModifiedDateTime: Graph filters chat
+    # messages on that property, and ignores a $filter whose property $orderby does not name.
     after_routes = mock_graph(graph, "chats/messages_after")
     r = invoke("chats", "messages", CHAT, "--after", "2026-08-01")
     assert r.exit_code == 0, r.stderr
-    assert after_routes[0].calls.last.request.url.params["$filter"] == (
-        "createdDateTime gt 2026-08-01T00:00:00+02:00"
+    params = after_routes[0].calls.last.request.url.params
+    assert params["$filter"] == "lastModifiedDateTime gt 2026-08-01T00:00:00+02:00"
+    assert params["$orderby"] == "lastModifiedDateTime desc"
+
+
+@covers("chats messages")
+def test_chats_messages_before_and_both_bounds(invoke, graph):
+    route = graph.get(f"{GRAPH}/v1.0/chats/19%3Achat-0001%40thread.v2/messages").mock(
+        return_value=httpx.Response(200, json={"value": []})
     )
+    r = invoke("chats", "messages", CHAT, "--before", "2026-08-31")
+    assert r.exit_code == 0, r.stderr
+    params = route.calls.last.request.url.params
+    assert params["$filter"] == "lastModifiedDateTime lt 2026-08-31T23:59:59+02:00"
+    assert params["$orderby"] == "lastModifiedDateTime desc"
+
+    r = invoke("chats", "messages", CHAT, "--after", "2026-08-01", "--before", "2026-08-31")
+    assert r.exit_code == 0, r.stderr
+    assert route.calls.last.request.url.params["$filter"] == (
+        "lastModifiedDateTime gt 2026-08-01T00:00:00+02:00 "
+        "and lastModifiedDateTime lt 2026-08-31T23:59:59+02:00"
+    )
+
+
+@covers("chats messages")
+def test_chats_messages_rejects_an_inverted_window(invoke, graph):
+    r = invoke("chats", "messages", CHAT, "--after", "2026-08-31", "--before", "2026-08-01")
+    assert r.exit_code == 2 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: --after must not be later than --before")
 
 
 @covers("chats messages")

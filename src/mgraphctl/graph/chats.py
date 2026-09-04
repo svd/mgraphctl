@@ -37,6 +37,9 @@ GROUP_TITLE_NAMES = 3
 PAGE_CHATS, CAP_CHATS = 50, 200
 CAP_CHAT_MEMBERS = 999
 PAGE_MESSAGES, CAP_MESSAGES = 50, 200
+# The only chat-message property Graph filters on with both `gt` and `lt`, and only when
+# `$orderby` names it too — otherwise the `$filter` is silently ignored (spec §8.8).
+MESSAGE_WINDOW_FIELD = "lastModifiedDateTime"
 CAP_ONE_ON_ONE = 500
 SEARCH_SIZE, CAP_SEARCH = 25, 200
 HOSTED_NAME_PREFIX = "teams_hosted_"
@@ -119,11 +122,30 @@ def list_chat_members(client: GraphClient, chat_id: str) -> PageResult:
 
 
 def chat_messages(
-    client: GraphClient, chat_id: str, *, after: datetime | None, limit: int | None, all_: bool
+    client: GraphClient,
+    chat_id: str,
+    *,
+    after: datetime | None,
+    before: datetime | None,
+    limit: int | None,
+    all_: bool,
 ) -> PageResult:
+    """Messages in one chat, newest first, optionally narrowed to a time window.
+
+    Graph filters chat messages on `lastModifiedDateTime` (`gt` and `lt`); `createdDateTime`
+    takes only `lt`, and either way the filter is *ignored* unless `$orderby` names the same
+    property. So a window switches both to `lastModifiedDateTime`; without one the order stays
+    `createdDateTime desc`, which is the order a thread reads in.
+    """
     params: dict[str, object] = {"$orderby": "createdDateTime desc"}
+    bounds = []
     if after is not None:
-        params["$filter"] = f"createdDateTime gt {to_iso_offset(after)}"
+        bounds.append(f"{MESSAGE_WINDOW_FIELD} gt {to_iso_offset(after)}")
+    if before is not None:
+        bounds.append(f"{MESSAGE_WINDOW_FIELD} lt {to_iso_offset(before)}")
+    if bounds:
+        params["$orderby"] = f"{MESSAGE_WINDOW_FIELD} desc"
+        params["$filter"] = " and ".join(bounds)
     return client.paginate(
         odata.p("chats", chat_id, "messages"),
         params=params,

@@ -21,3 +21,11 @@
   reply chain's last-modified time, and paging stops at the first message older than `--after`;
   Graph documents no `$filter` support on that endpoint, and an unsupported one is either rejected
   or silently ignored.
+- `chats messages` takes `--before`, symmetric to `--after`.
+
+### Fixed
+
+- `chats messages --after` never actually filtered. It sent `$filter=createdDateTime gt …`
+  alongside `$orderby=createdDateTime desc`, but Graph supports `gt` on chat messages only for
+  `lastModifiedDateTime` and ignores a `$filter` whose property `$orderby` does not name. Both now
+  use `lastModifiedDateTime`, so the bounds mean when a message was last touched.
