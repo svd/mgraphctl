@@ -46,6 +46,10 @@ jobs:
       - name: Format (ruff format)
         run: uv run ruff format --check .
 
+      # The release workflow publishes this build to PyPI; catch metadata rot on every push.
+      - name: Build and check distribution metadata
+        run: uv build && uvx twine check --strict dist/*
+
   secrets:
     runs-on: ubuntu-latest
     steps:

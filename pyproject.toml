@@ -2,7 +2,26 @@
 name = "mgraphctl"
 version = "0.1.0"
 description = "Microsoft Graph CLI behind the mgraphctl Claude Code skill"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Sviatoslav Sviridov", email = "sviridov@gmail.com" }]
 requires-python = ">=3.11,<3.14"
+keywords = ["microsoft-graph", "microsoft-365", "outlook", "teams", "sharepoint", "onedrive", "cli"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Communications :: Email",
+  "Topic :: Office/Business",
+  "Topic :: Utilities",
+]
 dependencies = [
   "msal>=1.38,<2",
   "httpx>=0.28,<1",
@@ -10,6 +29,12 @@ dependencies = [
   "markdownify>=1.2,<2",
   "tzdata; sys_platform == 'win32'",
 ]
+
+[project.urls]
+Homepage = "https://github.com/svd/mgraphctl"
+Source = "https://github.com/svd/mgraphctl"
+Changelog = "https://github.com/svd/mgraphctl/blob/main/CHANGELOG.md"
+Issues = "https://github.com/svd/mgraphctl/issues"
 
 [project.scripts]
 mgraphctl = "mgraphctl.cli:main"
