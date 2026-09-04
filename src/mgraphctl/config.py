@@ -87,7 +87,8 @@ MAIL_SMALL_ATTACHMENT = 3_145_728
 DRIVE_SIMPLE_UPLOAD = 4_194_304
 
 RETRY_STATUSES = frozenset({429, 503, 504})
-# Retries after the first attempt (`MGRAPHCTL_RETRIES`); 0 disables retrying outright.
+# Retries after the first attempt (`MGRAPHCTL_RETRIES`) on RETRY_STATUSES and connection
+# failures; 0 disables them. The one 401 re-authentication is not a retry and is not counted.
 RETRIES_DEFAULT = 4
 RETRY_AFTER_CAP = 300
 TIMEOUT_MS_DEFAULT = 60_000

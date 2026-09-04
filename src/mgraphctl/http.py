@@ -275,7 +275,8 @@ class GraphClient:
         self.tz = tz
         self.beta = beta
         self.debug = int(debug)
-        # `retries` counts the attempts after the first, so 0 disables retrying outright.
+        # `retries` counts the attempts after the first on a retryable status or a connection
+        # failure, so 0 disables those. The single 401 re-auth below is not one of them.
         self.max_attempts = max(retries, 0) + 1
         self.retry_base_ms = retry_base_ms
         timeout, long = timeouts(timeout_ms)

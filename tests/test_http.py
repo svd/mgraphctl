@@ -880,6 +880,37 @@ def test_retries_zero_disables_retrying(monkeypatch):
 
 
 @respx.mock
+def test_retries_zero_still_refreshes_a_token_once():
+    """The 401 refresh is not part of the retry budget: it is one re-auth, not a retry."""
+    tokens = iter(["tok-1", "tok-2"])
+    client = GraphClient(lambda force: next(tokens), tz="UTC", retries=0)
+    route = respx.get(f"{V1}/me").mock(
+        return_value=httpx.Response(
+            401, json={"error": {"code": "InvalidAuthenticationToken", "message": "x"}}
+        )
+    )
+    with pytest.raises(errors.AuthError):
+        client.get("/me")
+    assert route.call_count == 2
+    client.close()
+
+
+@respx.mock
+def test_retries_zero_disables_the_batch_429_retry(monkeypatch):
+    monkeypatch.setattr(GraphClient, "sleep", staticmethod(lambda _s: None))
+    client = GraphClient(lambda force: "tok", tz="UTC", retries=0)
+    route = respx.post(f"{V1}/$batch").mock(
+        return_value=httpx.Response(
+            200, json={"responses": [{"id": "1", "status": 429, "headers": {}, "body": {}}]}
+        )
+    )
+    results = client.batch([BatchRequest(id="a", method="GET", url="/me")])
+    assert route.call_count == 1
+    assert results[0].status == 429 and results[0].error is not None
+    client.close()
+
+
+@respx.mock
 def test_retry_base_ms_scales_the_backoff_and_its_jitter():
     sleeps: list[float] = []
     client = GraphClient(lambda force: "tok", tz="UTC", retry_base_ms=10)

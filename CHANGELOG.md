@@ -40,7 +40,8 @@
   text column, so a hit can be followed into `teams channel messages --after …` without parsing
   `where` apart. A hit with no routing reports `kind: "unknown"`.
 - `MGRAPHCTL_RETRIES`, `MGRAPHCTL_TIMEOUT_MS` and `MGRAPHCTL_RETRY_BASE_MS` tune retrying and
-  timeouts; `MGRAPHCTL_RETRIES=0` disables retrying outright. An unusable value takes the
+  timeouts; `MGRAPHCTL_RETRIES=0` disables the 429/503/504 and connection-failure retries (a
+  401 still re-authenticates once, which is not a retry). An unusable value takes the
   default rather than failing the command. The long timeout for uploads and downloads keeps its
   multiplier off whatever base is configured.
 - An eval suite at `skills/mgraphctl/evals/evals.json`, covering triggering and the surfaces

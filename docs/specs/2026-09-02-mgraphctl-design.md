@@ -113,7 +113,7 @@ All configuration is environment-based; there is no config file. `config.py` rea
 | `MGRAPHCTL_TOKEN_CACHE` | `~/.mgraphctl/token_cache.json` | msal cache file (0600) |
 | `MGRAPHCTL_TZ` | detected local zone (§6.3) | IANA zone for `Prefer: outlook.timezone`, naive input, and rendering; `--tz` overrides |
 | `MGRAPHCTL_DEBUG` | unset | `1` = same as `--debug` |
-| `MGRAPHCTL_RETRIES` | `4` | retries after the first attempt; `0` disables retrying entirely |
+| `MGRAPHCTL_RETRIES` | `4` | retries after the first attempt on `RETRY_STATUSES` (429/503/504) and connection failures; `0` disables them. The 401 refresh of §5.2 is not a retry and still happens once per request |
 | `MGRAPHCTL_TIMEOUT_MS` | `60000` | read/write timeout; the long profile for uploads/downloads is `LONG_TIMEOUT_FACTOR`× it, so it tracks whatever base is configured. The connect budget is separate (`CONNECT_TIMEOUT`) |
 | `MGRAPHCTL_RETRY_BASE_MS` | `1000` | base of the exponential backoff (`min(2**attempt * base, 30s)`) and of its jitter, so a small base stays small |
 | `MGRAPHCTL_FIXTURE_DIR` | unset | replay recorded responses, bypass auth (§5.8) |
