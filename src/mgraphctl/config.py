@@ -1,16 +1,33 @@
-"""Environment configuration, paths, scope sets and shared constants (spec §3, §4.1, §4.4)."""
+"""Configuration (env vars over `~/.mgraphctl/config.toml`), paths, scope sets and shared constants
+(spec §3, §4.1, §4.4)."""
 
 from __future__ import annotations
 
 import os
 import re
+import tomllib
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from mgraphctl import __version__
 
 CLIENT_ID_DEFAULT = "00000000-0000-0000-0000-000000000000"
+CONFIG_FILE_NAME = "config.toml"
+# Every key the file may set: the env var name without `MGRAPHCTL_`, lower-cased. The test-only
+# knobs (fixture_dir, record) are deliberately absent.
+CONFIG_KEYS: tuple[str, ...] = (
+    "client_id",
+    "tenant_id",
+    "scopes",
+    "tz",
+    "token_cache",
+    "debug",
+    "retries",
+    "timeout_ms",
+    "retry_base_ms",
+)
 GRAPH_V1 = "https://graph.microsoft.com/v1.0"
 GRAPH_BETA = "https://graph.microsoft.com/beta"
 TOKEN_HOST = "login.microsoftonline.com"
@@ -80,6 +97,22 @@ SCOPE_IMPLIES: dict[str, tuple[str, ...]] = {
     "User.Read.All": ("User.ReadBasic.All",),
 }
 
+# What `config init` writes: every key present, commented out, at its default.
+CONFIG_TEMPLATE = """\
+# mgraphctl configuration. Every key is optional; environment variables (MGRAPHCTL_<KEY>) and
+# command-line flags override it. Uncomment a line to set it.
+
+# client_id     = "00000000-0000-0000-0000-000000000000"   # Entra application (public client)
+# tenant_id     = "common"                                 # authority tenant
+# scopes        = "default"                                # default, extended, or a scope list
+# tz            = "Europe/Warsaw"                          # IANA zone; default: detected
+# token_cache   = "~/.mgraphctl/token_cache.json"
+# debug         = 0                                        # 1 = --debug, 2 = -dd
+# retries       = 4                                        # after the first attempt; 0 disables
+# timeout_ms    = 60000
+# retry_base_ms = 1000
+"""
+
 CHUNK_DRIVE = 10_485_760
 CHUNK_OUTLOOK = 3_932_160
 MAIL_INLINE_TOTAL = 2_621_440
@@ -109,11 +142,50 @@ def _positive_int(raw: str | None, default: int) -> int:
     return int(text)
 
 
+def state_dir() -> Path:
+    return Path.home() / ".mgraphctl"
+
+
+def config_path() -> Path:
+    """`MGRAPHCTL_CONFIG`, else `~/.mgraphctl/config.toml`."""
+    raw = os.environ.get("MGRAPHCTL_CONFIG")
+    return Path(raw).expanduser() if raw else state_dir() / CONFIG_FILE_NAME
+
+
+def load_config_file(path: Path | None = None) -> dict[str, Any]:
+    """The file's top-level table; `{}` when it does not exist. Invalid TOML is a CONFIG error."""
+    path = path or config_path()
+    try:
+        with path.open("rb") as fh:
+            return tomllib.load(fh)
+    except FileNotFoundError:
+        return {}
+    except tomllib.TOMLDecodeError as exc:
+        from mgraphctl.errors import UsageError  # errors imports config; keep this lazy
+
+        raise UsageError(
+            "CONFIG", f"{path}: {exc}", hint="fix the file, or point MGRAPHCTL_CONFIG elsewhere"
+        ) from None
+
+
+def unknown_config_keys(path: Path | None = None) -> list[str]:
+    return sorted(k for k in load_config_file(path) if k not in CONFIG_KEYS)
+
+
+def _debug_level(raw: str | None) -> int:
+    text = (raw or "").strip().lower()
+    if text.isdigit():
+        return int(text)
+    return 1 if text in {"true", "yes", "on"} else 0
+
+
 @dataclass(frozen=True)
 class Settings:
     client_id: str
     tenant_id: str
     authority: str
+    # The raw `scopes` spec from env or file, or None; `login` reuses it.
+    scope_spec: str | None
     scope_set: str
     scopes: list[str]
     token_cache: Path
@@ -153,35 +225,66 @@ def msal_scopes(scopes: Iterable[str]) -> list[str]:
     return [s for s in scopes if s not in RESERVED_SCOPES]
 
 
-def settings() -> Settings:
-    """Read configuration from `os.environ`. Never cached — call fresh each time."""
+def _raw_values() -> dict[str, tuple[str | None, str]]:
+    """Each config key's raw text and where it came from: env beats file beats nothing."""
     env = os.environ
-    tenant = env.get("MGRAPHCTL_TENANT_ID") or "common"
-    scope_set, scopes = resolve_scopes(env.get("MGRAPHCTL_SCOPES"))
-    state_dir = Path.home() / ".mgraphctl"
-    debug_raw = (env.get("MGRAPHCTL_DEBUG") or "").strip().lower()
-    debug = (
-        int(debug_raw) if debug_raw.isdigit() else (1 if debug_raw in {"true", "yes", "on"} else 0)
-    )
+    file = load_config_file()
+    out: dict[str, tuple[str | None, str]] = {}
+    for key in CONFIG_KEYS:
+        env_value = env.get(f"MGRAPHCTL_{key.upper()}")
+        if env_value:
+            out[key] = (env_value, "env")
+        elif key in file:
+            value = file[key]
+            # TOML `true` for debug reads like the env var's "true"; everything else is str().
+            out[key] = ("1" if value is True else "0" if value is False else str(value), "file")
+        else:
+            out[key] = (None, "default")
+    return out
+
+
+def settings() -> Settings:
+    """Read configuration from `os.environ` and the config file. Never cached — call fresh."""
+    env = os.environ
+    raw = {key: value for key, (value, _) in _raw_values().items()}
+    tenant = raw["tenant_id"] or "common"
+    scope_set, scopes = resolve_scopes(raw["scopes"])
     fixture_dir = env.get("MGRAPHCTL_FIXTURE_DIR")
     return Settings(
-        client_id=env.get("MGRAPHCTL_CLIENT_ID") or CLIENT_ID_DEFAULT,
+        client_id=raw["client_id"] or CLIENT_ID_DEFAULT,
         tenant_id=tenant,
         authority=f"https://{TOKEN_HOST}/{tenant}",
+        scope_spec=raw["scopes"],
         scope_set=scope_set,
         scopes=scopes,
-        token_cache=Path(
-            env.get("MGRAPHCTL_TOKEN_CACHE") or state_dir / "token_cache.json"
-        ).expanduser(),
-        state_dir=state_dir,
-        tz=env.get("MGRAPHCTL_TZ") or None,
-        debug=debug,
+        token_cache=Path(raw["token_cache"] or state_dir() / "token_cache.json").expanduser(),
+        state_dir=state_dir(),
+        tz=raw["tz"] or None,
+        debug=_debug_level(raw["debug"]),
         fixture_dir=Path(fixture_dir).expanduser() if fixture_dir else None,
         record=(env.get("MGRAPHCTL_RECORD") or "") == "1",
-        retries=_positive_int(env.get("MGRAPHCTL_RETRIES"), RETRIES_DEFAULT),
-        timeout_ms=_positive_int(env.get("MGRAPHCTL_TIMEOUT_MS"), TIMEOUT_MS_DEFAULT),
-        retry_base_ms=_positive_int(env.get("MGRAPHCTL_RETRY_BASE_MS"), RETRY_BASE_MS_DEFAULT),
+        retries=_positive_int(raw["retries"], RETRIES_DEFAULT),
+        timeout_ms=_positive_int(raw["timeout_ms"], TIMEOUT_MS_DEFAULT),
+        retry_base_ms=_positive_int(raw["retry_base_ms"], RETRY_BASE_MS_DEFAULT),
     )
+
+
+def effective_settings() -> list[tuple[str, Any, str]]:
+    """`(key, parsed value, source)` per config key, for `config show`."""
+    s = settings()
+    sources = {key: source for key, (_, source) in _raw_values().items()}
+    values: dict[str, Any] = {
+        "client_id": s.client_id,
+        "tenant_id": s.tenant_id,
+        "scopes": s.scope_spec or "default",
+        "tz": s.tz,
+        "token_cache": str(s.token_cache),
+        "debug": s.debug,
+        "retries": s.retries,
+        "timeout_ms": s.timeout_ms,
+        "retry_base_ms": s.retry_base_ms,
+    }
+    return [(key, values[key], sources[key]) for key in CONFIG_KEYS]
 
 
 def shim_path() -> str:

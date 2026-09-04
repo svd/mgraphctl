@@ -103,7 +103,11 @@ Rules: the venv lives under `${CLAUDE_PLUGIN_DATA}` (`~/.claude/plugins/data/<id
 
 ## 3. Configuration
 
-All configuration is environment-based; there is no config file. `config.py` reads these once at startup.
+`config.py` reads these environment variables, falling back to the same keys (without the
+`MGRAPHCTL_` prefix, lower-cased) in the optional TOML file `~/.mgraphctl/config.toml`
+(`--config PATH` / `MGRAPHCTL_CONFIG` select another). Precedence: flag, env var, file, default.
+`MGRAPHCTL_FIXTURE_DIR` and `MGRAPHCTL_RECORD` are env-only. `config path|show|init` inspect and
+seed the file; invalid TOML fails every command with `CONFIG` (exit 2). Read fresh on every call.
 
 | Variable | Default | Effect |
 |---|---|---|
@@ -790,7 +794,9 @@ Decided without user input; each is reversible before phase 1 starts.
 
 1. The plugin/skill name is `mgraphctl` throughout; the spelling `msgrpah-py` seen in earlier notes is treated as a typo.
 2. `extended` scopes and the on-demand ones (`OnlineMeetingRecording.Read.All`, `User.Read.All`, `Presence.Read.All`) will need admin consent on the existing app registration in tenants under the Microsoft-managed consent policy; the CLI prints the admin-consent URL but cannot grant it. `MailboxSettings.Read` is not in `default`, so `mailbox settings`/`oof get` are P2 even though they only read.
-3. Env var prefix `MGRAPHCTL_`; client id and tenant are env-only (no `--client-id/--tenant` flags).
+3. Env var prefix `MGRAPHCTL_`; client id and tenant come from the env or the config file (no
+   `--client-id/--tenant` flags). *Revised 2026-09-04: the config file was added after the
+   original "env only" decision.*
 4. Exit codes differ from Node (3 for auth instead of 0/2; 4 for not-found); SKILL.md and README carry the new table.
 5. Node snapshots and fixtures are not reused; the query-encoding parity requirement (quirk 20) is dropped.
 6. `chats hosted-content` is added beyond the requested verb list for parity with `teams --hosted-content`; `org` summary mode is dropped.

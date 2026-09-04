@@ -73,6 +73,16 @@ prompt — a missing or expired token fails with an actionable hint instead.
   Persistent across plugin updates; safe to delete, it is rebuilt on the next run.
 - Token cache: `~/.mgraphctl/token_cache.json`, mode `0600`, in a `0700` directory. Plaintext
   msal JSON — there is no keychain integration.
+- Config file: `~/.mgraphctl/config.toml`, optional (`--config PATH` or `MGRAPHCTL_CONFIG` to
+  point elsewhere). Every `MGRAPHCTL_*` setting can go there as the name without the prefix,
+  lower-cased; a flag beats an environment variable, which beats the file. `mgraphctl config init`
+  writes a commented template and `mgraphctl config show` prints where each value came from.
+
+  ```toml
+  tenant_id = "contoso.onmicrosoft.com"
+  scopes    = "extended"
+  tz        = "Europe/Warsaw"
+  ```
 
 ## Scopes
 

@@ -73,7 +73,8 @@ def login(
         typer.Option(
             "--scopes",
             envvar="MGRAPHCTL_SCOPES",
-            help="default, extended, or a space/comma-separated scope list.",
+            help="default, extended, or a space/comma-separated scope list"
+            " (else MGRAPHCTL_SCOPES, the config file).",
         ),
     ] = "",
     scope: Annotated[
@@ -90,8 +91,9 @@ def login(
 ) -> None:
     """Sign in and cache the token. The only command that may open a browser."""
     g: Globals = ctx.find_root().obj
-    name, wanted = config.resolve_scopes(scopes or None, scope or [])
-    cache = str(config.settings().token_cache)
+    s = config.settings()
+    name, wanted = config.resolve_scopes(scopes or s.scope_spec, scope or [])
+    cache = str(s.token_cache)
     if not force:
         already = _already_logged_in(wanted, name, cache)
         if already is not None:

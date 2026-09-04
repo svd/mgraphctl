@@ -7,6 +7,7 @@ typer reads the real `Annotated` objects off each command signature.
 import functools
 import inspect
 import logging
+import os
 import sys
 import traceback
 from collections.abc import Callable
@@ -35,6 +36,8 @@ class Globals:
     debug: int
     tz: str
     beta: bool
+    # Config keys a root flag overrode (`tz`, `debug`), so `config show` can say so.
+    flag_keys: frozenset[str] = frozenset()
 
 
 JsonFlag = Annotated[bool, typer.Option("--json", help="Print JSON instead of text.")]
@@ -208,9 +211,16 @@ def build_app() -> typer.Typer:
         ] = 0,
         tz: Annotated[
             str | None,
-            typer.Option("--tz", envvar="MGRAPHCTL_TZ", help="IANA time zone."),
+            typer.Option("--tz", help="IANA time zone (else MGRAPHCTL_TZ, the config file)."),
         ] = None,
         beta: Annotated[bool, typer.Option("--beta", help="Use the /beta endpoint.")] = False,
+        config_file: Annotated[
+            Path | None,
+            typer.Option(
+                "--config",
+                help="Config file (else MGRAPHCTL_CONFIG, ~/.mgraphctl/config.toml).",
+            ),
+        ] = None,
         version: Annotated[
             bool,
             typer.Option(
@@ -221,20 +231,26 @@ def build_app() -> typer.Typer:
             ),
         ] = False,
     ) -> None:
-        zone = tz or render.local_tz()
+        if config_file is not None:
+            # `settings()` reads the environment, so the flag becomes the env var for this run.
+            os.environ["MGRAPHCTL_CONFIG"] = str(config_file)
+        s = config.settings()
+        zone = tz or s.tz or render.local_tz()
         if not render.is_iana(zone):
             raise UsageError(
                 "USAGE", f"unknown time zone {zone!r}; use an IANA name such as Europe/Warsaw"
             )
-        level = max(debug, config.settings().debug)
+        level = max(debug, s.debug)
         _configure_logging(level)
-        ctx.obj = Globals(debug=level, tz=zone, beta=beta)
+        flag_keys = {k for k, hit in (("tz", tz), ("debug", debug and debug >= s.debug)) if hit}
+        ctx.obj = Globals(debug=level, tz=zone, beta=beta, flag_keys=frozenset(flag_keys))
         _noargs_help(ctx)
 
-    from mgraphctl.commands import api, register_all, top
+    from mgraphctl.commands import api, config_cmd, register_all, top
 
     top.register(root)
     api.register(root)
+    config_cmd.register(root)
     register_all(root)
     return root
 

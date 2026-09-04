@@ -350,6 +350,9 @@ Errors are one stderr block: `error[<CODE>]: <message>`, an optional `request-id
 | `NO_COLOR`, `COLUMNS` | — | Honoured by the text renderer. |
 | `HTTPS_PROXY`, `HTTP_PROXY` | — | Honoured by the HTTP client. |
 
+Each of these (except `NO_COLOR`, `COLUMNS` and the proxies) can also live in
+`~/.mgraphctl/config.toml` as the name without `MGRAPHCTL_`, lower-cased; flag beats env beats
+file. `config show` prints every effective value and its source; `config init` writes a template.
 Do not set these yourself; they belong to the user's environment.
 
 ## Scopes and consent

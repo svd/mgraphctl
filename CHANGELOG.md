@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- An optional config file, `~/.mgraphctl/config.toml` (`--config PATH` or `MGRAPHCTL_CONFIG`
+  to relocate it). Every `MGRAPHCTL_*` setting except the fixture knobs can be set there under
+  its lower-cased name; a flag beats an environment variable, which beats the file.
+  `config init` writes a commented template, `config show` prints each effective value with its
+  source, `config path` prints the location. Invalid TOML fails every command with
+  `error[CONFIG]`.
 - Initial Python implementation of the `msgraph` skill as `mgraphctl`: a typer CLI run with `uv`
   (msal sign-in, httpx with retries and paging, offline pytest suite).
 - Parity with every `msgraph` mode: mail, calendar, availability, SharePoint (sites, browse,

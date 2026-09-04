@@ -23,6 +23,9 @@ def fake_auth(request, monkeypatch, tmp_path):
     monkeypatch.delenv("MGRAPHCTL_DEBUG", raising=False)
     monkeypatch.delenv("MGRAPHCTL_SCOPES", raising=False)
     monkeypatch.setenv("MGRAPHCTL_TOKEN_CACHE", str(tmp_path / "token_cache.json"))
+    # Point at a file that does not exist yet: the developer's own ~/.mgraphctl/config.toml
+    # must never leak into the suite.
+    monkeypatch.setenv("MGRAPHCTL_CONFIG", str(tmp_path / "config.toml"))
     if request.node.get_closest_marker("real_auth"):
         return
     marker = request.node.get_closest_marker("scopes")
@@ -31,6 +34,18 @@ def fake_auth(request, monkeypatch, tmp_path):
     monkeypatch.setattr(auth, "get_access_token", lambda force_refresh=False: token)
     monkeypatch.setattr(auth, "cached_access_token", lambda: token)
     monkeypatch.setattr(auth, "save_cache", lambda: None)
+
+
+@pytest.fixture
+def config_file(tmp_path):
+    """Write TOML text to the config path the autouse fixture selected."""
+
+    def _write(text: str):
+        path = tmp_path / "config.toml"
+        path.write_text(text)
+        return path
+
+    return _write
 
 
 @pytest.fixture

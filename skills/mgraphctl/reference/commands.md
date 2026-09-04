@@ -39,7 +39,8 @@ These come *before* the noun: `mgraphctl --tz Europe/Warsaw calendar list`.
 | Option | Default | Meaning |
 |---|---|---|
 | `--debug`, `-d` | off | Log one line per request to stderr. Repeat (`-dd`) to add truncated bodies. |
-| `--tz IANA` | `MGRAPHCTL_TZ`, else the detected local zone | Time zone for `Prefer: outlook.timezone`, for naive datetime input, and for rendering. |
+| `--tz IANA` | `MGRAPHCTL_TZ`, else the config file, else the detected local zone | Time zone for `Prefer: outlook.timezone`, for naive datetime input, and for rendering. |
+| `--config PATH` | `MGRAPHCTL_CONFIG`, else `~/.mgraphctl/config.toml` | The config file to read (see **Configuration** at the end of this file). |
 | `--beta` | off | Send every relative path to `/beta` instead of `/v1.0`. |
 | `--version` | — | Print `mgraphctl <version>` and exit 0. |
 | `--help` | — | Help at every level. Running a noun with no verb prints that noun's help and exits 0. |
@@ -124,6 +125,48 @@ The only command that may open a browser. Run it yourself in your own terminal.
 - **Scopes:** none.
 - **Tier:** P1
 - **Notes:** prints `mgraphctl <version>` with the Python, msal and httpx versions it runs on.
+
+## `config`
+
+The optional TOML file at `~/.mgraphctl/config.toml` (or `--config PATH` / `MGRAPHCTL_CONFIG`).
+Nothing in it is secret; the token cache stays a separate file.
+
+### `config path`
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--json` | off | `{"path", "exists"}`. |
+
+- **Graph:** none.
+- **Scopes:** none.
+- **Tier:** P1
+- **Notes:** prints the path the other commands read, whether or not it exists.
+
+### `config show`
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--json` | off | `{"path", "settings": {key: value}, "sources": {key: flag|env|file|default}, "unknownKeys"}`. |
+
+- **Graph:** none.
+- **Scopes:** none.
+- **Tier:** P1
+- **Notes:** one row per key with its effective value and where it came from. Keys in the file
+  that mgraphctl does not know are listed, not rejected. A file that is not valid TOML fails
+  this and every other command with `error[CONFIG]` (exit 2).
+
+### `config init`
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--force` | off | Overwrite an existing file. |
+| `--json` | off | `{"path", "overwritten"}`. |
+
+- **Graph:** none.
+- **Scopes:** none.
+- **Tier:** P1
+- **Notes:** writes a template with every key commented out at its default, mode `0600` in a
+  `0700` directory. Refuses to overwrite without `--force` (`error[USAGE]`).
 
 ### `api METHOD PATH`
 
@@ -2021,3 +2064,21 @@ an internal one: `NOT_LOGGED_IN`, `MISSING_SCOPE`, `CONSENT_REQUIRED`, `AMBIGUOU
 | `MGRAPHCTL_RECORD` | unset | `1`, with `MGRAPHCTL_FIXTURE_DIR`, records live responses. |
 | `NO_COLOR`, `COLUMNS` | — | Honoured by the text renderer. |
 | `HTTPS_PROXY`, `HTTP_PROXY` | — | Honoured by the HTTP client. |
+| `MGRAPHCTL_CONFIG` | `~/.mgraphctl/config.toml` | The config file; `--config` overrides it. |
+
+## Configuration file
+
+Every `MGRAPHCTL_*` variable above except `MGRAPHCTL_CONFIG`, `MGRAPHCTL_FIXTURE_DIR` and
+`MGRAPHCTL_RECORD` can also be set in the config file, as the variable name without the prefix
+in lower case. Precedence is flag, then environment variable, then file, then the default.
+`mgraphctl config init` writes a commented template; `mgraphctl config show` prints the
+effective value and source of every key.
+
+```toml
+# ~/.mgraphctl/config.toml
+tenant_id     = "contoso.onmicrosoft.com"
+scopes        = "extended"
+tz            = "Europe/Warsaw"
+retries       = 2
+timeout_ms    = 30000
+```
