@@ -921,6 +921,7 @@ Every `calendar create` option except `--calendar` and `--transaction-id`; all o
 |---|---|---|
 | `--unread` | off | Only chats with unread messages. |
 | `--type TYPE` | — | `oneOnOne`, `group` or `meeting`. |
+| `--since DT` | — | Only chats whose last message is newer than this. |
 | `--limit N` | 20 | Maximum items. |
 | `--all` | off | Fetch every page, cap 200. |
 | `--json` | off | Print JSON instead of text. |
@@ -931,6 +932,14 @@ Every `calendar create` option except `--calendar` and `--transaction-id`; all o
 - **Notes:** unread is computed client-side from `viewpoint.lastMessageReadDateTime` against
   `lastMessagePreview.createdDateTime`, and shows only in text mode. A 1:1 chat is named after the
   other member; a group chat shows its topic or its first three members.
+  `--since` adds no query parameter — the listing is already ordered by
+  `lastMessagePreview/createdDateTime desc`, so paging simply stops at the first chat whose last
+  message predates it, and the chats past that boundary are dropped. Reaching the boundary is not
+  a truncation; the 200 cap still is. A chat with no readable preview timestamp says nothing
+  about where the boundary is, so it neither stops the fetch nor is dropped from it.
+  With `--since`, text mode gains a `lastMessage` column
+  showing the timestamp the bound is measured against; the JSON is unchanged either way, since
+  `lastMessagePreview` is always expanded.
 
 ### `chats get CHAT`
 

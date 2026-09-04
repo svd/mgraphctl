@@ -27,6 +27,7 @@ from mgraphctl.render import (
     ListResult,
     ObjectResult,
     WriteResult,
+    dig,
     fmt_dt,
     fmt_size,
     parse_dt,
@@ -54,30 +55,48 @@ def list_(
     chat_type: Annotated[
         str | None, typer.Option("--type", help="oneOnOne, group or meeting.")
     ] = None,
+    since: Annotated[
+        str | None,
+        typer.Option("--since", metavar="DT", help="Only chats with a message since this time."),
+    ] = None,
     limit: LimitOpt = None,
     all_: AllFlag = False,
     json_: JsonFlag = False,
 ):
     """List your chats, most recently active first."""
+    tz = client.tz
+    since_dt = parse_dt(since, tz) if since else None
     limit, all_ = page_bounds(limit, all_, default=20)
     page = chats.list_chats(
-        client, chat_type=chats.normalise_chat_type(chat_type), limit=limit, all_=all_
+        client,
+        chat_type=chats.normalise_chat_type(chat_type),
+        since=since_dt,
+        limit=limit,
+        all_=all_,
     )
     items = [c for c in page.items if chats.is_unread(c)] if unread else page.items
     oid = auth.my_oid()
-    tz = client.tz
+    columns = [
+        Column("id", "id"),
+        Column("flags", lambda c: "*" if chats.is_unread(c) else ""),
+        Column("type", "chatType"),
+        Column("updated", lambda c: fmt_dt(c.get("lastUpdatedDateTime"), tz)),
+    ]
+    if since_dt is not None:
+        # The column `--since` is measured against, so the boundary is visible in text mode.
+        columns.append(
+            Column(
+                "lastMessage",
+                lambda c: fmt_dt(dig(c, "lastMessagePreview.createdDateTime"), tz),
+            )
+        )
+    columns.append(Column("title", lambda c: truncate(chats.chat_title(c, oid))))
     return ListResult(
         items=items,
         truncated=page.truncated,
         hit_cap=chats.CAP_CHATS if all_ else None,
         empty_text="No chats.",
-        columns=[
-            Column("id", "id"),
-            Column("flags", lambda c: "*" if chats.is_unread(c) else ""),
-            Column("type", "chatType"),
-            Column("updated", lambda c: fmt_dt(c.get("lastUpdatedDateTime"), tz)),
-            Column("title", lambda c: truncate(chats.chat_title(c, oid))),
-        ],
+        columns=columns,
     )
 
 

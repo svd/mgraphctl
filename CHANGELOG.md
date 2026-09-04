@@ -22,6 +22,8 @@
   Graph documents no `$filter` support on that endpoint, and an unsupported one is either rejected
   or silently ignored.
 - `chats messages` takes `--before`, symmetric to `--after`.
+- `chats list` takes `--since`, stopping the fetch at the first chat whose last message predates
+  it. Text mode then shows a `lastMessage` column with the timestamp the bound is measured against.
 
 ### Fixed
 

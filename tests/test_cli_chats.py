@@ -65,6 +65,110 @@ def test_chats_list_type_filter(invoke, graph):
 
 
 @covers("chats list")
+def test_chats_list_since_stops_at_the_boundary(invoke, graph):
+    """The feed is already ordered by last message, so `--since` needs no server-side filter."""
+    routes = mock_graph(graph, "chats/list")
+    r = invoke("chats", "list", "--since", "2026-08-30T09:00", "--json")
+    assert r.exit_code == 0, r.stderr
+    params = routes[0].calls.last.request.url.params
+    # The request is exactly the plain one: no extra parameter carries `--since`.
+    assert "$filter" not in params
+    assert params["$orderby"] == "lastMessagePreview/createdDateTime desc"
+    assert params["$expand"] == "members,lastMessagePreview"
+    doc = json.loads(r.stdout)
+    # 09:00Z on the 31st and 11:00Z on the 30th are inside; 07:30Z on the 29th is not.
+    assert [c["id"] for c in doc["items"]] == [CHAT, "19:chat-0002@thread.v2"]
+    # Reaching the far edge of the window is not a truncation.
+    assert doc["truncated"] is False
+
+
+@covers("chats list")
+def test_chats_list_since_adds_a_last_message_column(invoke, graph):
+    mock_graph(graph, "chats/list")
+    plain = invoke("chats", "list")
+    assert plain.exit_code == 0, plain.stderr
+    assert plain.stdout.splitlines()[0].split() == ["id", "flags", "type", "updated", "title"]
+
+    r = invoke("chats", "list", "--since", "2026-08-01")
+    assert r.exit_code == 0, r.stderr
+    lines = r.stdout.splitlines()
+    assert lines[0].split() == ["id", "flags", "type", "updated", "lastMessage", "title"]
+    assert "2026-08-31T11:00+02:00" in lines[1]
+
+
+@covers("chats list")
+def test_chats_list_since_combines_with_unread_and_type(invoke, graph):
+    mock_graph(graph, "chats/list")
+    r = invoke("chats", "list", "--since", "2026-08-01", "--unread", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert [c["id"] for c in json.loads(r.stdout)["items"]] == [CHAT]
+
+    routes = mock_graph(graph, "chats/list_group")
+    r = invoke("chats", "list", "--since", "2026-08-01", "--type", "group")
+    assert r.exit_code == 0, r.stderr
+    # `--type` still filters server-side; `--since` still adds nothing to the query.
+    params = routes[0].calls.last.request.url.params
+    assert params["$filter"] == "chatType eq 'group'"
+    assert params["$orderby"] == "lastMessagePreview/createdDateTime desc"
+
+
+@covers("chats list")
+def test_chats_list_since_keeps_a_chat_with_no_preview_timestamp(invoke, graph):
+    """An undatable chat says nothing about the boundary: it neither stops nor is dropped."""
+    graph.get(f"{GRAPH}/v1.0/me/chats").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    {"id": "19:a@thread.v2", "chatType": "group", "topic": "Undated"},
+                    {
+                        "id": "19:b@thread.v2",
+                        "chatType": "group",
+                        "topic": "Recent",
+                        "lastMessagePreview": {"createdDateTime": "2026-08-31T09:00:00Z"},
+                    },
+                    {
+                        "id": "19:c@thread.v2",
+                        "chatType": "group",
+                        "topic": "Old",
+                        "lastMessagePreview": {"createdDateTime": "2026-07-01T09:00:00Z"},
+                    },
+                ]
+            },
+        )
+    )
+    r = invoke("chats", "list", "--since", "2026-08-01", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert [c["id"] for c in json.loads(r.stdout)["items"]] == [
+        "19:a@thread.v2",
+        "19:b@thread.v2",
+    ]
+
+
+@covers("chats list")
+def test_chats_list_since_keeps_a_chat_exactly_on_the_bound(invoke, graph):
+    graph.get(f"{GRAPH}/v1.0/me/chats").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    {
+                        "id": "19:on@thread.v2",
+                        "chatType": "group",
+                        "topic": "On the bound",
+                        # 2026-08-01T00:00 in Europe/Warsaw is 2026-07-31T22:00Z.
+                        "lastMessagePreview": {"createdDateTime": "2026-07-31T22:00:00Z"},
+                    }
+                ]
+            },
+        )
+    )
+    r = invoke("chats", "list", "--since", "2026-08-01", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert [c["id"] for c in json.loads(r.stdout)["items"]] == ["19:on@thread.v2"]
+
+
+@covers("chats list")
 def test_chats_list_limit_zero_is_usage_error(invoke, graph):
     assert invoke("chats", "list", "--limit", "0").exit_code == 2
     assert graph.calls.call_count == 0

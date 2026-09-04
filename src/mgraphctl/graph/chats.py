@@ -20,6 +20,7 @@ from mgraphctl.http import (
     Plan,
     PlannedRequest,
     SearchResult,
+    filter_page,
 )
 from mgraphctl.render import dig, parse_graph_dt, to_iso_offset
 
@@ -69,9 +70,52 @@ def normalise_chat_type(value: str | None) -> str | None:
     raise UsageError("USAGE", f"unknown chat type {value!r}; use one of {', '.join(CHAT_TYPES)}")
 
 
+def last_message_at(chat: dict) -> datetime | None:
+    """When the chat's last message preview was written, which is the order `/me/chats` is in."""
+    return parse_graph_dt(dig(chat, "lastMessagePreview.createdDateTime"))
+
+
+def _quiet_since(since: datetime | None) -> Callable[[dict], bool] | None:
+    """Page no further once a chat's last message predates `since`.
+
+    A chat with no readable preview timestamp is not the end of the feed — it says nothing
+    about where the boundary is — so it neither stops the fetch nor, in `_active_since`, gets
+    dropped from it. The two rules are deliberately the same: an undatable chat is kept.
+    """
+    if since is None:
+        return None
+
+    def past_it(chat: dict) -> bool:
+        created = last_message_at(chat)
+        return created is not None and created < since
+
+    return past_it
+
+
+def _active_since(since: datetime) -> Callable[[dict], bool]:
+    """Keep the chats whose last message is at or after `since`, and the undatable ones."""
+
+    def keep(chat: dict) -> bool:
+        created = last_message_at(chat)
+        return created is None or created >= since
+
+    return keep
+
+
 def list_chats(
-    client: GraphClient, *, chat_type: str | None, limit: int | None, all_: bool
+    client: GraphClient,
+    *,
+    chat_type: str | None,
+    since: datetime | None = None,
+    limit: int | None,
+    all_: bool,
 ) -> PageResult:
+    """The signed-in user's chats, most recently active first.
+
+    `$orderby=lastMessagePreview/createdDateTime desc` already puts the feed in that order, so
+    `since` needs no server-side filter: paging stops at the first chat whose last message
+    predates it, and the chats past that boundary are dropped here.
+    """
     params: dict[str, object] = {
         "$expand": CHAT_EXPAND,
         "$orderby": CHAT_ORDER,
@@ -79,14 +123,18 @@ def list_chats(
     }
     if chat_type:
         params["$filter"] = f"chatType eq '{odata.odata_str(chat_type)}'"
-    return client.paginate(
+    page = client.paginate(
         "/me/chats",
         params=params,
         limit=limit,
         all_=all_,
         cap=CAP_CHATS,
         page_size=PAGE_CHATS,
+        stop=_quiet_since(since),
     )
+    if since is None:
+        return page
+    return filter_page(page, _active_since(since))
 
 
 def chat_title(chat: dict, my_oid: str | None) -> str:
