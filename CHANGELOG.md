@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.0] — 2026-09-05
 
 - `login`, `status` and every silent token acquisition stop with `error[CONFIG]: client_id is
   not set` (exit 2) and a hint naming `config set client_id` / `MGRAPHCTL_CLIENT_ID` when the

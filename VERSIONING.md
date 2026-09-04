@@ -70,4 +70,4 @@ summarises it.
 
 | Tag | Date | Summary |
 |-----|------|---------|
-| — | — | No release yet. `0.1.0` is pending on `dev`. |
+| `mgraphctl--v0.1.0` | 2026-09-05 | Initial release: parity with `msgraph`, config file, keychain token storage, client id guard. |
