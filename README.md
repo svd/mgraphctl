@@ -42,6 +42,17 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 ## First run and login
 
+mgraphctl signs in as an Entra application of your own; there is no shared one. Before the
+first login, register a public-client application in your tenant (or ask an administrator for
+the id of one) and tell mgraphctl its client id, once:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/mgraphctl config set client_id <application (client) id>
+```
+
+`MGRAPHCTL_CLIENT_ID` in the environment works too. Until one is set, `login` and `status` stop
+with `error[CONFIG]: client_id is not set` rather than an Entra error.
+
 Check status first — it never opens a browser and always says what to do next:
 
 ```bash

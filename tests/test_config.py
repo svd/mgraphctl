@@ -24,6 +24,7 @@ def test_resolve_scopes():
 
 
 def test_settings_reads_env_each_call(monkeypatch, tmp_path):
+    monkeypatch.delenv("MGRAPHCTL_CLIENT_ID")
     monkeypatch.setenv("MGRAPHCTL_TENANT_ID", "contoso.example")
     monkeypatch.setenv("MGRAPHCTL_TOKEN_CACHE", str(tmp_path / "c.json"))
     monkeypatch.setenv("MGRAPHCTL_DEBUG", "1")
@@ -84,7 +85,8 @@ def test_missing_config_file_is_empty():
     assert config.load_config_file() == {}
 
 
-def test_file_values_land_in_settings(config_file):
+def test_file_values_land_in_settings(config_file, monkeypatch):
+    monkeypatch.delenv("MGRAPHCTL_CLIENT_ID")
     config_file(
         'tenant_id = "contoso.example"\nclient_id = "abc"\nscopes = "extended"\n'
         'tz = "Asia/Tokyo"\ntoken_cache = "~/tc.json"\ndebug = 2\nretries = 1\n'

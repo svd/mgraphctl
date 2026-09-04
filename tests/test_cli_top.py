@@ -123,6 +123,20 @@ def test_status_logged_out_json_still_on_stdout(invoke, monkeypatch):
 
 
 @covers("status")
+@covers("login")
+@pytest.mark.real_auth
+def test_placeholder_client_id_fails_fast_with_a_hint(invoke, monkeypatch):
+    monkeypatch.delenv("MGRAPHCTL_CLIENT_ID")
+    monkeypatch.setattr(auth, "_app", None)
+    monkeypatch.setattr(auth, "_cache", None)
+    for verb in ("status", "login"):
+        r = invoke(verb)
+        assert r.exit_code == 2, verb
+        assert r.stderr.startswith("error[CONFIG]: client_id is not set"), verb
+        assert "config set client_id" in r.stderr and "MGRAPHCTL_CLIENT_ID" in r.stderr
+
+
+@covers("status")
 @pytest.mark.real_auth
 def test_status_fixture_mode(invoke, monkeypatch, tmp_path):
     monkeypatch.setenv("MGRAPHCTL_FIXTURE_DIR", str(tmp_path))

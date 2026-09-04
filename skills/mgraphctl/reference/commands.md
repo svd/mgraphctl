@@ -2081,7 +2081,7 @@ an internal one: `NOT_LOGGED_IN`, `MISSING_SCOPE`, `CONSENT_REQUIRED`, `AMBIGUOU
 
 | Variable | Default | Effect |
 |---|---|---|
-| `MGRAPHCTL_CLIENT_ID` | the shared public client id | Entra application to authenticate as. |
+| `MGRAPHCTL_CLIENT_ID` | none; required | Entra application (public client) to authenticate as. Unset → `login` and `status` fail with `error[CONFIG]: client_id is not set` (exit 2) and a hint naming `config set client_id`. |
 | `MGRAPHCTL_TENANT_ID` | `common` | Authority `https://login.microsoftonline.com/<tenant>`. |
 | `MGRAPHCTL_SCOPES` | `default` | `default`, `extended`, or an explicit scope list. `login --scopes` overrides it. |
 | `MGRAPHCTL_TOKEN_CACHE` | `~/.mgraphctl/token_cache.json` | The file cache (mode 0600), and the keychain item's account name. |

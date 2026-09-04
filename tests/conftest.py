@@ -9,6 +9,9 @@ from typer.testing import CliRunner
 
 from mgraphctl import auth, config
 
+# A registered-looking client id: the CLI refuses to talk to Entra with the placeholder default.
+TEST_CLIENT_ID = "11111111-1111-1111-1111-111111111111"
+
 ALL_SCOPES = [
     s
     for s in dict.fromkeys(config.DEFAULT_SCOPES + config.EXTENDED_EXTRA + config.ON_DEMAND_SCOPES)
@@ -19,6 +22,7 @@ ALL_SCOPES = [
 @pytest.fixture(autouse=True)
 def fake_auth(request, monkeypatch, tmp_path):
     monkeypatch.setenv("MGRAPHCTL_TZ", "Europe/Warsaw")
+    monkeypatch.setenv("MGRAPHCTL_CLIENT_ID", TEST_CLIENT_ID)
     monkeypatch.setenv("COLUMNS", "200")
     monkeypatch.setenv("NO_COLOR", "1")
     monkeypatch.delenv("MGRAPHCTL_FIXTURE_DIR", raising=False)

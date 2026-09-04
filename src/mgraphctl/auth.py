@@ -15,7 +15,7 @@ import msal
 from msal.oauth2cli.oauth2 import BrowserInteractionTimeoutError
 
 from mgraphctl import config, errors, token_store
-from mgraphctl.errors import AuthError
+from mgraphctl.errors import AuthError, UsageError
 
 log = logging.getLogger("mgraphctl.auth")
 
@@ -54,6 +54,15 @@ def app() -> msal.PublicClientApplication:
     global _app, _cache
     if _app is None:
         s = config.settings()
+        if s.client_id == config.CLIENT_ID_DEFAULT:
+            # Entra would answer AADSTS700016 for the placeholder; say what is missing instead.
+            raise UsageError(
+                "CONFIG",
+                "client_id is not set",
+                hint="register a public-client Entra application (or ask your admin for its id),"
+                f" then run '{config.shim_path()} config set client_id <id>'"
+                " or export MGRAPHCTL_CLIENT_ID",
+            )
         _cache = load_cache(s)
         _app = _build_app(s, _cache)
     return _app

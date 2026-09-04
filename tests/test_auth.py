@@ -168,7 +168,7 @@ def test_consent_required_classification(fake, result):
     assert (
         info.value.hint == "an admin must grant consent once: "
         "https://login.microsoftonline.com/common/adminconsent?client_id="
-        + config.CLIENT_ID_DEFAULT
+        + config.settings().client_id
     )
 
 
@@ -290,6 +290,15 @@ def test_cache_save_uses_a_unique_temp_file(fake, monkeypatch, tmp_path):
     assert path.read_text() == cache.serialize()
 
 
+def test_placeholder_client_id_is_a_config_error(fake, monkeypatch):
+    monkeypatch.delenv("MGRAPHCTL_CLIENT_ID")
+    fake(FakeApp())
+    with pytest.raises(errors.UsageError) as info:
+        auth.app()
+    assert info.value.code == "CONFIG" and "client_id is not set" in str(info.value)
+    assert "config set client_id" in info.value.hint and "MGRAPHCTL_CLIENT_ID" in info.value.hint
+
+
 def test_logout_removes_cache_only(fake, tmp_path):
     state = tmp_path / ".mgraphctl"
     state.mkdir()
@@ -374,7 +383,7 @@ def test_cached_access_token_reads_msal_cache_without_network(fake):
                         "secret": token,
                         "home_account_id": "uid.utid",
                         "environment": "login.microsoftonline.com",
-                        "client_id": config.CLIENT_ID_DEFAULT,
+                        "client_id": config.settings().client_id,
                         "realm": "utid",
                         "target": "User.Read",
                         "cached_at": "1",

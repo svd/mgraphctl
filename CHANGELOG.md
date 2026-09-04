@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- `login`, `status` and every silent token acquisition stop with `error[CONFIG]: client_id is
+  not set` (exit 2) and a hint naming `config set client_id` / `MGRAPHCTL_CLIENT_ID` when the
+  client id is still the placeholder, instead of surfacing Entra's AADSTS700016. The README
+  now says a client id must be configured before the first login.
 - The msal token cache lives in the OS keychain (macOS Keychain, Windows Credential Locker,
   Linux Secret Service) as one `mgraphctl` item when a backend is available, via `keyring`.
   `token_store = auto | keyring | file` in the config file, or `MGRAPHCTL_TOKEN_STORE`, picks;
