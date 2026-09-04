@@ -10,7 +10,7 @@ import msal
 import pytest
 from msal.oauth2cli.oauth2 import BrowserInteractionTimeoutError
 
-from mgraphctl import auth, config, errors
+from mgraphctl import auth, config, errors, token_store
 
 pytestmark = pytest.mark.real_auth
 
@@ -96,6 +96,9 @@ def fake(monkeypatch, tmp_path):
     monkeypatch.setattr(auth, "_build_app", lambda s, cache: holder["app"])
     monkeypatch.setattr(auth, "_app", None)
     monkeypatch.setattr(auth, "_cache", None)
+    monkeypatch.setattr(auth, "_store", None)
+    monkeypatch.setattr(auth, "_migrate_from", None)
+    monkeypatch.setattr(auth, "_warned", False)
 
     def install(app):
         holder["app"] = app
@@ -270,14 +273,14 @@ def test_cache_save_uses_a_unique_temp_file(fake, monkeypatch, tmp_path):
     path.parent.mkdir(parents=True)
 
     seen = []
-    real_mkstemp = auth.tempfile.mkstemp
+    real_mkstemp = token_store.tempfile.mkstemp
 
     def spy(**kw):
         fd, name = real_mkstemp(**kw)
         seen.append(name)
         return fd, name
 
-    monkeypatch.setattr(auth.tempfile, "mkstemp", spy)
+    monkeypatch.setattr(token_store.tempfile, "mkstemp", spy)
     for _ in range(2):
         cache.has_state_changed = True
         auth.save_cache()
@@ -293,9 +296,9 @@ def test_logout_removes_cache_only(fake, tmp_path):
     cache_file = state / "token_cache.json"
     cache_file.write_text("{}")
 
-    assert auth.logout() == cache_file
+    assert auth.logout() == (token_store.Store("file", cache_file), True)
     assert not cache_file.exists()
-    assert auth.logout() is None
+    assert auth.logout() == (token_store.Store("file", cache_file), False)
 
 
 def test_decode_jwt_and_synthetic_token():
@@ -410,3 +413,118 @@ def test_account_upn(fake):
     assert auth.account_upn() == "ada@example.com"
     app.accounts = []
     assert auth.account_upn() is None
+
+
+# --------------------------------------------------------------------------- keychain store
+
+
+def seed_cache() -> tuple[msal.SerializableTokenCache, str]:
+    cache = msal.SerializableTokenCache()
+    cache.deserialize(json.dumps({"AccessToken": {}, "Account": {"k": {"username": "ada"}}}))
+    return cache, cache.serialize()
+
+
+def test_load_cache_reads_the_keyring_item(fake, fake_keyring, tmp_path):
+    _, text = seed_cache()
+    path = tmp_path / ".mgraphctl" / "token_cache.json"
+    fake_keyring.items[("mgraphctl", str(path))] = text
+    fake(FakeApp())
+    auth.app()
+    assert json.loads(auth._cache.serialize()) == json.loads(text)
+    assert auth.store_info().kind == "keyring" and not path.exists()
+
+
+def test_save_cache_writes_the_keyring_not_the_file(fake, fake_keyring, tmp_path):
+    fake(FakeApp())
+    auth.app()
+    cache, _ = seed_cache()
+    auth._cache = cache
+    cache.has_state_changed = True
+    auth.save_cache()
+    path = tmp_path / ".mgraphctl" / "token_cache.json"
+    assert fake_keyring.items == {("mgraphctl", str(path)): cache.serialize()}
+    assert not path.exists() and cache.has_state_changed is False
+
+
+def test_first_load_imports_the_file_then_deletes_it_after_saving(fake, fake_keyring, tmp_path):
+    _, text = seed_cache()
+    path = tmp_path / ".mgraphctl" / "token_cache.json"
+    path.parent.mkdir()
+    path.write_text(text)
+    fake(FakeApp())
+    auth.app()
+    # serialize() would clear the flag, so the content is checked through the save below.
+    assert auth._cache.has_state_changed is True
+    assert path.exists(), "the file goes only once the keychain holds the cache"
+    auth.save_cache()
+    assert fake_keyring.items == {("mgraphctl", str(path)): text}
+    assert not path.exists()
+
+
+def test_import_keeps_the_file_when_the_keyring_write_fails(fake, fake_keyring, tmp_path, capsys):
+    _, text = seed_cache()
+    path = tmp_path / ".mgraphctl" / "token_cache.json"
+    path.parent.mkdir()
+    path.write_text(text)
+    fake(FakeApp())
+    auth.app()
+    fake_keyring.fail_with = fake_keyring.errors.PasswordSetError("locked")
+    auth.save_cache()
+    assert path.read_text() == text and fake_keyring.items == {}
+    assert auth.store_info().kind == "file"
+    err = capsys.readouterr().err
+    assert err.count("warning:") == 1 and "keyring" in err and str(path) in err
+
+
+def test_keyring_read_failure_falls_back_to_the_file_once(fake, fake_keyring, tmp_path, capsys):
+    fake_keyring.fail_with = fake_keyring.errors.KeyringLocked("denied")
+    fake(FakeApp())
+    auth.app()
+    assert auth.store_info().kind == "file"
+    cache, _ = seed_cache()
+    auth._cache = cache
+    for _ in range(2):
+        cache.has_state_changed = True
+        auth.save_cache()
+    path = tmp_path / ".mgraphctl" / "token_cache.json"
+    assert path.read_text() == cache.serialize()
+    assert capsys.readouterr().err.count("warning:") == 1
+
+
+def test_chunked_keyring_cache_round_trips(fake, fake_keyring, monkeypatch, tmp_path):
+    monkeypatch.setattr(token_store, "CHUNK_CHARS", 16)
+    fake(FakeApp())
+    auth.app()
+    cache, text = seed_cache()
+    auth._cache = cache
+    cache.has_state_changed = True
+    auth.save_cache()
+    account = str(tmp_path / ".mgraphctl" / "token_cache.json")
+    assert fake_keyring.items[("mgraphctl", account)].startswith("mgraphctl-chunks:")
+    auth._app = auth._cache = auth._store = None
+    auth.app()
+    assert json.loads(auth._cache.serialize()) == json.loads(text)
+
+
+def test_logout_clears_the_keyring_item_and_the_file(fake, fake_keyring, tmp_path):
+    path = tmp_path / ".mgraphctl" / "token_cache.json"
+    path.parent.mkdir()
+    path.write_text("{}")
+    fake_keyring.items[("mgraphctl", str(path))] = "{}"
+    assert auth.logout() == (token_store.Store("keyring", path), True)
+    assert fake_keyring.items == {} and not path.exists()
+    assert auth.logout() == (token_store.Store("keyring", path), False)
+
+
+def test_auto_without_a_backend_uses_the_file_silently(fake, fake_keyring, monkeypatch, capsys):
+    monkeypatch.setenv("MGRAPHCTL_TOKEN_STORE", "auto")
+    fake_keyring.backend_module = "keyring.backends.fail"
+    fake(FakeApp())
+    auth.app()
+    cache, _ = seed_cache()
+    auth._cache = cache
+    cache.has_state_changed = True
+    auth.save_cache()
+    assert auth.store_info().kind == "file"
+    assert config.settings().token_cache.read_text() == cache.serialize()
+    assert capsys.readouterr().err == ""

@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from helpers import GRAPH, covers, mock_graph
-from mgraphctl import auth, config
+from mgraphctl import auth, config, token_store
 from mgraphctl.errors import AuthError
 
 WARSAW = ZoneInfo("Europe/Warsaw")
@@ -98,6 +98,7 @@ def test_status_json_logged_in(invoke, monkeypatch):
     assert r.exit_code == 0 and doc["loggedIn"] is True
     assert doc["account"] == "ada@example.com" and doc["scopeSet"] == "default"
     assert doc["scopes"] == config.DEFAULT_SCOPES and doc["cache"] == cache_path()
+    assert doc["store"] == "file"
     assert doc["expiresAt"].startswith(str(datetime.now(WARSAW).year))
 
 
@@ -116,6 +117,7 @@ def test_status_logged_out_json_still_on_stdout(invoke, monkeypatch):
         "scopeSet": "default",
         "scopes": config.DEFAULT_SCOPES,
         "cache": cache_path(),
+        "store": "file",
     }
     assert r.stderr.startswith("error[NOT_LOGGED_IN]: no cached sign-in")
 
@@ -229,6 +231,7 @@ def test_login_force_runs_interactive_then_get_me(invoke, graph, interactive, mo
         "scopes": config.DEFAULT_SCOPES,
         "scopeSet": "default",
         "cache": cache_path(),
+        "store": "file",
     }
 
 
@@ -298,14 +301,41 @@ def test_login_timeout_exit_3(invoke, monkeypatch):
 @covers("logout")
 def test_logout_messages(invoke, monkeypatch, tmp_path):
     path = tmp_path / "token_cache.json"
-    monkeypatch.setattr(auth, "logout", lambda: path)
+    store = token_store.Store("file", path)
+    monkeypatch.setattr(auth, "logout", lambda: (store, True))
     r = invoke("logout")
     assert r.exit_code == 0 and r.stdout == f"Logged out. Cache removed: {path}\n"
-    monkeypatch.setattr(auth, "logout", lambda: None)
+    monkeypatch.setattr(auth, "logout", lambda: (store, False))
     r = invoke("logout")
     assert r.exit_code == 0 and r.stdout == "No cached credentials found.\n"
     r = invoke("logout", "--json")
-    assert json.loads(r.stdout) == {"loggedOut": False, "cache": None}
+    assert json.loads(r.stdout) == {"loggedOut": False, "cache": None, "store": "file"}
+
+
+@covers("logout")
+def test_logout_reports_the_keyring_store(invoke, fake_keyring, tmp_path):
+    fake_keyring.items[("mgraphctl", cache_path())] = "{}"
+    r = invoke("logout", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(r.stdout) == {
+        "loggedOut": True,
+        "cache": "OS keychain (mgraphctl)",
+        "store": "keyring",
+    }
+    assert fake_keyring.items == {}
+
+
+@covers("status")
+def test_status_reports_the_keyring_store(invoke, monkeypatch, fake_keyring):
+    token = default_token()
+    monkeypatch.setattr(auth, "acquire_silent", lambda **kw: {"access_token": token})
+    monkeypatch.setattr(auth, "account_upn", lambda: "ada@example.com")
+    monkeypatch.setattr(auth, "_store", None)
+    r = invoke("status")
+    assert r.exit_code == 0, r.stderr
+    assert r.stdout.endswith("Cache: OS keychain (mgraphctl)\n")
+    doc = json.loads(invoke("status", "--json").stdout)
+    assert doc["store"] == "keyring" and doc["cache"] == "OS keychain (mgraphctl)"
 
 
 @covers("version")
