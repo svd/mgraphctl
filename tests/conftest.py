@@ -23,6 +23,8 @@ def fake_auth(request, monkeypatch, tmp_path):
     monkeypatch.delenv("MGRAPHCTL_DEBUG", raising=False)
     monkeypatch.delenv("MGRAPHCTL_SCOPES", raising=False)
     monkeypatch.setenv("MGRAPHCTL_TOKEN_CACHE", str(tmp_path / "token_cache.json"))
+    # The suite must never touch the developer's keychain; keyring tests opt in explicitly.
+    monkeypatch.setenv("MGRAPHCTL_TOKEN_STORE", "file")
     # Point at a file that does not exist yet: the developer's own ~/.mgraphctl/config.toml
     # must never leak into the suite.
     monkeypatch.setenv("MGRAPHCTL_CONFIG", str(tmp_path / "config.toml"))

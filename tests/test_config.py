@@ -144,3 +144,45 @@ def test_effective_settings_reports_sources(config_file, monkeypatch):
     assert rows["timeout_ms"] == (config.TIMEOUT_MS_DEFAULT, "default")
     assert set(rows) == set(config.CONFIG_KEYS)
     assert config.unknown_config_keys() == ["foo"]
+
+
+# --------------------------------------------------------------------------- token_store
+
+
+def test_token_store_defaults_to_auto(monkeypatch):
+    monkeypatch.delenv("MGRAPHCTL_TOKEN_STORE", raising=False)
+    assert config.settings().token_store == "auto"
+
+
+def test_token_store_accepts_each_value_case_insensitively(monkeypatch):
+    for raw, want in (("KEYRING", "keyring"), (" file ", "file"), ("auto", "auto")):
+        monkeypatch.setenv("MGRAPHCTL_TOKEN_STORE", raw)
+        assert config.settings().token_store == want, raw
+
+
+def test_token_store_from_file(config_file, monkeypatch):
+    config_file('token_store = "keyring"\n')
+    monkeypatch.delenv("MGRAPHCTL_TOKEN_STORE", raising=False)
+    assert config.settings().token_store == "keyring"
+
+
+def test_token_store_invalid_is_a_config_error(config_file, monkeypatch):
+    from mgraphctl.errors import UsageError
+
+    monkeypatch.setenv("MGRAPHCTL_TOKEN_STORE", "vault")
+    with pytest.raises(UsageError) as info:
+        config.settings()
+    assert info.value.code == "CONFIG" and "'vault'" in str(info.value)
+    monkeypatch.delenv("MGRAPHCTL_TOKEN_STORE")
+    config_file('token_store = "x"\n')
+    with pytest.raises(UsageError) as info:
+        config.settings()
+    assert info.value.code == "CONFIG"
+
+
+def test_parse_config_value_validates_token_store():
+    from mgraphctl.errors import UsageError
+
+    assert config.parse_config_value("token_store", "KEYRING") == "keyring"
+    with pytest.raises(UsageError, match="token_store must be one of"):
+        config.parse_config_value("token_store", "bogus")
