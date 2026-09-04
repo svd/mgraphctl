@@ -6,9 +6,7 @@ import base64
 import contextlib
 import json
 import logging
-import os
 import sys
-import tempfile
 import time
 from collections.abc import Iterable
 from pathlib import Path
@@ -16,8 +14,8 @@ from pathlib import Path
 import msal
 from msal.oauth2cli.oauth2 import BrowserInteractionTimeoutError
 
-from mgraphctl import config, errors
-from mgraphctl.errors import AuthError
+from mgraphctl import config, errors, token_store
+from mgraphctl.errors import AuthError, UsageError
 
 log = logging.getLogger("mgraphctl.auth")
 
@@ -35,6 +33,11 @@ LOGIN_TIMEOUT_SECONDS = 300
 
 _app: msal.PublicClientApplication | None = None
 _cache: msal.SerializableTokenCache | None = None
+# Resolved by load_cache; flipped to the file store by _fall_back_to_file on a keyring failure.
+_store: token_store.Store | None = None
+# The plaintext file an earlier version left behind, deleted once the keychain holds its content.
+_migrate_from: Path | None = None
+_warned = False
 
 
 # --------------------------------------------------------------------------- app and cache
@@ -51,63 +54,123 @@ def app() -> msal.PublicClientApplication:
     global _app, _cache
     if _app is None:
         s = config.settings()
-        _cache = load_cache(s.token_cache)
+        if s.client_id == config.CLIENT_ID_DEFAULT:
+            # Entra would answer AADSTS700016 for the placeholder; say what is missing instead.
+            raise UsageError(
+                "CONFIG",
+                "client_id is not set",
+                hint="register a public-client Entra application (or ask your admin for its id),"
+                f" then run '{config.shim_path()} config set client_id <id>'"
+                " or export MGRAPHCTL_CLIENT_ID",
+            )
+        _cache = load_cache(s)
         _app = _build_app(s, _cache)
     return _app
 
 
-def load_cache(path: Path) -> msal.SerializableTokenCache:
-    """Read the msal cache from `path`; an absent or unreadable file yields an empty cache."""
+def store_info() -> token_store.Store:
+    """The store in use, or the one the settings select when nothing has been loaded yet."""
+    return _store if _store is not None else token_store.resolve(config.settings())
+
+
+def _fall_back_to_file(exc: Exception) -> None:
+    """Switch to the 0600 file for the rest of the process, saying so once on stderr."""
+    global _store, _warned
+    assert _store is not None
+    _store = token_store.Store("file", _store.path)
+    log.debug("keyring store failed: %s", exc)
+    if not _warned:
+        _warned = True
+        print(f"warning: token_store keyring: {exc}; using {_store.path}", file=sys.stderr)
+
+
+def _read_store() -> str | None:
+    assert _store is not None
+    if _store.kind == "keyring":
+        try:
+            return token_store.read(_store)
+        except Exception as exc:
+            _fall_back_to_file(exc)
+    return token_store.read(_store)
+
+
+def load_cache(s: config.Settings) -> msal.SerializableTokenCache:
+    """The msal cache from the selected store; nothing stored, or unreadable, yields an empty one.
+
+    A keyring store that is empty while the file exists takes the file's content: that is
+    the cache an earlier version wrote, and save_cache moves it across.
+    """
+    global _store, _migrate_from
+    _store = token_store.resolve(s)
     cache = msal.SerializableTokenCache()
+    text = _read_store()
+    migrating = False
+    if text is None and _store.kind == "keyring" and s.token_cache.exists():
+        text = token_store.read_file(s.token_cache)
+        migrating = text is not None
+    if text is None:
+        return cache
     try:
-        cache.deserialize(path.read_text())
-    except (OSError, ValueError) as exc:
-        log.debug("could not load the token cache %s: %s", path, exc)
+        cache.deserialize(text)
+    except ValueError as exc:
+        log.debug("could not load the token cache from %s: %s", _store.label, exc)
+        return cache
+    if migrating:
+        _migrate_from = s.token_cache
+        cache.has_state_changed = True  # deserialize cleared it; the keychain has nothing yet
     return cache
 
 
 def save_cache() -> None:
     """Write the cache back when msal changed it. Never raises: it runs in a `finally`."""
+    global _migrate_from
     cache = _cache
     if cache is None or not cache.has_state_changed:
         return
-    path = config.settings().token_cache
-    tmp: str | None = None
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        # A directory we do not own cannot be chmod-ed, but the 0600 file still goes in it.
-        with contextlib.suppress(OSError):
-            path.parent.chmod(0o700)
-        # A unique temp file in the same directory: two concurrent invocations must not
-        # write through one another's half-finished file before os.replace lands.
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f"{path.name}.", suffix=".tmp")
+    store = _store or token_store.resolve(config.settings())
+    text = cache.serialize()
+    if store.kind == "keyring":
         try:
-            os.fchmod(fd, 0o600)
-            os.write(fd, cache.serialize().encode())
-        finally:
-            os.close(fd)
-        os.replace(tmp, path)
-        tmp = None
-        path.chmod(0o600)
+            token_store.write(store, text)
+        except Exception as exc:
+            _fall_back_to_file(exc)
+            store = store_info()
+        else:
+            # Only now is the keychain the sole copy the file may be dropped for.
+            if _migrate_from is not None:
+                with contextlib.suppress(OSError):
+                    _migrate_from.unlink()
+                _migrate_from = None
+            return
+    try:
+        token_store.write(store, text)
     except OSError as exc:
         log.debug("could not save the token cache: %s", exc)
         # serialize() already cleared the flag; set it again so the next save retries.
         cache.has_state_changed = True
-        if tmp is not None:
-            with contextlib.suppress(OSError):
-                os.unlink(tmp)
 
 
-def logout() -> Path | None:
-    """Delete our token cache. Returns the path, or None."""
-    global _app, _cache
+def logout() -> tuple[token_store.Store, bool]:
+    """Drop the stored sign-in from the selected store and any leftover file.
+
+    Returns the store and whether anything was removed.
+    """
+    global _app, _cache, _store, _migrate_from
     _app = None
     _cache = None
-    path = config.settings().token_cache
-    if not path.exists():
-        return None
-    path.unlink()
-    return path
+    _migrate_from = None
+    _store = token_store.resolve(config.settings())
+    removed = False
+    if _store.kind == "keyring":
+        try:
+            removed = token_store.clear(_store)
+        except Exception as exc:
+            _fall_back_to_file(exc)
+    # A plaintext file must never outlive a logout, whichever store is selected now.
+    removed = token_store.clear_file(_store.path) or removed
+    store = _store
+    _store = None
+    return store, removed
 
 
 # --------------------------------------------------------------------------- token acquisition

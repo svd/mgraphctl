@@ -1,7 +1,20 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.0] — 2026-09-05
 
+- `login`, `status` and every silent token acquisition stop with `error[CONFIG]: client_id is
+  not set` (exit 2) and a hint naming `config set client_id` / `MGRAPHCTL_CLIENT_ID` when the
+  client id is still the placeholder, instead of surfacing Entra's AADSTS700016. The README
+  now says a client id must be configured before the first login.
+- The msal token cache lives in the OS keychain (macOS Keychain, Windows Credential Locker,
+  Linux Secret Service) as one `mgraphctl` item when a backend is available, via `keyring`.
+  `token_store = auto | keyring | file` in the config file, or `MGRAPHCTL_TOKEN_STORE`, picks;
+  `auto` is the default and uses the `0600` file silently where no keychain exists. An existing
+  `token_cache.json` is imported on the first run and deleted once the keychain holds it. A
+  keychain that fails at runtime falls back to the file for that run with one warning.
+  `logout` clears both. `login`, `status` and `logout` print which store is in use and carry a
+  `store` field in JSON. Windows caps a credential at 2560 bytes, so the item is split there;
+  that path is covered by tests but has not been exercised on a Windows machine.
 - An optional config file, `~/.mgraphctl/config.toml` (`--config PATH` or `MGRAPHCTL_CONFIG`
   to relocate it). Every `MGRAPHCTL_*` setting except the fixture knobs can be set there under
   its lower-cased name; a flag beats an environment variable, which beats the file.

@@ -23,11 +23,15 @@ CONFIG_KEYS: tuple[str, ...] = (
     "scopes",
     "tz",
     "token_cache",
+    "token_store",
     "debug",
     "retries",
     "timeout_ms",
     "retry_base_ms",
 )
+# Where the msal cache lives: the OS keychain, the 0600 file, or whichever of the two works.
+TOKEN_STORE_VALUES = ("auto", "keyring", "file")
+TOKEN_STORE_DEFAULT = "auto"
 GRAPH_V1 = "https://graph.microsoft.com/v1.0"
 GRAPH_BETA = "https://graph.microsoft.com/beta"
 TOKEN_HOST = "login.microsoftonline.com"
@@ -107,6 +111,7 @@ CONFIG_TEMPLATE = """\
 # scopes        = "default"                                # default, extended, or a scope list
 # tz            = "Europe/Warsaw"                          # IANA zone; default: detected
 # token_cache   = "~/.mgraphctl/token_cache.json"
+# token_store   = "auto"                                   # auto, keyring, or file
 # debug         = 0                                        # 1 = --debug, 2 = -dd
 # retries       = 4                                        # after the first attempt; 0 disables
 # timeout_ms    = 60000
@@ -183,6 +188,14 @@ def parse_config_value(key: str, text: str) -> str | int:
         if not text.strip().isdigit():
             raise UsageError("USAGE", f"{key} must be a non-negative integer, not {text!r}")
         return int(text)
+    if key == "token_store":
+        value = text.strip().lower()
+        if value not in TOKEN_STORE_VALUES:
+            raise UsageError(
+                "USAGE",
+                f"token_store must be one of {', '.join(TOKEN_STORE_VALUES)}, not {text!r}",
+            )
+        return value
     return text
 
 
@@ -227,6 +240,22 @@ def unknown_config_keys(path: Path | None = None) -> list[str]:
     return sorted(k for k in load_config_file(path) if k not in CONFIG_KEYS)
 
 
+def _token_store(raw: str | None) -> str:
+    """`auto`, `keyring` or `file`; anything else is a CONFIG error, like invalid TOML."""
+    value = (raw or "").strip().lower()
+    if not value:
+        return TOKEN_STORE_DEFAULT
+    if value in TOKEN_STORE_VALUES:
+        return value
+    from mgraphctl.errors import UsageError  # errors imports config; keep this lazy
+
+    raise UsageError(
+        "CONFIG",
+        f"token_store must be one of {', '.join(TOKEN_STORE_VALUES)}, not {raw!r}",
+        hint=f"fix MGRAPHCTL_TOKEN_STORE or the token_store line in {config_path()}",
+    )
+
+
 def _debug_level(raw: str | None) -> int:
     text = (raw or "").strip().lower()
     if text.isdigit():
@@ -244,6 +273,8 @@ class Settings:
     scope_set: str
     scopes: list[str]
     token_cache: Path
+    # "keyring" or "file", or "auto" for keyring-when-it-works; token_store.resolve decides.
+    token_store: str
     state_dir: Path
     tz: str | None
     debug: int
@@ -313,6 +344,7 @@ def settings() -> Settings:
         scope_set=scope_set,
         scopes=scopes,
         token_cache=Path(raw["token_cache"] or state_dir() / "token_cache.json").expanduser(),
+        token_store=_token_store(raw["token_store"]),
         state_dir=state_dir(),
         tz=raw["tz"] or None,
         debug=_debug_level(raw["debug"]),
@@ -334,6 +366,7 @@ def effective_settings() -> list[tuple[str, Any, str]]:
         "scopes": s.scope_spec or "default",
         "tz": s.tz,
         "token_cache": str(s.token_cache),
+        "token_store": s.token_store,
         "debug": s.debug,
         "retries": s.retries,
         "timeout_ms": s.timeout_ms,

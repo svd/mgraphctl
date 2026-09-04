@@ -47,7 +47,7 @@ def _iso_local(epoch: object, tz: str) -> str | None:
 # --------------------------------------------------------------------------- login / logout
 
 
-def _already_logged_in(wanted: list[str], name: str, cache: str) -> TextResult | None:
+def _already_logged_in(wanted: list[str], name: str) -> TextResult | None:
     """The current token, when it already carries every requested scope (spec §4.2)."""
     try:
         result = auth.acquire_silent()
@@ -62,7 +62,15 @@ def _already_logged_in(wanted: list[str], name: str, cache: str) -> TextResult |
         f"Already logged in as: {upn}\n"
         "Use --force to re-authenticate, --scopes extended to add permissions."
     )
-    payload = dict(account=upn, scopes=wanted, scopeSet=name, cache=cache, alreadyLoggedIn=True)
+    store = auth.store_info()
+    payload = dict(
+        account=upn,
+        scopes=wanted,
+        scopeSet=name,
+        cache=store.label,
+        store=store.kind,
+        alreadyLoggedIn=True,
+    )
     return TextResult(text=text, json_obj=payload)
 
 
@@ -93,9 +101,8 @@ def login(
     g: Globals = ctx.find_root().obj
     s = config.settings()
     name, wanted = config.resolve_scopes(scopes or s.scope_spec, scope or [])
-    cache = str(s.token_cache)
     if not force:
-        already = _already_logged_in(wanted, name, cache)
+        already = _already_logged_in(wanted, name)
         if already is not None:
             render.emit(already, json_mode=json_)
             return
@@ -108,23 +115,30 @@ def login(
         me_obj = client.get("/me", params={"$select": LOGIN_SELECT})
     account = me_obj.get("userPrincipalName")
     display = me_obj.get("displayName")
-    text = f"Logged in as: {display} <{account}>\nScopes: {name} ({len(wanted)})\nCache: {cache}"
+    # Asked after signing in: a keychain that failed by now has been swapped for the file.
+    store = auth.store_info()
+    text = (
+        f"Logged in as: {display} <{account}>\nScopes: {name} ({len(wanted)})\nCache: {store.label}"
+    )
     payload = dict(
         account=account,
         displayName=display,
         userId=me_obj.get("id"),
         scopes=wanted,
         scopeSet=name,
-        cache=cache,
+        cache=store.label,
+        store=store.kind,
     )
     render.emit(TextResult(text=text, json_obj=payload), json_mode=json_)
 
 
 def logout(json_: JsonFlag = False) -> None:
     """Delete the cached sign-in."""
-    path = auth.logout()
-    message = f"Logged out. Cache removed: {path}" if path else "No cached credentials found."
-    payload = dict(loggedOut=path is not None, cache=str(path) if path else None)
+    store, removed = auth.logout()
+    message = (
+        f"Logged out. Cache removed: {store.label}" if removed else "No cached credentials found."
+    )
+    payload = dict(loggedOut=removed, cache=store.label if removed else None, store=store.kind)
     render.emit(WriteResult(obj=payload, message=message), json_mode=json_)
 
 
@@ -135,30 +149,32 @@ def status(ctx: typer.Context, json_: JsonFlag = False) -> None:
     """Report whether a cached sign-in is usable, and until when (spec §4.6)."""
     g: Globals = ctx.find_root().obj
     s = config.settings()
-    cache = str(s.token_cache)
     try:
         result = auth.acquire_silent()
     except AuthError:
         # JSON callers parse stdout without checking the exit code first (spec §4.6).
         if json_:
+            store = auth.store_info()
             out = dict(
                 loggedIn=False,
                 account=None,
                 expiresAt=None,
                 scopeSet=s.scope_set,
                 scopes=s.scopes,
-                cache=cache,
+                cache=store.label,
+                store=store.kind,
             )
             render.emit(TextResult(text="", json_obj=out), json_mode=True)
         raise
     claims = auth.decode_jwt(result["access_token"])
     account = auth.account_upn() or claims.get("upn") or claims.get("unique_name")
     expires = _iso_local(claims.get("exp"), g.tz)
+    store = auth.store_info()
     text = (
         f"Logged in as: {account}\n"
         f"Token expires: {expires}\n"
         f"Scopes: {s.scope_set} ({len(s.scopes)})\n"
-        f"Cache: {cache}"
+        f"Cache: {store.label}"
     )
     payload = dict(
         loggedIn=True,
@@ -166,7 +182,8 @@ def status(ctx: typer.Context, json_: JsonFlag = False) -> None:
         expiresAt=expires,
         scopeSet=s.scope_set,
         scopes=s.scopes,
-        cache=cache,
+        cache=store.label,
+        store=store.kind,
     )
     render.emit(TextResult(text=text, json_obj=payload), json_mode=json_)
 

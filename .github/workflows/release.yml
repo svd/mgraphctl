@@ -1,0 +1,76 @@
+name: Release
+
+# Fires on the tags `claude plugin tag` creates: mgraphctl--vX.Y.Z. One tag ships two
+# things at one version: the plugin (the marketplace installs the repo at the tag) and the
+# `mgraphctl` package on PyPI (Trusted Publishing, no stored token). The GitHub Release
+# page comes last, with notes from CHANGELOG.md; no build artifacts are attached to it,
+# PyPI is the one place the wheel lives.
+on:
+  push:
+    tags:
+      - "mgraphctl--v[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: pypi          # must match the PyPI Trusted Publisher config
+    permissions:
+      id-token: write          # OIDC token for Trusted Publishing
+      contents: write          # create the GitHub Release for the tag
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Require an annotated tag
+        run: |
+          kind=$(git cat-file -t "$GITHUB_REF_NAME")
+          if [ "$kind" != "tag" ]; then
+            echo "$GITHUB_REF_NAME is a lightweight tag (object type: $kind); release tags must be annotated."
+            echo "Delete it locally and on origin, then re-cut it with 'claude plugin tag --push .'"
+            exit 1
+          fi
+
+      - name: Verify tag matches the plugin version
+        run: |
+          tag="${GITHUB_REF_NAME#mgraphctl--v}"
+          plugin=$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')
+          pkg=$(grep -m1 -E '^version *= *"' pyproject.toml | sed -E 's/.*"(.*)".*/\1/')
+          if [ "$tag" != "$plugin" ] || [ "$tag" != "$pkg" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match plugin.json ($plugin) / pyproject.toml ($pkg)"
+            exit 1
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Lockfile is current
+        run: uv lock --check
+
+      - name: Tests pass at the tagged commit
+        run: uv sync --dev && uv run pytest
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - name: Check distribution metadata
+        run: uvx twine check --strict dist/*
+
+      - name: Publish to PyPI (Trusted Publishing)
+        run: uv publish --trusted-publishing always
+
+      # Notes come from CHANGELOG.md, never a commit list. A missing section means the
+      # changelog was not rolled before tagging — fail rather than publish empty notes.
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#mgraphctl--v}"
+          scripts/extract-changelog.sh "$version" > notes.md
+          if [ ! -s notes.md ]; then
+            echo "No CHANGELOG.md section '## [$version] — <date>'"; exit 1
+          fi
+          printf '\n---\n\nPlugin: `claude plugin marketplace add svd/mgraphctl` then `claude plugin install mgraphctl@mgraphctl`\n\nCLI only: `uv tool install mgraphctl==%s` · [PyPI](https://pypi.org/project/mgraphctl/%s/)\n' \
+            "$version" "$version" >> notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            --title "mgraphctl v$version" \
+            --notes-file notes.md \
+            --latest --verify-tag

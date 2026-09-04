@@ -65,6 +65,8 @@ The only command that may open a browser. Run it yourself in your own terminal.
 - **Notes:** already signed in and no new scopes asked for → prints `Already logged in as: <upn>`,
   exit 0. Interactive login times out after 300 s (`error[LOGIN_TIMEOUT]`, exit 3). Re-running with
   `--scopes extended` on a consented account adds scopes with one consent prompt, no re-login.
+  The `Cache:` line (JSON `cache`, with `store` = `keyring` or `file`) names the OS keychain or
+  the cache file, whichever `token_store` resolved to.
 
 ### `logout`
 
@@ -75,7 +77,8 @@ The only command that may open a browser. Run it yourself in your own terminal.
 - **Graph:** none.
 - **Scopes:** none.
 - **Tier:** P0
-- **Notes:** deletes `~/.mgraphctl/token_cache.json`. Exit 0 whether or not a cache existed.
+- **Notes:** removes the keychain item and `~/.mgraphctl/token_cache.json`, whichever exist.
+  Exit 0 whether or not a cache existed; JSON `{"loggedOut", "cache", "store"}`.
 
 ### `status`
 
@@ -89,6 +92,7 @@ The only command that may open a browser. Run it yourself in your own terminal.
 - **Notes:** run this first. Logged in → `Logged in as`, `Token expires`, `Scopes`, `Cache`, exit 0.
   Not logged in → `error[NOT_LOGGED_IN]` on stderr, exit 3. With `--json` stdout carries
   `{"loggedIn": …}` in both states, so it can be parsed without checking the exit code first.
+  `cache` and `store` say where the sign-in lives: the OS keychain or the file.
 
 ### `claims`
 
@@ -129,7 +133,7 @@ The only command that may open a browser. Run it yourself in your own terminal.
 ## `config`
 
 The optional TOML file at `~/.mgraphctl/config.toml` (or `--config PATH` / `MGRAPHCTL_CONFIG`).
-Nothing in it is secret; the token cache stays a separate file.
+Nothing in it is secret; the token cache stays in the OS keychain or a separate file.
 
 ### `config path`
 
@@ -179,8 +183,9 @@ Nothing in it is secret; the token cache stays a separate file.
 - **Tier:** P1
 - **Notes:** replaces the key's line in place (uncommenting a template line), or appends it;
   every comment survives. Creates the file when there is none. `KEY` must be one of the config
-  keys; `debug`, `retries`, `timeout_ms` and `retry_base_ms` take non-negative integers and `tz`
-  an IANA name — anything else is `error[USAGE]` and the file is untouched.
+  keys; `debug`, `retries`, `timeout_ms` and `retry_base_ms` take non-negative integers, `tz`
+  an IANA name and `token_store` one of `auto`, `keyring`, `file` — anything else is
+  `error[USAGE]` and the file is untouched.
 
 ### `config unset KEY`
 
@@ -2076,10 +2081,11 @@ an internal one: `NOT_LOGGED_IN`, `MISSING_SCOPE`, `CONSENT_REQUIRED`, `AMBIGUOU
 
 | Variable | Default | Effect |
 |---|---|---|
-| `MGRAPHCTL_CLIENT_ID` | the shared public client id | Entra application to authenticate as. |
+| `MGRAPHCTL_CLIENT_ID` | none; required | Entra application (public client) to authenticate as. Unset → `login` and `status` fail with `error[CONFIG]: client_id is not set` (exit 2) and a hint naming `config set client_id`. |
 | `MGRAPHCTL_TENANT_ID` | `common` | Authority `https://login.microsoftonline.com/<tenant>`. |
 | `MGRAPHCTL_SCOPES` | `default` | `default`, `extended`, or an explicit scope list. `login --scopes` overrides it. |
-| `MGRAPHCTL_TOKEN_CACHE` | `~/.mgraphctl/token_cache.json` | Where the msal cache lives (mode 0600). |
+| `MGRAPHCTL_TOKEN_CACHE` | `~/.mgraphctl/token_cache.json` | The file cache (mode 0600), and the keychain item's account name. |
+| `MGRAPHCTL_TOKEN_STORE` | `auto` | `auto` (the OS keychain when one works, else the file), `keyring` (the keychain, falling back to the file with a warning), or `file`. |
 | `MGRAPHCTL_TZ` | the detected local zone | IANA zone for `Prefer: outlook.timezone`, naive input, and rendering. `--tz` overrides it. |
 | `MGRAPHCTL_DEBUG` | unset | `1` behaves like `--debug`. |
 | `MGRAPHCTL_RETRIES` | `4` | Retries after the first attempt on 429/503/504 and connection failures; `0` disables them. A 401 still re-authenticates once. |
@@ -2105,6 +2111,7 @@ every key.
 tenant_id     = "contoso.onmicrosoft.com"
 scopes        = "extended"
 tz            = "Europe/Warsaw"
+token_store   = "auto"
 retries       = 2
 timeout_ms    = 30000
 ```

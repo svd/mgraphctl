@@ -20,6 +20,13 @@ claude plugin marketplace add svd/mgraphctl
 claude plugin install mgraphctl@mgraphctl
 ```
 
+The CLI is also on PyPI for use outside Claude Code, under the same version as the plugin:
+
+```bash
+uv tool install mgraphctl      # or: pipx install mgraphctl / uvx mgraphctl status
+mgraphctl status
+```
+
 ## Prerequisite: uv
 
 The only prerequisite is [`uv`](https://docs.astral.sh/uv/). On first use in a given environment,
@@ -34,6 +41,17 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ```
 
 ## First run and login
+
+mgraphctl signs in as an Entra application of your own; there is no shared one. Before the
+first login, register a public-client application in your tenant (or ask an administrator for
+the id of one) and tell mgraphctl its client id, once:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/mgraphctl config set client_id <application (client) id>
+```
+
+`MGRAPHCTL_CLIENT_ID` in the environment works too. Until one is set, `login` and `status` stop
+with `error[CONFIG]: client_id is not set` rather than an Entra error.
 
 Check status first — it never opens a browser and always says what to do next:
 
@@ -71,8 +89,15 @@ prompt — a missing or expired token fails with an actionable hint instead.
 - Virtual environment: under `${CLAUDE_PLUGIN_DATA}` when Claude Code sets it, otherwise
   `~/.cache/mgraphctl/venv` (`$XDG_CACHE_HOME/mgraphctl/venv` when that variable is set).
   Persistent across plugin updates; safe to delete, it is rebuilt on the next run.
-- Token cache: `~/.mgraphctl/token_cache.json`, mode `0600`, in a `0700` directory. Plaintext
-  msal JSON — there is no keychain integration.
+- Token cache: the OS keychain (macOS Keychain, Windows Credential Locker, Linux Secret
+  Service) when one is available, as a single `mgraphctl` item whose account is the cache path.
+  Without one it is `~/.mgraphctl/token_cache.json`, mode `0600`, in a `0700` directory.
+  `token_store = auto | keyring | file` in the config file, or `MGRAPHCTL_TOKEN_STORE`, picks;
+  `status` shows which store is in use. A cache file left by an earlier version is imported into
+  the keychain on the first run and then deleted. When the keychain refuses (locked, denied,
+  no session bus), the file takes over for that run with one warning on stderr. On macOS a
+  rebuilt Python (a new venv, a `uv` upgrade) asks once for keychain access; answer
+  "Always Allow". `token_store = "file"` restores the old behaviour.
 - Config file: `~/.mgraphctl/config.toml`, optional (`--config PATH` or `MGRAPHCTL_CONFIG` to
   point elsewhere). Every `MGRAPHCTL_*` setting can go there as the name without the prefix,
   lower-cased; a flag beats an environment variable, which beats the file. `mgraphctl config init`
@@ -155,6 +180,10 @@ uv run ruff format src tests
 
 The test suite runs entirely offline against recorded fixtures — no Microsoft 365 account or
 network access is needed to run it.
+
+CI (`.github/workflows/ci.yml`) runs the suite on Python 3.11–3.13, ruff, `uv lock --check` and a
+credential scan on every push. Releases are annotated `mgraphctl--vX.Y.Z` tags on `main`, cut with
+`claude plugin tag`; the tag publishes the package to PyPI and a GitHub Release. See `VERSIONING.md`.
 
 ## Provenance and licence
 

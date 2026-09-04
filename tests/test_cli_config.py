@@ -55,6 +55,7 @@ def test_config_show_lists_every_key_with_its_source(invoke, config_file, monkey
     assert any(line.split() == ["retries", "2", "env"] for line in lines)
     assert any(line.split() == ["timeout_ms", "60000", "default"] for line in lines)
     assert any(line.split() == ["tz", "Europe/Warsaw", "env"] for line in lines)
+    assert any(line.split() == ["token_store", "file", "env"] for line in lines)
     assert lines[-1] == "Unknown keys ignored: bogus"
 
     out = json.loads(invoke("config", "show", "--json").stdout)
@@ -109,6 +110,20 @@ def test_config_init_writes_template_once(invoke, tmp_path):
     assert r.exit_code == 0
     assert json.loads(r.stdout) == {"path": str(path), "overwritten": True}
     assert path.read_text() == config.CONFIG_TEMPLATE
+
+
+def test_invalid_token_store_fails_every_command(invoke, config_file, monkeypatch):
+    monkeypatch.delenv("MGRAPHCTL_TOKEN_STORE")
+    config_file('token_store = "vault"\n')
+    r = invoke("me")
+    assert r.exit_code == 2 and r.stderr.startswith("error[CONFIG]: ")
+    assert "'vault'" in r.stderr and "hint:" in r.stderr
+
+
+def test_config_set_token_store_lower_cases(invoke, tmp_path):
+    r = invoke("config", "set", "token_store", "KEYRING")
+    assert r.exit_code == 0, r.stderr
+    assert config.load_config_file(tmp_path / "config.toml") == {"token_store": "keyring"}
 
 
 # --------------------------------------------------------------------------- effects
@@ -186,6 +201,8 @@ def test_config_set_validates(invoke, tmp_path, config_file):
     assert r.exit_code == 2 and "retries must be a non-negative integer" in r.stderr
     r = invoke("config", "set", "tz", "Mars/Olympus")
     assert r.exit_code == 2 and "unknown time zone" in r.stderr
+    r = invoke("config", "set", "token_store", "bogus")
+    assert r.exit_code == 2 and "token_store must be one of" in r.stderr
     assert not (tmp_path / "config.toml").exists()
     config_file("retries = [\n")
     r = invoke("config", "set", "retries", "1")
