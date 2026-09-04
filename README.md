@@ -76,7 +76,8 @@ prompt — a missing or expired token fails with an actionable hint instead.
 - Config file: `~/.mgraphctl/config.toml`, optional (`--config PATH` or `MGRAPHCTL_CONFIG` to
   point elsewhere). Every `MGRAPHCTL_*` setting can go there as the name without the prefix,
   lower-cased; a flag beats an environment variable, which beats the file. `mgraphctl config init`
-  writes a commented template and `mgraphctl config show` prints where each value came from.
+  writes a commented template, `mgraphctl config set tz Europe/Warsaw` edits one key, and
+  `mgraphctl config show` prints where each value came from.
 
   ```toml
   tenant_id = "contoso.onmicrosoft.com"

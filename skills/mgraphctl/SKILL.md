@@ -352,7 +352,7 @@ Errors are one stderr block: `error[<CODE>]: <message>`, an optional `request-id
 
 Each of these (except `NO_COLOR`, `COLUMNS` and the proxies) can also live in
 `~/.mgraphctl/config.toml` as the name without `MGRAPHCTL_`, lower-cased; flag beats env beats
-file. `config show` prints every effective value and its source; `config init` writes a template.
+file. `config show` prints every effective value and its source; `config set KEY VALUE` edits one.
 Do not set these yourself; they belong to the user's environment.
 
 ## Scopes and consent

@@ -168,6 +168,61 @@ def load_config_file(path: Path | None = None) -> dict[str, Any]:
         ) from None
 
 
+INT_CONFIG_KEYS = frozenset({"debug", "retries", "timeout_ms", "retry_base_ms"})
+
+
+def parse_config_value(key: str, text: str) -> str | int:
+    """`text` as the value `key` takes in the file, or a USAGE error saying why it cannot."""
+    from mgraphctl.errors import UsageError  # errors imports config; keep this lazy
+
+    if key not in CONFIG_KEYS:
+        raise UsageError(
+            "USAGE", f"unknown config key {key!r}", hint=f"one of: {', '.join(CONFIG_KEYS)}"
+        )
+    if key in INT_CONFIG_KEYS:
+        if not text.strip().isdigit():
+            raise UsageError("USAGE", f"{key} must be a non-negative integer, not {text!r}")
+        return int(text)
+    return text
+
+
+def format_toml_value(value: str | int) -> str:
+    if isinstance(value, int):
+        return str(value)
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+_KEY_LINE = re.compile(r"^(\s*#\s*)?(?P<key>[A-Za-z0-9_-]+)\s*=")
+
+
+def upsert_config_line(text: str, key: str, value: str | int | None) -> str:
+    """The file text with `key = value` in place of its first (possibly commented-out) line.
+
+    `None` comments the active line out instead. A key with no line is appended (or, for
+    `None`, left alone). Comments and every other line survive untouched.
+    """
+    lines = text.splitlines()
+    done = False
+    for i, line in enumerate(lines):
+        m = _KEY_LINE.match(line)
+        if not m or m.group("key") != key:
+            continue
+        active = m.group(1) is None
+        if value is None:
+            if active:
+                lines[i] = f"# {line.strip()}"
+                done = True
+                break
+            continue  # keep looking for an active one before uncommenting this one
+        lines[i] = f"{key} = {format_toml_value(value)}"
+        done = True
+        break
+    if not done and value is not None:
+        lines.append(f"{key} = {format_toml_value(value)}")
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
 def unknown_config_keys(path: Path | None = None) -> list[str]:
     return sorted(k for k in load_config_file(path) if k not in CONFIG_KEYS)
 

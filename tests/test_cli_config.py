@@ -147,3 +147,59 @@ def test_login_uses_file_scopes(invoke, graph, config_file, monkeypatch):
     assert "Scopes: extended (33)\n" in r.stdout
     r = invoke("login", "--scopes", "default")
     assert "Already logged in" in r.stdout  # the flag still wins over the file
+
+
+# --------------------------------------------------------------------------- config set / unset
+
+
+@covers("config set")
+def test_config_set_creates_file_and_reads_back(invoke, tmp_path):
+    path = tmp_path / "config.toml"
+    r = invoke("config", "set", "tenant_id", "contoso.example")
+    assert r.exit_code == 0, r.stderr
+    assert r.stdout == f'Set tenant_id = "contoso.example" in {path}\n'
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert config.load_config_file(path) == {"tenant_id": "contoso.example"}
+    r = invoke("config", "set", "retries", "2", "--json")
+    assert json.loads(r.stdout) == {"path": str(path), "key": "retries", "value": 2}
+    assert config.load_config_file(path) == {"tenant_id": "contoso.example", "retries": 2}
+
+
+def test_config_set_replaces_in_place_and_keeps_comments(invoke, tmp_path):
+    path = tmp_path / "config.toml"
+    invoke("config", "init")
+    invoke("config", "set", "tz", "Asia/Tokyo")
+    invoke("config", "set", "retries", "0")
+    invoke("config", "set", "tz", "Europe/Paris")
+    text = path.read_text()
+    assert text.startswith("# mgraphctl configuration.")  # the header comment survived
+    assert text.count("tz ") == 1 and '\ntz = "Europe/Paris"' in text
+    assert "\nretries = 0" in text and "# timeout_ms" in text
+    assert config.load_config_file(path) == {"tz": "Europe/Paris", "retries": 0}
+
+
+def test_config_set_validates(invoke, tmp_path, config_file):
+    r = invoke("config", "set", "bogus", "1")
+    assert r.exit_code == 2 and "unknown config key 'bogus'" in r.stderr
+    assert "tenant_id" in r.stderr  # the valid keys are listed
+    r = invoke("config", "set", "retries", "abc")
+    assert r.exit_code == 2 and "retries must be a non-negative integer" in r.stderr
+    r = invoke("config", "set", "tz", "Mars/Olympus")
+    assert r.exit_code == 2 and "unknown time zone" in r.stderr
+    assert not (tmp_path / "config.toml").exists()
+    config_file("retries = [\n")
+    r = invoke("config", "set", "retries", "1")
+    assert r.exit_code == 2 and r.stderr.startswith("error[CONFIG]")
+
+
+@covers("config unset")
+def test_config_unset_comments_the_line_out(invoke, tmp_path, config_file):
+    path = tmp_path / "config.toml"
+    config_file('tenant_id = "a"\nretries = 2\n')
+    r = invoke("config", "unset", "retries")
+    assert r.exit_code == 0 and r.stdout == f"Unset retries in {path}\n"
+    assert path.read_text() == 'tenant_id = "a"\n# retries = 2\n'
+    assert config.load_config_file(path) == {"tenant_id": "a"}
+    r = invoke("config", "unset", "retries", "--json")
+    assert json.loads(r.stdout) == {"path": str(path), "key": "retries", "removed": False}
+    assert invoke("config", "unset", "bogus").exit_code == 2

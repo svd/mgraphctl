@@ -106,8 +106,8 @@ Rules: the venv lives under `${CLAUDE_PLUGIN_DATA}` (`~/.claude/plugins/data/<id
 `config.py` reads these environment variables, falling back to the same keys (without the
 `MGRAPHCTL_` prefix, lower-cased) in the optional TOML file `~/.mgraphctl/config.toml`
 (`--config PATH` / `MGRAPHCTL_CONFIG` select another). Precedence: flag, env var, file, default.
-`MGRAPHCTL_FIXTURE_DIR` and `MGRAPHCTL_RECORD` are env-only. `config path|show|init` inspect and
-seed the file; invalid TOML fails every command with `CONFIG` (exit 2). Read fresh on every call.
+`MGRAPHCTL_FIXTURE_DIR` and `MGRAPHCTL_RECORD` are env-only. `config path|show|init|set|unset`
+inspect and edit the file; invalid TOML fails every command with `CONFIG` (exit 2). Read fresh on every call.
 
 | Variable | Default | Effect |
 |---|---|---|

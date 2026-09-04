@@ -168,6 +168,31 @@ Nothing in it is secret; the token cache stays a separate file.
 - **Notes:** writes a template with every key commented out at its default, mode `0600` in a
   `0700` directory. Refuses to overwrite without `--force` (`error[USAGE]`).
 
+### `config set KEY VALUE`
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--json` | off | `{"path", "key", "value"}`. |
+
+- **Graph:** none.
+- **Scopes:** none.
+- **Tier:** P1
+- **Notes:** replaces the key's line in place (uncommenting a template line), or appends it;
+  every comment survives. Creates the file when there is none. `KEY` must be one of the config
+  keys; `debug`, `retries`, `timeout_ms` and `retry_base_ms` take non-negative integers and `tz`
+  an IANA name — anything else is `error[USAGE]` and the file is untouched.
+
+### `config unset KEY`
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--json` | off | `{"path", "key", "removed"}` — `removed` is false when the key was not set. |
+
+- **Graph:** none.
+- **Scopes:** none.
+- **Tier:** P1
+- **Notes:** comments the key's line out, so the environment variable or the default applies.
+
 ### `api METHOD PATH`
 
 The escape hatch: one raw Graph request. `PATH` may be relative (`/me/messages`) or absolute.
@@ -2071,8 +2096,9 @@ an internal one: `NOT_LOGGED_IN`, `MISSING_SCOPE`, `CONSENT_REQUIRED`, `AMBIGUOU
 Every `MGRAPHCTL_*` variable above except `MGRAPHCTL_CONFIG`, `MGRAPHCTL_FIXTURE_DIR` and
 `MGRAPHCTL_RECORD` can also be set in the config file, as the variable name without the prefix
 in lower case. Precedence is flag, then environment variable, then file, then the default.
-`mgraphctl config init` writes a commented template; `mgraphctl config show` prints the
-effective value and source of every key.
+`mgraphctl config init` writes a commented template, `config set KEY VALUE` and
+`config unset KEY` edit one key, and `config show` prints the effective value and source of
+every key.
 
 ```toml
 # ~/.mgraphctl/config.toml
