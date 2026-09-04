@@ -65,6 +65,32 @@ def test_mailbox_oof_get(invoke, graph):
     assert json.loads(result.stdout)["externalAudience"] == "contactsOnly"
 
 
+@covers("mailbox oof get")
+def test_mailbox_oof_get_without_a_timezone_reads_as_utc(invoke, graph):
+    """This path sends no `Prefer: outlook.timezone`, so Graph may omit `timeZone` entirely.
+
+    It used to fall through to a literal `... (None)` next to an unformatted Graph timestamp.
+    """
+    graph.get(f"{GRAPH}/v1.0/me/mailboxSettings/automaticRepliesSetting").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "status": "scheduled",
+                "externalAudience": "none",
+                "scheduledStartDateTime": {"dateTime": "2026-09-10T06:00:00.0000000"},
+                "scheduledEndDateTime": {"dateTime": "2026-09-12T16:00:00.0000000"},
+                "internalReplyMessage": "<p>Away.</p>",
+                "externalReplyMessage": "",
+            },
+        )
+    )
+    r = invoke("mailbox", "oof", "get")
+    assert r.exit_code == 0, r.stderr
+    assert "Start             : 2026-09-10T08:00+02:00\n" in r.stdout
+    assert "End               : 2026-09-12T18:00+02:00\n" in r.stdout
+    assert "(None)" not in r.stdout
+
+
 # --------------------------------------------------------------------------- oof set
 
 

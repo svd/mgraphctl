@@ -53,6 +53,31 @@ def test_fmt_dtz_iana_utc_and_windows():
     assert render.fmt_dtz(None, TZ) == "N/A"
 
 
+def test_fmt_dtz_treats_a_missing_timezone_as_utc():
+    """Graph's documented default when no `Prefer: outlook.timezone` was sent."""
+    assert (
+        render.fmt_dtz({"dateTime": "2026-08-31T08:15:00.0000000"}, TZ) == "2026-08-31T10:15+02:00"
+    )
+    assert (
+        render.fmt_dtz({"dateTime": "2026-08-31T08:15:00.0000000", "timeZone": ""}, TZ)
+        == "2026-08-31T10:15+02:00"
+    )
+    assert (
+        render.fmt_dtz({"dateTime": "2026-08-31T08:15:00.0000000", "timeZone": None}, TZ)
+        == "2026-08-31T10:15+02:00"
+    )
+
+
+def test_fmt_dtz_still_renders_a_windows_zone_verbatim():
+    """That branch is correct: a Windows name is not guessed at, it is shown as it came."""
+    assert (
+        render.fmt_dtz(
+            {"dateTime": "2026-08-31T10:15:00.0000000", "timeZone": "Pacific Standard Time"}, TZ
+        )
+        == "2026-08-31T10:15:00.0000000 (Pacific Standard Time)"
+    )
+
+
 def test_fmt_event_time_all_day():
     ev = {"isAllDay": True, "start": {"dateTime": "2026-09-03T00:00:00.0000000", "timeZone": "UTC"}}
     assert render.fmt_event_time(ev, "start", TZ) == "2026-09-03 (all day)"

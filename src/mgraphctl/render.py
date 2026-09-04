@@ -355,14 +355,19 @@ def fmt_dt(value: str | None, tz: str) -> str:
 
 
 def fmt_dtz(obj: dict | None, tz: str) -> str:
-    """Render a Graph `dateTimeTimeZone` object in `tz`, or verbatim for a Windows zone name."""
+    """Render a Graph `dateTimeTimeZone` object in `tz`, or verbatim for a Windows zone name.
+
+    An absent or empty `timeZone` means UTC, which is what Graph documents as the default when
+    no `Prefer: outlook.timezone` was sent — reachable through `getSchedule`, search event hits
+    and the mailbox out-of-office block, none of which send that header.
+    """
     if obj is None:
         return "N/A"
     date_time = obj.get("dateTime")
-    zone = obj.get("timeZone")
+    zone = obj.get("timeZone") or "UTC"
     if date_time is None:
         return "N/A"
-    if zone == "UTC" or (zone and is_iana(zone)):
+    if zone == "UTC" or is_iana(zone):
         v = _FRACTIONAL_RE.sub(r"\1", date_time)
         dt = datetime.fromisoformat(v).replace(tzinfo=ZoneInfo(zone))
         return dt.astimezone(ZoneInfo(tz)).isoformat(timespec="minutes")
