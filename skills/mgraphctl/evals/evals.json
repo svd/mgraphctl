@@ -1,0 +1,161 @@
+{
+  "skill_name": "mgraphctl",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Show me my unread Outlook inbox messages from this morning.",
+      "expected_output": "Checks Microsoft Graph login status first, then lists unread inbox messages bounded to this morning with the mgraphctl CLI.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "checks-status-first",
+          "description": "The response runs the mgraphctl status check before any mailbox command."
+        },
+        {
+          "name": "uses-mail-list-unread",
+          "description": "The response uses `mail list --unread`, not a raw `api` call."
+        },
+        {
+          "name": "bounds-the-morning",
+          "description": "The response passes an --after (and optionally --before) bound carrying a time of day, rather than filtering the whole day's mail by eye."
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Find every email from anyone at example.com since 1 July, and tell me whether the results were cut short by the pagination cap.",
+      "expected_output": "Runs a windowed mail search with --all and --json, then answers the truncation question from the envelope's truncated and cap fields rather than guessing.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "uses-json-envelope",
+          "description": "The response passes --json and reads `truncated` and `cap` from the envelope to answer whether results were cut short."
+        },
+        {
+          "name": "does-not-equate-count-with-completeness",
+          "description": "The response does not conclude the results are complete merely because fewer items came back than the limit."
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Show me everything said in my Teams chat with a teammate since last Monday, going past the first page if needed.",
+      "expected_output": "Resolves the chat, then reads its messages with a --after bound and --all so paging continues past the first page.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "uses-chats-messages-window",
+          "description": "The response uses `chats messages` with --after (and --all where more than one page is wanted)."
+        },
+        {
+          "name": "does-not-page-by-hand",
+          "description": "The response does not try to follow @odata.nextLink itself through the raw `api` command."
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Which of my Teams chats have had a message in the last three days?",
+      "expected_output": "Uses `chats list --since` so paging stops at the boundary, rather than listing every chat and filtering the output by eye.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "uses-chats-list-since",
+          "description": "The response uses `chats list --since` with a relative or absolute bound."
+        },
+        {
+          "name": "does-not-filter-by-eye",
+          "description": "The response does not list all chats unbounded and then discard the old ones itself."
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Search Teams for mentions of 'budget review' and then read what was said around any channel hit.",
+      "expected_output": "Searches chat and channel messages, then follows a channel hit into `teams channel messages` using the hit's teamId and channelId, with a time window around it.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "searches-then-follows-up",
+          "description": "The response runs `chats search` and then reads the surrounding messages for at least one hit."
+        },
+        {
+          "name": "uses-structured-hit-ids",
+          "description": "The response follows a channel hit using its teamId and channelId fields rather than parsing the `where` string apart."
+        },
+        {
+          "name": "windows-the-follow-up",
+          "description": "The follow-up read passes --after/--before around the hit's timestamp instead of fetching the whole channel."
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Summarise yesterday's standup meeting and list the action items.",
+      "expected_output": "Finds the meeting, fetches its transcript with --speakers so each speaker's turns read as one block, and summarises from that.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "finds-the-meeting-first",
+          "description": "The response locates the meeting and its transcript id before fetching content."
+        },
+        {
+          "name": "uses-speaker-turns",
+          "description": "The response fetches the transcript with --speakers rather than reading one line per cue."
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "What's on my calendar between 9am and noon tomorrow?",
+      "expected_output": "Lists calendar events for that window with explicit --start/--end (or --after/--before) bounds carrying a time of day.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "uses-calendar-list-window",
+          "description": "The response uses `calendar list` with bounds that carry a time of day, not just a date."
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Post 'Sprint planning at 2pm tomorrow' to the announcements channel in the Engineering team.",
+      "expected_output": "Resolves the team and channel by name, previews the send with --dry-run, and asks before actually posting.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "dry-runs-before-writing",
+          "description": "The response previews the write with --dry-run and confirms before sending."
+        },
+        {
+          "name": "uses-channel-send",
+          "description": "The response uses `teams channel send` with the team and channel named."
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Send a message on Slack to the project channel.",
+      "expected_output": "Declines to use this skill: Slack is not a Microsoft 365 service and mgraphctl cannot reach it.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "does-not-trigger",
+          "description": "The response does not invoke the mgraphctl skill or any of its commands."
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "I'm not signed in to anything yet — what do I need to do before you can read my mail?",
+      "expected_output": "Explains that a data command never opens a browser, and points at the login command, without attempting a data read first.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "explains-login",
+          "description": "The response names the login command rather than running a data command and reporting its error."
+        }
+      ]
+    }
+  ]
+}

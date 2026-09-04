@@ -43,6 +43,8 @@
   timeouts; `MGRAPHCTL_RETRIES=0` disables retrying outright. An unusable value takes the
   default rather than failing the command. The long timeout for uploads and downloads keeps its
   multiplier off whatever base is configured.
+- An eval suite at `skills/mgraphctl/evals/evals.json`, covering triggering and the surfaces
+  above.
 
 ### Fixed
 
