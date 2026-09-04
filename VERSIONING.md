@@ -1,9 +1,18 @@
 # Versioning
 
-One artifact ships from this repo: the `mgraphctl` Claude Code plugin, installed straight from
-a git ref. There is no PyPI package and no archive. A release is a commit on `main` carrying a
-bare `X.Y.Z` version, plus the annotated tag `mgraphctl--vX.Y.Z` that `claude plugin tag`
-creates on it. The tag is the distribution: the marketplace entry points at it.
+Two artifacts ship from this repo at one shared version: the `mgraphctl` Claude Code plugin,
+installed straight from a git ref, and the `mgraphctl` Python package on PyPI, for the CLI on
+its own. A release is a commit on `main` carrying a bare `X.Y.Z` version, plus the annotated
+tag `mgraphctl--vX.Y.Z` that `claude plugin tag` creates on it. The tag is the distribution:
+the marketplace entry points at it, and pushing it runs the workflow that publishes to PyPI.
+
+| Artifact | Channel | Consumer command |
+|---|---|---|
+| plugin | git tag via marketplace | `claude plugin install mgraphctl@mgraphctl` |
+| package | PyPI | `uv tool install mgraphctl` |
+
+One version, not two, because the skill calls the CLI through the shim from the same checkout:
+a skill change and a CLI change are always released together, so nothing needs to drift.
 
 ## Bump rules
 
@@ -43,6 +52,14 @@ bind the owner too. Inspect with `gh api repos/svd/mgraphctl/rulesets`.
 
 Adding a CI job means adding its name to the required checks, or the ruleset silently stops
 gating it. A tag that must go away needs the ruleset edited first, which is the intended cost.
+
+## PyPI publishing
+
+`.github/workflows/release.yml` publishes with uv Trusted Publishing (OIDC), so no API token is
+stored anywhere. One-time setup on PyPI, Publishing → "Add a new pending publisher": project
+`mgraphctl`, owner `svd`, repository `mgraphctl`, workflow `release.yml`, environment `pypi`. The
+matching GitHub environment `pypi` must exist in the repo settings. A PyPI release cannot be
+replaced or re-uploaded; a broken release is followed by a PATCH, never by a re-push of the tag.
 
 ## Release procedure
 

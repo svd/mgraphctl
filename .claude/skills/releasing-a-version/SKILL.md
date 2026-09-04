@@ -5,8 +5,9 @@ description: Use when releasing, cutting, tagging, or shipping a new version of 
 
 # Releasing a version
 
-One artifact ships from this repo, in one tag form. No PyPI, no archive. The tag is the
-distribution: the marketplace installs the repo at that ref. Rules live in `VERSIONING.md`.
+Two artifacts ship from this repo at one version, from one tag: the plugin (the marketplace
+installs the repo at the tag) and the `mgraphctl` package on PyPI (published by the tag's
+workflow). Rules live in `VERSIONING.md`.
 
 | Artifact | Version files | Tag form | Tag branch |
 |---|---|---|---|
@@ -19,8 +20,10 @@ the version stays at the last release between releases and `tests/test_version.p
 suffixes. Pending work accumulates under `## [Unreleased]` in `CHANGELOG.md`.
 
 Pushing the tag runs `.github/workflows/release.yml`, which re-checks the tag against the
-version files, runs the suite, and publishes a GitHub Release whose notes are the CHANGELOG
-section for that version. **The release is finished when that workflow is green.**
+version files, runs the suite, builds and publishes the package to PyPI via Trusted Publishing,
+then publishes a GitHub Release whose notes are the CHANGELOG section for that version.
+**The release is finished when that workflow is green.** A PyPI upload is permanent: a broken
+release is followed by a PATCH, never re-uploaded.
 
 ---
 
@@ -46,6 +49,7 @@ uv run pytest -q
 uv run ruff check . && uv run ruff format --check .
 python3 scripts/scan_secrets.py
 claude plugin validate .         # CI cannot run this; here is the only place it happens
+rm -rf dist && uv build && uvx twine check --strict dist/*   # what the tag will publish
 ```
 
 **Dependency refresh (optional, decide explicitly).** `pyproject.toml` pins
@@ -125,10 +129,15 @@ or an existing tag, and creates an annotated tag. Never pass `-f`; never hand-ro
 ```bash
 gh run watch                                          # the Release workflow for the tag
 gh release view mgraphctl--vX.Y.Z
+curl -s https://pypi.org/pypi/mgraphctl/X.Y.Z/json | python3 -c 'import json,sys; print(json.load(sys.stdin)["info"]["version"])'
+uvx mgraphctl==X.Y.Z --version                        # installs from PyPI and prints the version
 ```
 
-Red workflow means the tag exists but nothing was published. Fix on `dev`, release again as a
-PATCH; do not move the tag.
+Red workflow means the tag exists but something was not published. The steps run in order:
+checks, tests, build, PyPI, GitHub Release. If PyPI succeeded and the Release step failed,
+create the Release by hand (`gh release create mgraphctl--vX.Y.Z --notes-file <(scripts/extract-changelog.sh X.Y.Z) --verify-tag`);
+re-running the workflow would fail at PyPI on the duplicate upload. If PyPI itself failed, fix
+on `dev` and release again as a PATCH; do not move the tag.
 
 ## Step 7 - Sync `dev` and update the marketplace pointer
 
@@ -156,3 +165,5 @@ entry's `source.ref` to `mgraphctl--vX.Y.Z` there and release that repo per its 
 | Skipped `claude plugin validate .` because CI is green | CI has no Claude Code CLI; local is the only run |
 | Pushed to `main` directly, or merged with squash/rebase | Rejected by the `main` ruleset; the PR with a merge commit is the only path |
 | Moved a published tag | Rejected by the tag ruleset; if it were possible, consumers pinned to it would break |
+| Re-ran a tag workflow that already published | PyPI refuses the duplicate upload and the job goes red; check pypi.org first, the release may already be complete |
+| Trusted Publisher not configured for a new repo/workflow name | `uv publish` fails with an OIDC error; fix the pending-publisher entry on PyPI (VERSIONING.md, "PyPI publishing"), never fall back to a stored token |

@@ -21,7 +21,7 @@ claude --plugin-dir ~/src/mgraphctl   # try the skill without installing the plu
 
 A Claude Code plugin with one skill, `mgraphctl`, backed by a Python CLI of the same name.
 The root `mgraphctl` shim runs `uv run --project <repo> --frozen --no-dev mgraphctl`, creating
-the venv on first use. Nothing is published to PyPI: the marketplace installs the repo at a tag.
+the venv on first use. The marketplace installs the repo at a tag; the same tag publishes the CLI to PyPI as `mgraphctl`.
 
 ## Layout
 
@@ -68,9 +68,11 @@ release surface. `.github/workflows/ci.yml` runs tests on Python 3.11-3.13, ruff
 | Artifact | Version source | Tag | Made with |
 |---|---|---|---|
 | mgraphctl plugin | `plugin.json` (+ four mirrors, see VERSIONING.md) | `mgraphctl--vX.Y.Z` on `main` | `claude plugin tag --push .` |
+| mgraphctl on PyPI | `pyproject.toml` (same version) | same tag | the tag's Release workflow, Trusted Publishing |
 
 Pushing the tag runs `.github/workflows/release.yml`: annotated-tag and version checks, the
-suite, then a GitHub Release with notes from the CHANGELOG section. Procedure:
+suite, `uv build` + `twine check`, `uv publish` to PyPI, then a GitHub Release with notes from
+the CHANGELOG section. Procedure:
 `.claude/skills/releasing-a-version/SKILL.md`. Rules: `VERSIONING.md`.
 
 `[tool.uv] exclude-newer` in `pyproject.toml` freezes resolution at a date. Dependency refreshes

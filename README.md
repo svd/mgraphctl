@@ -20,6 +20,13 @@ claude plugin marketplace add svd/mgraphctl
 claude plugin install mgraphctl@mgraphctl
 ```
 
+The CLI is also on PyPI for use outside Claude Code, under the same version as the plugin:
+
+```bash
+uv tool install mgraphctl      # or: pipx install mgraphctl / uvx mgraphctl status
+mgraphctl status
+```
+
 ## Prerequisite: uv
 
 The only prerequisite is [`uv`](https://docs.astral.sh/uv/). On first use in a given environment,
@@ -158,7 +165,7 @@ network access is needed to run it.
 
 CI (`.github/workflows/ci.yml`) runs the suite on Python 3.11–3.13, ruff, `uv lock --check` and a
 credential scan on every push. Releases are annotated `mgraphctl--vX.Y.Z` tags on `main`, cut with
-`claude plugin tag`; see `VERSIONING.md`.
+`claude plugin tag`; the tag publishes the package to PyPI and a GitHub Release. See `VERSIONING.md`.
 
 ## Provenance and licence
 
