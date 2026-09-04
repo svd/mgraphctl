@@ -78,7 +78,7 @@ def tasks(
     )
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=todo.CAP_TASKS if bounded_all else None,
         columns=_task_columns(client.tz),
     )

@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from mgraphctl import errors, render
+from mgraphctl.http import PageResult, filter_page
 
 TZ = "Europe/Warsaw"
 
@@ -161,7 +162,14 @@ def test_list_json_envelope_and_notes(capsys):
     render.emit(res, json_mode=True)
     captured = capsys.readouterr()
     assert (
-        json.loads(captured.out) == {"items": [{"id": "1"}], "count": 1, "truncated": True}
+        json.loads(captured.out)
+        == {
+            "items": [{"id": "1"}],
+            "count": 1,
+            "fetched": 1,
+            "cap": None,
+            "truncated": True,
+        }
         and captured.err == ""
     )
     render.emit(res, json_mode=False)
@@ -172,6 +180,8 @@ def test_list_json_envelope_and_notes(capsys):
     assert json.loads(capsys.readouterr().out) == {
         "items": [],
         "count": 0,
+        "fetched": 0,
+        "cap": None,
         "truncated": False,
         "note": "n",
     }
@@ -257,3 +267,48 @@ def test_has_time_of_day_recognises_day_boundaries():
     # The boundary is the one in `tz`, not the one in the value's own offset.
     noon_utc = render.parse_dt("2026-08-31T22:00:00Z", tz)
     assert render.has_time_of_day(noon_utc, tz, end_of_day=False) is False
+
+
+def test_list_envelope_takes_cap_fetched_and_truncated_from_the_page():
+    """The page describes the fetch; `items` may have been filtered or reordered since."""
+    page = PageResult(items=[{"id": "1"}, {"id": "2"}], truncated=True, pages=1, cap=2)
+    res = render.ListResult(items=[{"id": "1"}], columns=[], page=filter_page(page, lambda i: True))
+    assert res.truncated is True and res.cap == 2 and res.fetched == 2
+
+
+def test_list_envelope_reports_fetched_above_count_after_a_post_filter():
+    page = PageResult(items=[{"id": "1"}, {"id": "2"}], truncated=False, pages=1, cap=50)
+    kept = filter_page(page, lambda item: item["id"] == "1")
+    doc = render._to_json(render.ListResult(items=kept.items, columns=[], page=kept))
+    assert doc["count"] == 1 and doc["fetched"] == 2 and doc["cap"] == 50
+
+
+def test_list_envelope_window_is_present_with_both_bounds_unset():
+    doc = render._to_json(render.ListResult(items=[], columns=[], window=render.Window()))
+    assert doc["window"] == {"after": None, "before": None}
+
+
+def test_list_envelope_window_renders_iso_offsets():
+    tz = "Europe/Warsaw"
+    window = render.Window(
+        after=render.parse_dt("2026-08-01", tz),
+        before=render.parse_dt("2026-08-31", tz, end_of_day=True),
+    )
+    doc = render._to_json(render.ListResult(items=[], columns=[], window=window))
+    assert doc["window"] == {
+        "after": "2026-08-01T00:00:00+02:00",
+        "before": "2026-08-31T23:59:59+02:00",
+    }
+
+
+def test_list_envelope_omits_window_and_query_when_the_command_has_none():
+    doc = render._to_json(render.ListResult(items=[], columns=[]))
+    assert "window" not in doc and "query" not in doc
+    assert doc["fetched"] == 0 and doc["cap"] is None
+
+
+def test_list_envelope_page_overrides_an_explicit_truncated():
+    """The page is the authority on the fetch; a filtered `items` cannot talk over it."""
+    page = PageResult(items=[{"id": "1"}], truncated=False, pages=1, cap=10)
+    res = render.ListResult(items=[], columns=[], page=page, truncated=True)
+    assert res.truncated is False

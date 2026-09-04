@@ -27,7 +27,8 @@ def test_sharepoint_sites_followed_then_search_fallback(invoke, graph):
     r = invoke("sharepoint", "sites", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
-    assert set(doc) == {"items", "count", "truncated"}
+    # `sharepoint sites` merges two fetches, so there is no single server-side query to report.
+    assert set(doc) == {"items", "count", "fetched", "cap", "truncated"}
     assert (
         doc["count"] == 1 and doc["items"][0]["displayName"] == "Eng" and doc["truncated"] is False
     )

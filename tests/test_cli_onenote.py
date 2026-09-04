@@ -14,7 +14,7 @@ def test_onenote_notebooks(invoke, graph):
     r = invoke("onenote", "notebooks", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
-    assert set(doc) == {"items", "count", "truncated"}
+    assert set(doc) == {"items", "count", "fetched", "cap", "truncated", "query"}
     assert doc["count"] == 2 and doc["items"][0]["id"] == "0-notebook0001!1"
     assert doc["truncated"] is False
     assert routes[0].calls.last.request.headers["Authorization"].startswith("Bearer ")

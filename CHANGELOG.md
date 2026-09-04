@@ -24,6 +24,11 @@
 - `chats messages` takes `--before`, symmetric to `--after`.
 - `chats list` takes `--since`, stopping the fetch at the first chat whose last message predates
   it. Text mode then shows a `lastMessage` column with the timestamp the bound is measured against.
+- Every `--json` listing now carries `fetched` (items Graph returned before any client-side pass),
+  `cap` (the bound the fetch ran under) and `query` (the server-side query actually sent), and the
+  commands that accept a time window carry `window: {after, before}` — present even when both
+  bounds are unset, absent on commands with no date options. `cap`, `fetched` and `truncated`
+  describe the fetch, never the filtered list. Text output is unchanged.
 
 ### Fixed
 

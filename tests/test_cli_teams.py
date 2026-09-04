@@ -44,7 +44,7 @@ def test_teams_list_no_odata_params(invoke, graph):
 def test_teams_list_json(invoke, graph):
     mock_graph(graph, "teams/list")
     doc = json.loads(invoke("teams", "list", "--json").stdout)
-    assert set(doc) == {"items", "count", "truncated"}
+    assert set(doc) == {"items", "count", "fetched", "cap", "truncated", "query"}
     assert doc["count"] == 2 and doc["truncated"] is False
     assert doc["items"][0]["id"] == TEAM
 
@@ -198,6 +198,32 @@ def test_channel_replies_paged_with_limit(invoke, graph):
     assert request.url.path.endswith("/messages/3/replies")
     assert request.url.params["$top"] == "50"
     assert len([line for line in r.stdout.splitlines() if line.strip()]) == 4  # header + 3
+
+
+@covers("teams channel messages")
+def test_channel_messages_envelope_carries_the_window(invoke, graph):
+    graph.get(f"{CHANNEL_URL}/messages").mock(
+        return_value=httpx.Response(200, json={"value": [_msg("30", "2026-08-31T12:00:00Z")]})
+    )
+    doc = json.loads(invoke("teams", "channel", "messages", TEAM, CHANNEL, "--json").stdout)
+    # Present even with both bounds unset, so a consumer never branches on the key.
+    assert doc["window"] == {"after": None, "before": None}
+    assert doc["fetched"] == 1 and doc["cap"] == 20
+
+    doc = json.loads(
+        invoke(
+            "teams", "channel", "messages", TEAM, CHANNEL, "--after", "2026-08-01", "--json"
+        ).stdout
+    )
+    assert doc["window"] == {"after": "2026-08-01T00:00:00+02:00", "before": None}
+
+
+@covers("teams list")
+def test_teams_list_envelope_has_no_window(invoke, graph):
+    """`teams list` takes no date options, so it reports no window."""
+    mock_graph(graph, "teams/list")
+    doc = json.loads(invoke("teams", "list", "--json").stdout)
+    assert "window" not in doc
 
 
 @covers("teams channel messages")

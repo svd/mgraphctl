@@ -66,7 +66,7 @@ def reports(
     page = org.reports(client, upn, limit=limit, all_=all_)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=org.CAP if all_ else None,
         columns=[
             Column("id", "id"),

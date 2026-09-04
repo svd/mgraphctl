@@ -21,6 +21,7 @@ from mgraphctl.render import (
     DryRunResult,
     ListResult,
     ObjectResult,
+    Window,
     WriteResult,
     fmt_dtz,
     parse_dt,
@@ -164,12 +165,12 @@ def focused(
     """List Focused (or Other) inbox messages, newest first."""
     limit, all_ = page_bounds(limit, all_, default=25)
     tz = client.tz
-    page = mailbox.list_focused(
-        client, other=other, after=parse_dt(after, tz), limit=limit, all_=all_
-    )
+    after_dt = parse_dt(after, tz)
+    page = mailbox.list_focused(client, other=other, after=after_dt, limit=limit, all_=all_)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
+        window=Window(after=after_dt),
         hit_cap=mail.CAP_LIST if all_ else None,
         columns=mail.message_columns(tz),
     )

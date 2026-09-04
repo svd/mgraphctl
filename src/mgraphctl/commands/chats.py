@@ -26,6 +26,7 @@ from mgraphctl.render import (
     FileResult,
     ListResult,
     ObjectResult,
+    Window,
     WriteResult,
     dig,
     fmt_dt,
@@ -93,7 +94,8 @@ def list_(
     columns.append(Column("title", lambda c: truncate(chats.chat_title(c, oid))))
     return ListResult(
         items=items,
-        truncated=page.truncated,
+        page=page,
+        window=Window(after=since_dt),
         hit_cap=chats.CAP_CHATS if all_ else None,
         empty_text="No chats.",
         columns=columns,
@@ -127,7 +129,7 @@ def members(client: GraphClient, chat: ChatArg, json_: JsonFlag = False):
     page = chats.list_chat_members(client, chat_id)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         supports_all=False,
         empty_text="No members.",
         columns=[
@@ -170,7 +172,8 @@ def messages(
     # A chat message is the same Graph resource as a channel message, rendered by `graph.teams`.
     return ListResult(
         items=page.items if json_ else list(reversed(page.items)),
-        truncated=page.truncated,
+        page=page,
+        window=Window(after=since, before=until),
         hit_cap=chats.CAP_MESSAGES if all_ else None,
         empty_text="No messages.",
         columns=teams.message_columns(client.tz, full),
@@ -265,16 +268,22 @@ def search(
     """Search your chat and channel messages. Hits carry a snippet, not the whole body."""
     limit, all_ = page_bounds(limit, all_, default=25)
     tz = client.tz
+    after_dt = parse_dt(after, tz) if after else None
+    before_dt = parse_dt(before, tz, end_of_day=True) if before else None
     found = chats.search_chat_messages(
         client,
         q,
-        after=parse_dt(after, tz) if after else None,
-        before=parse_dt(before, tz, end_of_day=True) if before else None,
+        after=after_dt,
+        before=before_dt,
         limit=chats.CAP_SEARCH if all_ else limit,
     )
     return ListResult(
         items=[chats.shape_chat_hit(hit) for hit in found.hits],
         truncated=found.more,
+        fetched=found.fetched_count,
+        cap=found.cap,
+        query=found.query,
+        window=Window(after=after_dt, before=before_dt),
         hit_cap=chats.CAP_SEARCH if all_ else None,
         empty_text="No messages found.",
         columns=[

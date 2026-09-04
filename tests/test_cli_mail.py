@@ -41,7 +41,7 @@ def test_mail_list_json(invoke, graph):
     result = invoke("mail", "list", "--json")
     assert result.exit_code == 0, result.stderr
     doc = json.loads(result.stdout)
-    assert set(doc) == {"items", "count", "truncated"}
+    assert set(doc) == {"items", "count", "fetched", "cap", "truncated", "query", "window"}
     assert doc["count"] == 2 and doc["items"][0]["id"] == "AAMk-msg-0001"
     assert doc["truncated"] is False
     req = routes[0].calls.last.request
@@ -60,6 +60,43 @@ def test_mail_list_text(invoke, graph):
     assert "AAMk-msg-0001" in lines[1] and "2026-08-31T10:15+02:00" in lines[1]
     assert "*A!" in lines[1] and "Ada Example <ada@example.com>" in lines[1]
     assert "AAMk-msg-0002" in lines[2]
+
+
+@covers("mail list")
+def test_mail_list_envelope_reports_the_window_and_the_fetch(invoke, graph):
+    graph.get(INBOX).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    message(id="AAMk-unread", isRead=False),
+                    message(id="AAMk-read", isRead=True),
+                ]
+            },
+        )
+    )
+    r = invoke(
+        "mail",
+        "list",
+        "--search",
+        "budget",
+        "--unread",
+        "--after",
+        "2026-08-01",
+        "--before",
+        "2026-08-31",
+        "--json",
+    )
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["window"] == {
+        "after": "2026-08-01T00:00:00+02:00",
+        "before": "2026-08-31T23:59:59+02:00",
+    }
+    # The client-side unread pass dropped one, so `fetched` exceeds `count`.
+    assert doc["count"] == 1 and doc["fetched"] == 2
+    assert doc["cap"] == 10  # the default --limit, which is the bound the fetch ran under
+    assert doc["query"]["$search"] == '"budget AND received>=2026-08-01 AND received<=2026-08-31"'
 
 
 @covers("mail list")
@@ -1077,7 +1114,13 @@ def test_mail_mark_single_patch_and_list_envelope(invoke, graph):
         "categories": ["Red"],
         "importance": "low",
     }
-    assert json.loads(r.stdout) == {"items": [updated], "count": 1, "truncated": False}
+    assert json.loads(r.stdout) == {
+        "items": [updated],
+        "count": 1,
+        "fetched": 1,
+        "cap": None,
+        "truncated": False,
+    }
 
 
 @covers("mail mark")

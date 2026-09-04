@@ -302,7 +302,11 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl people search "Anna" --json
 
 ## Output conventions
 
-- **Lists** in `--json` are `{"items":[…],"count":N,"truncated":bool}`. **Single objects** are the
+- **Lists** in `--json` are `{"items":[…],"count":N,"fetched":N,"cap":N,"truncated":bool}`, plus
+  `"window":{"after","before"}` on commands that take a time window and `"query"` with the
+  server-side query that was sent. `fetched` counts what Graph returned before any client-side
+  filter, and `cap`/`truncated` always describe the fetch — so a page can be shorter than
+  `--limit` and still be truncated. **Single objects** are the
   Graph object as returned, never renamed. **Writes** return the created or updated object, or
   `{"status":"sent"}` / `{"status":"deleted","id":…}` / `{"status":"accepted"}` when Graph returns
   no body. A dry run returns `{"dryRun":true,"requests":[…]}`.

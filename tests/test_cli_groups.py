@@ -13,7 +13,7 @@ def test_groups_list_plain_and_unified(invoke, graph):
     r = invoke("groups", "list", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
-    assert set(doc) == {"items", "count", "truncated"}
+    assert set(doc) == {"items", "count", "fetched", "cap", "truncated", "query"}
     assert doc["count"] == 2
     assert dict(routes[0].calls.last.request.url.params) == {
         "$select": "id,displayName,mail,groupTypes,description",

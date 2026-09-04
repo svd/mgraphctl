@@ -26,6 +26,7 @@ from mgraphctl.render import (
     ListResult,
     ObjectResult,
     TextResult,
+    Window,
     WriteResult,
     fmt_dt,
     fmt_person,
@@ -226,6 +227,8 @@ def list_(
     """List messages (default: Inbox, newest first)."""
     limit, all_ = page_bounds(limit, all_, default=10)
     tz = client.tz
+    after_dt = parse_dt(after, tz) if after else None
+    before_dt = parse_dt(before, tz, end_of_day=True) if before else None
     page = mail.list_messages(
         client,
         folder_id=mail.resolve_folder(client, folder),
@@ -233,8 +236,8 @@ def list_(
         search=search,
         senders=_split(from_),
         recipients=_split(to),
-        after=parse_dt(after, tz) if after else None,
-        before=parse_dt(before, tz, end_of_day=True) if before else None,
+        after=after_dt,
+        before=before_dt,
         select=select,
         limit=limit,
         all_=all_,
@@ -242,7 +245,8 @@ def list_(
     )
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
+        window=Window(after=after_dt, before=before_dt),
         hit_cap=mail.CAP_LIST if all_ else None,
         columns=mail.message_columns(tz),
     )
@@ -691,7 +695,7 @@ def drafts_list(
     page = mail.list_drafts(client, limit=limit, all_=all_)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=mail.CAP_LIST if all_ else None,
         columns=[
             Column("id", "id"),

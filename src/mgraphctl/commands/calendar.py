@@ -25,6 +25,7 @@ from mgraphctl.render import (
     ListResult,
     ObjectResult,
     TextResult,
+    Window,
     WriteResult,
     fmt_dtz,
     fmt_event_time,
@@ -108,7 +109,8 @@ def list_(
     items = calendar_mod.filter_search(page.items, search) if search else page.items
     return ListResult(
         items=items,
-        truncated=page.truncated,
+        page=page,
+        window=Window(after=start_dt, before=end_dt),
         hit_cap=calendar_mod.CAP_LIST if all_ else None,
         columns=[
             Column("start", lambda e: fmt_event_time(e, "start", tz)),
@@ -419,7 +421,15 @@ def availability(
     )
     schedules = result.get("value") or []
     text = _availability_text(schedules, start_dt, interval, tz)
-    envelope = {"items": schedules, "count": len(schedules), "truncated": False}
+    envelope = {
+        "items": schedules,
+        "count": len(schedules),
+        "fetched": len(schedules),
+        # getSchedule returns one entry per mailbox asked for; nothing is capped or paged.
+        "cap": None,
+        "truncated": False,
+        "window": Window(after=start_dt, before=end_dt).to_json(),
+    }
     return TextResult(text=text, json_obj=envelope)
 
 
@@ -475,4 +485,7 @@ def find_times(
         domain=domain,
         tz=tz,
     )
-    return TextResult(text=_format_find_times(result, tz), json_obj=result)
+    # `findMeetingTimes` answers with its own object, not a listing; the window is added so a
+    # consumer can still report what was asked for (spec §6.2).
+    payload = {**result, "window": Window(after=start_dt, before=end_dt).to_json()}
+    return TextResult(text=_format_find_times(result, tz), json_obj=payload)

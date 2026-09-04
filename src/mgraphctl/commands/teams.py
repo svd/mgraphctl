@@ -22,6 +22,7 @@ from mgraphctl.render import (
     DryRunResult,
     ListResult,
     ObjectResult,
+    Window,
     WriteResult,
     parse_dt,
     truncate,
@@ -63,7 +64,7 @@ def list_(client: GraphClient, json_: JsonFlag = False):
     page = teams.list_teams(client)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         supports_all=False,
         empty_text="No teams.",
         columns=[
@@ -97,7 +98,7 @@ def members(
     page = teams.list_members(client, team_id, limit=limit, all_=all_)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=teams.CAP_MEMBERS if all_ else None,
         empty_text="No members.",
         columns=[
@@ -117,7 +118,7 @@ def channels(client: GraphClient, team: TeamArg, json_: JsonFlag = False):
     page = teams.list_channels(client, team_id)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         supports_all=False,
         empty_text="No channels.",
         columns=[
@@ -196,7 +197,8 @@ def channel_messages(
     # JSON keeps the Graph order (newest first); text reads better oldest first (§10 quirk 17).
     return ListResult(
         items=page.items if json_ else list(reversed(page.items)),
-        truncated=page.truncated,
+        page=page,
+        window=Window(after=after_dt, before=before_dt),
         hit_cap=teams.CAP_MESSAGES if all_ else None,
         empty_text="No messages.",
         columns=teams.message_columns(client.tz, full),

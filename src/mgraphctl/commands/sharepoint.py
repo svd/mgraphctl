@@ -90,9 +90,7 @@ def sites(
 ):
     """List followed sites, or search all sites."""
     page = sharepoint.list_sites(client, search=search, limit=limit if limit is not None else 20)
-    return ListResult(
-        items=page.items, truncated=page.truncated, supports_all=False, columns=SITE_LIST_COLUMNS
-    )
+    return ListResult(items=page.items, page=page, supports_all=False, columns=SITE_LIST_COLUMNS)
 
 
 @app.command("site")
@@ -134,7 +132,7 @@ def ls(
     page = files.list_children(client, base, path, limit=limit_, all_=all_val)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=files.CAP_LS if all_val else None,
         columns=files.item_columns(client.tz),
     )
@@ -300,7 +298,7 @@ def items_(
     )
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=sharepoint.ITEMS_CAP if all_val else None,
         columns=_item_columns(page.items, field_list),
     )

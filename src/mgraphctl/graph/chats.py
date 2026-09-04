@@ -339,7 +339,14 @@ def search_chat_messages(
     """Search chat and channel messages. The Search API has no date filter, so we apply one."""
     found = client.search(["chatMessage"], q, size=SEARCH_SIZE, limit=limit)
     hits = [h for h in found.hits if _within(h, after, before)]
-    return SearchResult(hits=hits, total=found.total, more=found.more)
+    return SearchResult(
+        hits=hits,
+        total=found.total,
+        more=found.more,
+        fetched=len(found.hits),
+        cap=limit,
+        query={"entityTypes": "chatMessage", "query": q},
+    )
 
 
 def shape_chat_hit(hit: dict) -> dict:

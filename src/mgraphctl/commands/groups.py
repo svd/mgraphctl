@@ -26,7 +26,7 @@ def list_(
     page = groups.list_groups(client, unified=unified, limit=limit, all_=all_)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=groups.CAP if all_ else None,
         columns=[
             Column("id", "id"),
@@ -53,7 +53,7 @@ def members(
     page = groups.list_members(client, resolved["id"], limit=limit, all_=all_)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=groups.CAP if all_ else None,
         columns=[
             Column("id", "id"),

@@ -62,9 +62,7 @@ def plans(
     """List plans you own plus every plan of a Microsoft 365 group you belong to."""
     eff_limit = limit if limit is not None else DEFAULT_LIMIT
     page = planner.list_plans(client, limit=eff_limit, on_skip=note)
-    return ListResult(
-        items=page.items, columns=PLAN_COLUMNS, truncated=page.truncated, supports_all=False
-    )
+    return ListResult(items=page.items, columns=PLAN_COLUMNS, page=page, supports_all=False)
 
 
 @app.command("plan")
@@ -119,7 +117,7 @@ def tasks(
         return ListResult(
             items=page.items,
             columns=_task_columns(client.tz, my=True),
-            truncated=page.truncated,
+            page=page,
             supports_all=False,
         )
     if plan_ref is None:
@@ -138,7 +136,7 @@ def tasks(
     return ListResult(
         items=page.items,
         columns=_task_columns(client.tz, my=False),
-        truncated=page.truncated,
+        page=page,
         supports_all=False,
     )
 

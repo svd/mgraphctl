@@ -7,7 +7,11 @@ import typer
 from mgraphctl.cli import AllFlag, JsonFlag, LimitOpt, gate, graph_command, page_bounds
 from mgraphctl.graph import search as search_ops
 from mgraphctl.http import GraphClient
-from mgraphctl.render import ListResult, parse_dt
+from mgraphctl.render import (
+    ListResult,
+    Window,
+    parse_dt,
+)
 
 
 def _split_fields(value: str | None) -> list[str] | None:
@@ -45,12 +49,14 @@ def command(
     gate(search_ops.SCOPES_BY_TYPE[entity_type])
     limit, all_ = page_bounds(limit, all_, default=search_ops.DEFAULT_LIMIT)
     tz = client.tz
+    after_dt = parse_dt(after, tz) if after else None
+    before_dt = parse_dt(before, tz, end_of_day=True) if before else None
     found = search_ops.search(
         client,
         entity_type=entity_type,
         q=q,
-        after=parse_dt(after, tz) if after else None,
-        before=parse_dt(before, tz, end_of_day=True) if before else None,
+        after=after_dt,
+        before=before_dt,
         limit=limit,
         all_=all_,
         fields=_split_fields(fields),
@@ -59,6 +65,10 @@ def command(
     return ListResult(
         items=[search_ops.shape_hit(entity_type, hit) for hit in found.hits],
         truncated=found.more,
+        fetched=found.fetched_count,
+        cap=found.cap,
+        query=found.query,
+        window=Window(after=after_dt, before=before_dt),
         hit_cap=search_ops.CAP_SEARCH if all_ else None,
         empty_text="No results.",
         columns=search_ops.columns_for(entity_type, tz),

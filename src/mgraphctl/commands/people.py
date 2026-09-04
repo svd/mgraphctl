@@ -84,7 +84,7 @@ def search(
     page = people.search_people(client, q, limit=limit, all_=all_)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=people.CAP if all_ else None,
         columns=[
             Column("id", "id"),
@@ -111,7 +111,7 @@ def contacts(
     page = people.list_contacts(client, search=search, limit=limit, all_=all_)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=people.CAP if all_ else None,
         columns=[
             Column("id", "id"),
@@ -149,7 +149,7 @@ def users(
     page = graph_users.search_users(client, q, limit=limit, all_=all_)
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=graph_users.CAP if all_ else None,
         columns=[
             Column("id", "id"),

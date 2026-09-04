@@ -194,7 +194,7 @@ def test_mailbox_focused_filter(invoke, graph, frozen_now):
     result = invoke("mailbox", "focused", "--json")
     assert result.exit_code == 0, result.stderr
     doc = json.loads(result.stdout)
-    assert set(doc) == {"items", "count", "truncated"}
+    assert set(doc) == {"items", "count", "fetched", "cap", "truncated", "query", "window"}
     assert doc["count"] == 1 and doc["items"][0]["id"] == "AAMk-msg-0001"
     request = routes[0].calls.last.request
     assert request.headers["Prefer"] == 'outlook.timezone="Europe/Warsaw"'

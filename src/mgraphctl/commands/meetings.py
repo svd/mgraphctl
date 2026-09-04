@@ -17,6 +17,7 @@ from mgraphctl.render import (
     ListResult,
     ObjectResult,
     TextResult,
+    Window,
     fmt_dt,
     fmt_dtz,
     fmt_size,
@@ -114,7 +115,8 @@ def list_(
         )
     return ListResult(
         items=items,
-        truncated=page.truncated,
+        page=page,
+        window=Window(after=start_dt, before=end_dt),
         supports_all=False,
         columns=[
             Column("start", lambda it: fmt_dtz(it.get("start"), tz)),

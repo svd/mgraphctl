@@ -168,4 +168,11 @@ def search(
     hits = found.hits
     if entity_type != "message":
         hits = [h for h in hits if _within(h, entity_type, after, before)]
-    return SearchResult(hits=hits, total=found.total, more=found.more)
+    return SearchResult(
+        hits=hits,
+        total=found.total,
+        more=found.more,
+        fetched=len(found.hits),
+        cap=bound,
+        query={"entityTypes": entity_type, "query": query_string},
+    )

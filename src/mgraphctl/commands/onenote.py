@@ -48,7 +48,7 @@ def notebooks(
     tz = client.tz
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         supports_all=False,
         columns=[
             Column("id", "id"),
@@ -73,7 +73,7 @@ def sections(
     tz = client.tz
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         supports_all=False,
         columns=[
             Column("id", "id"),
@@ -99,7 +99,7 @@ def pages(
     tz = client.tz
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         hit_cap=onenote.CAP_LIST if all_pages else None,
         columns=[
             Column("id", "id"),
@@ -186,7 +186,7 @@ def search(
     tz = client.tz
     return ListResult(
         items=page.items,
-        truncated=page.truncated,
+        page=page,
         supports_all=False,
         columns=[
             Column("id", "id"),

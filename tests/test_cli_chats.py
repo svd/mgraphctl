@@ -65,6 +65,16 @@ def test_chats_list_type_filter(invoke, graph):
 
 
 @covers("chats list")
+def test_chats_list_envelope_carries_the_window(invoke, graph):
+    mock_graph(graph, "chats/list")
+    doc = json.loads(invoke("chats", "list", "--json").stdout)
+    assert doc["window"] == {"after": None, "before": None}
+    doc = json.loads(invoke("chats", "list", "--since", "2026-08-30T09:00", "--json").stdout)
+    assert doc["window"] == {"after": "2026-08-30T09:00:00+02:00", "before": None}
+    assert doc["count"] == 2 and doc["fetched"] == 3 and doc["cap"] == 20
+
+
+@covers("chats list")
 def test_chats_list_since_stops_at_the_boundary(invoke, graph):
     """The feed is already ordered by last message, so `--since` needs no server-side filter."""
     routes = mock_graph(graph, "chats/list")

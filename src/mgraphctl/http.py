@@ -82,6 +82,10 @@ class PageResult:
     # Items retrieved from Graph before any client-side post-filter; None when nothing was
     # filtered, in which case it equals len(items). Read it through `fetched_count`.
     fetched: int | None = None
+    # The bound the fetch ran under: `--limit`, or the noun's cap under `--all`.
+    cap: int | None = None
+    # The server-side query that produced it, for a consumer reporting its own coverage.
+    query: dict[str, str] | None = None
 
     @property
     def fetched_count(self) -> int:
@@ -100,7 +104,12 @@ def filter_page(page: PageResult, keep: Callable[[dict], bool]) -> PageResult:
     if len(kept) == len(page.items):
         return page
     return PageResult(
-        items=kept, truncated=page.truncated, pages=page.pages, fetched=page.fetched_count
+        items=kept,
+        truncated=page.truncated,
+        pages=page.pages,
+        fetched=page.fetched_count,
+        cap=page.cap,
+        query=page.query,
     )
 
 
@@ -149,6 +158,14 @@ class SearchResult:
     hits: list[dict]
     total: int | None
     more: bool
+    # Hits the Search API returned before any client-side pass, and the bound it ran under.
+    fetched: int | None = None
+    cap: int | None = None
+    query: dict[str, str] | None = None
+
+    @property
+    def fetched_count(self) -> int:
+        return len(self.hits) if self.fetched is None else self.fetched
 
 
 def _strip_query(url: str) -> str:
@@ -516,6 +533,8 @@ class GraphClient:
             # not the unfollowed nextLink, which leads further past it.
             truncated=end > bound if end is not None else len(items) > bound or bool(next_link),
             pages=pages,
+            cap=bound,
+            query={k: str(v) for k, v in query.items() if k.startswith("$")},
         )
 
     # -- $batch -----------------------------------------------------------------

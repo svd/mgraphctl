@@ -1904,6 +1904,27 @@ as an id; a leading `/` forces a drive path.
 | `GROUP` | a GUID | `displayName` among the groups you belong to |
 | `MEETING` | the positional online-meeting id | `--join-url URL` filters on `JoinWebUrl`; `--event ID` reads the event's join URL first |
 
+## The list envelope
+
+Every `--json` listing is `{"items", "count", "fetched", "cap", "truncated"}`, plus `"window"` and
+`"query"` on the commands that have them.
+
+| Key | Meaning |
+|---|---|
+| `items` | the results |
+| `count` | how many `items` holds |
+| `fetched` | how many items Graph returned, before any client-side pass. Always present; equal to `count` when nothing was filtered, so nothing has to branch on the key |
+| `cap` | the bound the fetch ran under: `--limit`, or the verb's cap under `--all`. `null` where nothing paged |
+| `truncated` | whether results the caller asked for were left behind |
+| `window` | `{"after", "before"}` as ISO strings or `null`, on every command that accepts a time window — present even when both bounds are unset, absent entirely on commands that accept none |
+| `query` | the server-side query actually sent (`$search`/`$filter`/`$orderby`, or the Search API's `entityTypes` and `query`), so a consumer can report its own coverage honestly |
+
+`cap`, `fetched` and `truncated` always describe the **fetch**, never the filtered list. Where a
+command filters client-side — `mail list`'s unread and time passes, `chats list --since`,
+`chats search`'s date bounds, `teams channel messages`' window — `fetched` exceeds `count`, and a
+page can come back shorter than `--limit` while `truncated` is still true. Commands with no date
+options (`onedrive`, `sharepoint`, `teams list`, …) emit no `window` key at all.
+
 ## Paging defaults
 
 `--limit` bounds a normal run; `--all` replaces it with the cap and is mutually exclusive with it.

@@ -55,7 +55,7 @@ def test_org_reports(invoke, graph):
     r = invoke("org", "reports", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
-    assert set(doc) == {"items", "count", "truncated"}
+    assert set(doc) == {"items", "count", "fetched", "cap", "truncated", "query"}
     assert doc["count"] == 2
     req = routes[0].calls.last.request
     assert req.url.path == "/v1.0/me/directReports"

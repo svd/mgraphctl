@@ -175,6 +175,20 @@ class Column:
     width: int | None = None
 
 
+@dataclass(frozen=True)
+class Window:
+    """The time window a listing was asked for, whatever the command calls its options."""
+
+    after: datetime | None = None
+    before: datetime | None = None
+
+    def to_json(self) -> dict[str, str | None]:
+        return {
+            "after": to_iso_offset(self.after) if self.after else None,
+            "before": to_iso_offset(self.before) if self.before else None,
+        }
+
+
 @dataclass
 class ListResult:
     items: list[dict]
@@ -185,6 +199,29 @@ class ListResult:
     # False on verbs with no `--all`, so the truncation note never suggests a flag they lack.
     supports_all: bool = True
     extra: dict | None = None
+    # The fetch behind `items`. Given it, `truncated`, `cap` and `fetched` come from one place
+    # rather than being restated — and stay describing the fetch even when `items` was filtered
+    # or reordered afterwards.
+    page: Any = None  # mgraphctl.http.PageResult; not imported, to keep this module leaf-level
+    cap: int | None = None
+    fetched: int | None = None
+    # Present on the commands that accept a time window, even when both bounds are unset.
+    window: Window | None = None
+    query: dict[str, str] | None = None
+
+    def __post_init__(self) -> None:
+        # Given a page, it is the authority on the fetch — including `truncated`, which is why
+        # it overrides rather than defaults. A caller that filtered or reordered `items` must
+        # not be able to talk the envelope into describing that instead.
+        if self.page is None:
+            return
+        self.truncated = self.page.truncated
+        if self.cap is None:
+            self.cap = self.page.cap
+        if self.fetched is None:
+            self.fetched = self.page.fetched_count
+        if self.query is None:
+            self.query = self.page.query
 
 
 @dataclass
@@ -530,12 +567,20 @@ def _emit_list(res: ListResult) -> None:
 def _to_json(result: Result) -> Any:
     match result:
         case ListResult():
-            return {
+            envelope: dict[str, Any] = {
                 "items": result.items,
                 "count": len(result.items),
+                # What Graph returned before any client-side pass; equal to `count` when none
+                # ran, so a consumer never has to branch on the key being there.
+                "fetched": len(result.items) if result.fetched is None else result.fetched,
+                "cap": result.cap,
                 "truncated": result.truncated,
-                **(result.extra or {}),
             }
+            if result.window is not None:
+                envelope["window"] = result.window.to_json()
+            if result.query is not None:
+                envelope["query"] = result.query
+            return {**envelope, **(result.extra or {})}
         case ObjectResult():
             return result.obj
         case TextResult():
