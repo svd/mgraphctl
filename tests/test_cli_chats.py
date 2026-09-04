@@ -231,6 +231,25 @@ def test_chats_messages_after_filter_and_order(invoke, graph):
 
 
 @covers("chats messages")
+def test_chats_messages_inject_chat_id(invoke, graph):
+    """Graph omits `chatId` on `/chats/{id}/messages`, so a consumer cannot route back."""
+    graph.get(f"{GRAPH}/v1.0/chats/19%3Achat-0001%40thread.v2/messages").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    {"id": "m1", "messageType": "message", "body": {"content": "hi"}},
+                    # An id Graph did supply is left exactly as it came.
+                    {"id": "m2", "messageType": "message", "chatId": "19:other@thread.v2"},
+                ]
+            },
+        )
+    )
+    doc = json.loads(invoke("chats", "messages", CHAT, "--json").stdout)
+    assert [m["chatId"] for m in doc["items"]] == [CHAT, "19:other@thread.v2"]
+
+
+@covers("chats messages")
 def test_chats_messages_before_and_both_bounds(invoke, graph):
     route = graph.get(f"{GRAPH}/v1.0/chats/19%3Achat-0001%40thread.v2/messages").mock(
         return_value=httpx.Response(200, json={"value": []})
@@ -492,7 +511,20 @@ def test_shape_chat_hit_unit():
             },
         }
     )
-    assert set(shaped) == {"id", "created", "from", "where", "summary", "webUrl"}
+    assert set(shaped) == {
+        "id",
+        "created",
+        "from",
+        "kind",
+        "chatId",
+        "teamId",
+        "channelId",
+        "where",
+        "summary",
+        "webUrl",
+    }
+    assert shaped["kind"] == "chat" and shaped["chatId"] == CHAT
+    assert shaped["teamId"] is None and shaped["channelId"] is None
     assert shaped["id"] == "AAMk-chat-0003"
     assert shaped["created"] == "2026-08-31T08:15:00Z"
     assert shaped["from"] == "Bob Example"
@@ -511,7 +543,22 @@ def test_shape_chat_hit_unit():
         }
     )
     assert channel["where"] == f"channel:{TEAM}/{CHANNEL}"
+    assert channel["kind"] == "channel"
+    assert channel["teamId"] == TEAM and channel["channelId"] == CHANNEL
+    assert channel["chatId"] is None
     assert channel["from"] == "" and channel["webUrl"] is None
+
+    # A hit Graph gave no routing for says so, instead of "channel:None/None".
+    unknown = shape_chat_hit({"summary": "x", "resource": {"id": "9"}})
+    assert unknown["kind"] == "unknown" and unknown["where"] == ""
+    assert unknown["chatId"] is None
+    assert unknown["teamId"] is None and unknown["channelId"] is None
+
+    # A half-populated channelIdentity is not followable either.
+    half = shape_chat_hit(
+        {"summary": "x", "resource": {"id": "9", "channelIdentity": {"teamId": TEAM}}}
+    )
+    assert half["kind"] == "unknown" and half["where"] == ""
 
 
 @covers("chats hosted-content")

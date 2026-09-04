@@ -21,6 +21,7 @@ from mgraphctl.http import (
     PlannedRequest,
     SearchResult,
     filter_page,
+    with_routing,
 )
 from mgraphctl.render import dig, parse_graph_dt, to_iso_offset
 
@@ -186,7 +187,7 @@ def chat_messages(
     `createdDateTime desc`, which is the order a thread reads in.
     """
     params: dict[str, object] = {"$orderby": "createdDateTime desc"}
-    bounds = []
+    bounds: list[str] = []
     if after is not None:
         bounds.append(f"{MESSAGE_WINDOW_FIELD} gt {to_iso_offset(after)}")
     if before is not None:
@@ -194,7 +195,7 @@ def chat_messages(
     if bounds:
         params["$orderby"] = f"{MESSAGE_WINDOW_FIELD} desc"
         params["$filter"] = " and ".join(bounds)
-    return client.paginate(
+    page = client.paginate(
         odata.p("chats", chat_id, "messages"),
         params=params,
         limit=limit,
@@ -202,6 +203,7 @@ def chat_messages(
         cap=CAP_MESSAGES,
         page_size=PAGE_MESSAGES,
     )
+    return with_routing(page, chatId=chat_id)
 
 
 def message_body(body: str, html: bool) -> dict:
@@ -350,20 +352,33 @@ def search_chat_messages(
 
 
 def shape_chat_hit(hit: dict) -> dict:
-    """Flatten one `chatMessage` search hit, naming the chat or channel it came from (quirk 16)."""
+    """Flatten one `chatMessage` search hit, naming the chat or channel it came from (quirk 16).
+
+    `where` is the text column, a single readable string. The same routing also comes out as
+    `kind`/`chatId`/`teamId`/`channelId` so a JSON consumer can follow a hit into
+    `chats messages` or `teams channel messages` without parsing that string back apart —
+    which is the point of the windowed channel fetch.
+    """
     resource = hit.get("resource") or {}
     chat_id = resource.get("chatId")
     identity = resource.get("channelIdentity") or {}
+    team_id = identity.get("teamId")
+    channel_id = identity.get("channelId")
     if chat_id:
-        where = f"chat:{chat_id}"
-    elif identity:
-        where = f"channel:{identity.get('teamId')}/{identity.get('channelId')}"
+        kind, where = "chat", f"chat:{chat_id}"
+    elif team_id and channel_id:
+        kind, where = "channel", f"channel:{team_id}/{channel_id}"
     else:
-        where = ""
+        # A hit whose routing Graph did not supply: say so rather than emit "channel:None/None".
+        kind, where = "unknown", ""
     return {
         "id": resource.get("id") or hit.get("hitId"),
         "created": resource.get("createdDateTime"),
         "from": teams.message_sender(resource),
+        "kind": kind,
+        "chatId": chat_id if kind == "chat" else None,
+        "teamId": team_id if kind == "channel" else None,
+        "channelId": channel_id if kind == "channel" else None,
         "where": where,
         # The Search API returns a snippet, never the body (spec §8.8 `search`).
         "summary": " ".join((hit.get("summary") or "").split()),

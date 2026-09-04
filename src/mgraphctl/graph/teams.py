@@ -17,6 +17,7 @@ from mgraphctl.http import (
     Plan,
     PlannedRequest,
     filter_page,
+    with_routing,
 )
 from mgraphctl.render import Column, fmt_dt, parse_graph_dt, truncate
 
@@ -166,7 +167,7 @@ def channel_messages(
         page_size=PAGE_MESSAGES,
         stop=_before_window(after),
     )
-    page = _keep(page)
+    page = with_routing(_keep(page), teamId=team_id, channelId=channel_id)
     return page if keep is None else filter_page(page, keep)
 
 
@@ -186,7 +187,7 @@ def channel_replies(
         cap=CAP_MESSAGES,
         page_size=PAGE_MESSAGES,
     )
-    return _keep(page)
+    return with_routing(_keep(page), teamId=team_id, channelId=channel_id)
 
 
 def message_sender(message: dict) -> str:

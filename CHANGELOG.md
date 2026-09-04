@@ -33,6 +33,12 @@
   speaker's consecutive cues into one `**Speaker:** …` paragraph.
 - `meetings transcript --json` now reports `createdDateTime`, looked up best-effort and left
   `null` when the lookup fails.
+- Chat messages carry `chatId`, and channel messages and replies carry `teamId`/`channelId`,
+  which Graph omits when they are fetched through their own collection — so a message in JSON can
+  be routed back to the thread it came from.
+- `chats search` hits carry structured `kind`/`chatId`/`teamId`/`channelId` beside the `where`
+  text column, so a hit can be followed into `teams channel messages --after …` without parsing
+  `where` apart. A hit with no routing reports `kind: "unknown"`.
 
 ### Fixed
 

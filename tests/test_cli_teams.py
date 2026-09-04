@@ -201,6 +201,51 @@ def test_channel_replies_paged_with_limit(invoke, graph):
 
 
 @covers("teams channel messages")
+def test_channel_messages_inject_team_and_channel_ids(invoke, graph):
+    """Graph omits `channelIdentity` here, so the ids that route a message back are added."""
+    graph.get(f"{CHANNEL_URL}/messages").mock(
+        return_value=httpx.Response(200, json={"value": [_msg("30", "2026-08-31T12:00:00Z")]})
+    )
+    item = json.loads(invoke("teams", "channel", "messages", TEAM, CHANNEL, "--json").stdout)[
+        "items"
+    ][0]
+    assert item["teamId"] == TEAM and item["channelId"] == CHANNEL
+
+
+@covers("teams channel messages")
+def test_channel_messages_keep_ids_graph_did_supply(invoke, graph):
+    graph.get(f"{CHANNEL_URL}/messages").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    {
+                        **_msg("30", "2026-08-31T12:00:00Z"),
+                        "teamId": "other-team",
+                        "channelId": "19:other@thread.tacv2",
+                    }
+                ]
+            },
+        )
+    )
+    item = json.loads(invoke("teams", "channel", "messages", TEAM, CHANNEL, "--json").stdout)[
+        "items"
+    ][0]
+    assert item["teamId"] == "other-team" and item["channelId"] == "19:other@thread.tacv2"
+
+
+@covers("teams channel messages")
+def test_channel_replies_inject_team_and_channel_ids(invoke, graph):
+    graph.get(f"{CHANNEL_URL}/messages/3/replies").mock(
+        return_value=httpx.Response(200, json={"value": [_msg("31", "2026-08-31T12:00:00Z")]})
+    )
+    item = json.loads(
+        invoke("teams", "channel", "messages", TEAM, CHANNEL, "--replies", "3", "--json").stdout
+    )["items"][0]
+    assert item["teamId"] == TEAM and item["channelId"] == CHANNEL
+
+
+@covers("teams channel messages")
 def test_channel_messages_envelope_carries_the_window(invoke, graph):
     graph.get(f"{CHANNEL_URL}/messages").mock(
         return_value=httpx.Response(200, json={"value": [_msg("30", "2026-08-31T12:00:00Z")]})

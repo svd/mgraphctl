@@ -21,6 +21,7 @@ from mgraphctl.http import (
     filter_page,
     plan_to_json,
     plan_to_text,
+    with_routing,
 )
 
 V1 = "https://graph.microsoft.com/v1.0"
@@ -846,3 +847,20 @@ def test_paginate_without_stop_still_truncates_on_the_bound(client):
     items = [{"n": n} for n in range(5)]
     page = _page(client, items, next_link=True, limit=3, all_=False)
     assert page.truncated is True and len(page.items) == 3
+
+
+def test_with_routing_fills_a_null_id_but_keeps_a_real_one():
+    """Graph sends `chatId: null` on a channel message, which is exactly what to fill in."""
+    page = PageResult(
+        items=[{"id": "a", "chatId": None}, {"id": "b"}, {"id": "c", "chatId": "19:real"}],
+        truncated=True,
+        pages=2,
+        cap=50,
+        fetched=9,
+        query={"$top": "50"},
+    )
+    stamped = with_routing(page, chatId="19:here")
+    assert [i.get("chatId") for i in stamped.items] == ["19:here", "19:here", "19:real"]
+    # Stamping ids is not a fetch, so everything the fetch reported survives it.
+    assert stamped.truncated is True and stamped.pages == 2
+    assert stamped.cap == 50 and stamped.fetched == 9 and stamped.query == {"$top": "50"}

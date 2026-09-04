@@ -13,7 +13,7 @@ import re
 import time
 import uuid
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -91,6 +91,19 @@ class PageResult:
     def fetched_count(self) -> int:
         """How many items the fetch itself returned, post-filtering included."""
         return len(self.items) if self.fetched is None else self.fetched
+
+
+def with_routing(page: PageResult, **ids: str) -> PageResult:
+    """Stamp the ids that name where a message lives onto every item of `page`.
+
+    Graph omits them on messages fetched through their own collection — a chat message has no
+    `chatId`, a channel message no `channelIdentity` — which leaves a JSON consumer unable to
+    round-trip a message back to the thread it came from. An id Graph filled in is left alone;
+    one it sent as `null` (as it does for `chatId` on a channel message) is filled in here,
+    which is the whole point.
+    """
+    stamped = [{**item, **{k: v for k, v in ids.items() if not item.get(k)}} for item in page.items]
+    return replace(page, items=stamped)
 
 
 def filter_page(page: PageResult, keep: Callable[[dict], bool]) -> PageResult:

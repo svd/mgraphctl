@@ -894,6 +894,8 @@ Every `calendar create` option except `--calendar` and `--transaction-id`; all o
   200 messages should be narrowed. `--after`/`--before` do not apply to `--replies` (exit 2), and
   `--after` later than `--before` is a usage error.
   Without `--after`/`--before` the request is byte-for-byte what it was.
+  Each message and reply carries `teamId` and `channelId`, which Graph omits on this collection,
+  so a message can be routed back to its channel.
 
 ### `teams channel send TEAM CHANNEL`
 
@@ -1048,10 +1050,15 @@ Every `calendar create` option except `--calendar` and `--transaction-id`; all o
   size:25}]}`, paging on `moreResultsAvailable`.
 - **Scopes:** `Chat.Read`; channel hits also need `ChannelMessage.Read.All` to read further.
 - **Tier:** P0
-- **Notes:** the date window is applied client-side on `createdDateTime`. Each hit is labelled
-  `chat:<id>` or `channel:<teamId>/<channelId>`, and its body is the Search API's `summary`
-  snippet, not the whole message — read the thread with `chats messages` or
+- **Notes:** the date window is applied client-side on `createdDateTime`. Its body is the Search
+  API's `summary` snippet, not the whole message — read the thread with `chats messages` or
   `teams channel messages`.
+  Each hit carries its routing twice: `where` is the text column, `chat:<id>` or
+  `channel:<teamId>/<channelId>`, and `kind` (`chat`, `channel` or `unknown`) with `chatId`,
+  `teamId` and `channelId` give a JSON consumer the same thing as ids, so a hit can be followed
+  into a windowed fetch without parsing that string apart. A hit Graph supplied no routing for —
+  or only half a `channelIdentity` — is `unknown` with an empty `where`, never
+  `channel:None/None`.
 
 ### `chats hosted-content CHAT MSGID HCID` | `chats hosted-content URL`
 
