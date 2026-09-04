@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html as html_stdlib
 import re
+from collections.abc import Iterator
 from typing import Literal
 
 from bs4 import BeautifulSoup
@@ -66,9 +67,12 @@ def text_to_html(text: str) -> str:
     return "".join(rendered)
 
 
-def vtt_to_text(vtt: str) -> str:
-    """Convert a WebVTT transcript to `[HH:MM:SS] Speaker: text` lines, one per cue."""
-    lines_out = []
+def _cues(vtt: str) -> Iterator[tuple[str, list[tuple[str | None, str]]]]:
+    """Yield `(timestamp, [(speaker | None, text), ...])` for every cue in a WebVTT document.
+
+    A cue can carry more than one line, and only some of them name a speaker with `<v Name>`,
+    so each line is kept as its own segment for the caller to render or merge.
+    """
     for block in _PARAGRAPH_SPLIT_RE.split(vtt.strip()):
         lines = [ln for ln in block.splitlines() if ln.strip()]
         timing_idx = next(
@@ -77,13 +81,47 @@ def vtt_to_text(vtt: str) -> str:
         if timing_idx is None:
             continue
         stamp = _CUE_TIMING_RE.match(lines[timing_idx].strip()).group(1)
-        rendered = []
+        segments: list[tuple[str | None, str]] = []
         for text_line in lines[timing_idx + 1 :]:
             voice = _VOICE_RE.match(text_line.strip())
             if voice:
+                # The name is kept exactly as the tag spelled it: `vtt_to_text` renders it
+                # verbatim, and only turn-merging, which has to compare names, normalises it.
                 name, content = voice.groups()
-                rendered.append(f"{name}: {_TAG_RE.sub('', content).strip()}")
+                segments.append((name, _TAG_RE.sub("", content).strip()))
             else:
-                rendered.append(_TAG_RE.sub("", text_line).strip())
+                segments.append((None, _TAG_RE.sub("", text_line).strip()))
+        yield stamp, segments
+
+
+def vtt_to_text(vtt: str) -> str:
+    """Convert a WebVTT transcript to `[HH:MM:SS] Speaker: text` lines, one per cue."""
+    lines_out = []
+    for stamp, segments in _cues(vtt):
+        rendered = [f"{name}: {text}" if name else text for name, text in segments]
         lines_out.append(f"[{stamp}] {' '.join(rendered)}")
     return "\n".join(lines_out)
+
+
+def vtt_to_speaker_turns(vtt: str) -> str:
+    """Convert a WebVTT transcript to speaker turns: `**Speaker:** text`, blank line between.
+
+    Consecutive cues from the same speaker are one turn — a transcript cues every few seconds,
+    so rendering one line per cue chops a single remark into a dozen fragments. A line with no
+    `<v>` tag continues the turn it falls inside.
+    """
+    turns: list[tuple[str | None, list[str]]] = []
+    for _, segments in _cues(vtt):
+        for raw_name, text in segments:
+            if not text:
+                continue
+            name = raw_name.strip() if raw_name is not None else None
+            speaker = name if name is not None else (turns[-1][0] if turns else None)
+            if turns and turns[-1][0] == speaker:
+                turns[-1][1].append(text)
+            else:
+                turns.append((speaker, [text]))
+    return "\n\n".join(
+        f"**{speaker}:** {' '.join(parts)}" if speaker else " ".join(parts)
+        for speaker, parts in turns
+    )

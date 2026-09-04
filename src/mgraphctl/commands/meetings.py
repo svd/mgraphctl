@@ -10,6 +10,7 @@ from mgraphctl import auth, render
 from mgraphctl.cli import JsonFlag, LimitOpt, gate, graph_command, make_noun_app
 from mgraphctl.errors import UsageError
 from mgraphctl.graph import meetings
+from mgraphctl.html import vtt_to_speaker_turns, vtt_to_text
 from mgraphctl.http import GraphClient
 from mgraphctl.render import (
     Column,
@@ -177,6 +178,9 @@ def transcript(
     join_url: JoinUrlOpt = None,
     event: EventOpt = None,
     fmt: Annotated[str, typer.Option("--format", help="text or vtt.")] = "text",
+    speakers: Annotated[
+        bool, typer.Option("--speakers", help="Merge each speaker's consecutive cues into a turn.")
+    ] = False,
     output: Annotated[
         Path | None, typer.Option("--output", help="Write to this file instead of stdout.")
     ] = None,
@@ -192,9 +196,22 @@ def transcript(
         raise UsageError("USAGE", "give TRANSCRIPT_ID, and MEETING or --join-url or --event")
     if fmt not in FORMATS:
         raise UsageError("USAGE", f"--format must be one of {', '.join(FORMATS)}")
+    if speakers and fmt == "vtt":
+        raise UsageError(
+            "USAGE", "--speakers renders text; it cannot be combined with --format vtt"
+        )
     selected = meetings.select_meeting(client, meeting, join_url, event)
     meeting_id = selected["id"]
-    text = meetings.get_transcript_content(client, meeting_id, transcript_id, fmt=fmt)
+    body = meetings.get_transcript_body(client, meeting_id, transcript_id)
+    # What Graph returned, not what was asked for: the speaker-attribution fallback answers in
+    # plain text even to a vtt request, and some meeting types answer in vtt to a text one.
+    is_vtt = meetings.looks_like_vtt(body)
+    if speakers:
+        text, shape = (vtt_to_speaker_turns(body) if is_vtt else body), "text"
+    elif fmt == "vtt":
+        text, shape = body, ("vtt" if is_vtt else "text")
+    else:
+        text, shape = (vtt_to_text(body) if is_vtt else body), "text"
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(text, encoding="utf-8")
@@ -202,10 +219,18 @@ def transcript(
         return FileResult(
             path=output,
             bytes=size,
-            meta=dict(meetingId=meeting_id, transcriptId=transcript_id, format=fmt),
-            message=f"Wrote the {fmt} transcript ({fmt_size(size)}) to {output}",
+            meta=dict(meetingId=meeting_id, transcriptId=transcript_id, format=shape),
+            message=f"Wrote the {shape} transcript ({fmt_size(size)}) to {output}",
         )
-    payload = dict(meetingId=meeting_id, transcriptId=transcript_id, format=fmt, text=text)
+    # `createdDateTime` costs one extra request, so only the path that emits it pays.
+    created = meetings.transcript_created_at(client, meeting_id, transcript_id) if json_ else None
+    payload = dict(
+        meetingId=meeting_id,
+        transcriptId=transcript_id,
+        createdDateTime=created,
+        format=shape,
+        content=text,
+    )
     return TextResult(text=text, json_obj=payload)
 
 

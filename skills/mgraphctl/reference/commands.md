@@ -1165,17 +1165,29 @@ All `meetings` verbs except `list` select the meeting three ways: a positional o
 | `--join-url URL` | — | Select the meeting by its join URL. |
 | `--event ID` | — | Select the meeting from a calendar event id. |
 | `--format FMT` | `text` | `text` or `vtt`. |
+| `--speakers` | off | Merge each speaker's consecutive cues into one turn. |
 | `--output FILE` | — | Write to this file instead of stdout. |
 | `--json` | off | Print JSON instead of text. |
 
 - **Graph:** `GET /me/onlineMeetings/{m}/transcripts/{t}/content?$format=text/vtt` (streamed). A 403
   `SpeakerAttributionNotAllowed` is retried with
-  `Accept: application/vnd.microsoft.graph.transcript+text`.
+  `Accept: application/vnd.microsoft.graph.transcript+text`. With `--json`, one extra
+  `GET /me/onlineMeetings/{m}/transcripts` supplies `createdDateTime`.
 - **Scopes:** `OnlineMeetingTranscript.Read.All`
 - **Tier:** P0
 - **Notes:** with `--join-url` or `--event` the single positional argument is the transcript id;
   otherwise give the meeting id and then the transcript id. `text` converts the VTT locally into
-  `[HH:MM:SS] Speaker: line`. JSON `{"meetingId","transcriptId","format","text"}`.
+  `[HH:MM:SS] Speaker: line`, one line per cue.
+  JSON is `{"meetingId","transcriptId","createdDateTime","format","content"}`.
+  `format` is **sniffed from the body**, not taken from `--format`: the speaker-attribution
+  fallback answers in plain text even to a vtt request, and some meeting types answer in vtt to a
+  text one, so the field says what the content actually is. `--output` reports the same sniffed
+  value. `createdDateTime` costs one extra listing request, so only `--json` pays it, and a failed
+  lookup leaves the field `null` rather than failing the command — the content is already in hand.
+  `--speakers` renders `**Speaker:** text` turns, merging a speaker's consecutive cues into one
+  and separating turns with a blank line, which is what makes a transcript readable; a cue with no
+  `<v>` tag continues the turn it falls inside. It respects `--output`, and combined with
+  `--format vtt` is a usage error rather than a silent override.
 
 ### `meetings insights [MEETING]`
 

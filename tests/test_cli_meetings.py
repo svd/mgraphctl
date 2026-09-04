@@ -260,8 +260,13 @@ def test_meetings_transcript_text_vtt_output(invoke, graph, tmp_path):
     assert doc == {
         "meetingId": "MSpk-1",
         "transcriptId": "tr-1",
+        "createdDateTime": "2026-08-31T09:05:00Z",
         "format": "text",
-        "text": "[00:00:01] Ada Example: Hello there",
+        "content": (
+            "[00:00:01] Ada Example: Hello there\n"
+            "[00:00:04] Ada Example: and one more thing\n"
+            "[00:00:07] Bob Example: Agreed"
+        ),
     }
     r = invoke("meetings", "transcript", "MSpk-1", "tr-1", "--format", "vtt")
     assert r.exit_code == 0, r.stderr
@@ -270,7 +275,54 @@ def test_meetings_transcript_text_vtt_output(invoke, graph, tmp_path):
     out = tmp_path / "t.txt"
     r = invoke("meetings", "transcript", "MSpk-1", "tr-1", "--output", str(out))
     assert r.exit_code == 0, r.stderr
-    assert out.read_text() == "[00:00:01] Ada Example: Hello there"
+    assert out.read_text().startswith("[00:00:01] Ada Example: Hello there")
+
+
+@covers("meetings transcript")
+def test_meetings_transcript_speakers_merges_turns(invoke, graph, tmp_path):
+    mock_graph(graph, "meetings/transcript")
+    r = invoke("meetings", "transcript", "MSpk-1", "tr-1", "--speakers")
+    assert r.exit_code == 0, r.stderr
+    # Ada's two consecutive cues become one turn.
+    assert r.stdout == (
+        "**Ada Example:** Hello there and one more thing\n\n**Bob Example:** Agreed\n"
+    )
+
+    out = tmp_path / "turns.md"
+    r = invoke("meetings", "transcript", "MSpk-1", "tr-1", "--speakers", "--output", str(out))
+    assert r.exit_code == 0, r.stderr
+    assert out.read_text().startswith("**Ada Example:** Hello there and one more thing")
+
+
+@covers("meetings transcript")
+def test_meetings_transcript_speakers_rejects_format_vtt(invoke, graph):
+    r = invoke("meetings", "transcript", "MSpk-1", "tr-1", "--speakers", "--format", "vtt")
+    assert r.exit_code == 2 and graph.calls.call_count == 0
+    assert r.stderr.startswith("error[USAGE]: --speakers renders text")
+
+
+@covers("meetings transcript")
+def test_meetings_transcript_does_not_look_up_created_without_json(invoke, graph):
+    """The listing costs a request, so only the path that emits `createdDateTime` pays it."""
+    routes = mock_graph(graph, "meetings/transcript")
+    listing = routes[1]
+    assert invoke("meetings", "transcript", "MSpk-1", "tr-1").exit_code == 0
+    assert listing.call_count == 0
+    assert invoke("meetings", "transcript", "MSpk-1", "tr-1", "--json").exit_code == 0
+    assert listing.call_count == 1
+
+
+@covers("meetings transcript")
+def test_meetings_transcript_created_lookup_failure_is_not_fatal(invoke, graph):
+    """The content is already in hand, so a failed lookup leaves the field null and exits 0."""
+    content = f"{GRAPH}/v1.0/me/onlineMeetings/MSpk-1/transcripts/tr-1/content"
+    graph.get(content).mock(return_value=httpx.Response(200, text="WEBVTT\n\nplain"))
+    graph.get(f"{GRAPH}/v1.0/me/onlineMeetings/MSpk-1/transcripts").mock(
+        return_value=graph_error(500, "InternalError", "boom")
+    )
+    r = invoke("meetings", "transcript", "MSpk-1", "tr-1", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(r.stdout)["createdDateTime"] is None
 
 
 @covers("meetings transcript")
@@ -311,13 +363,34 @@ def test_meetings_transcript_speaker_attribution_fallback(invoke, graph):
             httpx.Response(200, text="Ada Example: Hello there"),
         ]
     )
+    graph.get(f"{GRAPH}/v1.0/me/onlineMeetings/MSpk-1/transcripts").mock(
+        return_value=httpx.Response(200, json={"value": []})
+    )
     r = invoke("meetings", "transcript", "MSpk-1", "tr-1", "--json")
     assert r.exit_code == 0, r.stderr
     doc = json.loads(r.stdout)
-    assert doc["text"] == "Ada Example: Hello there"
+    assert doc["content"] == "Ada Example: Hello there"
+    # The fallback answers in plain text even though vtt was asked for, and the sniffed
+    # `format` says so rather than repeating the request.
+    assert doc["format"] == "text"
     assert route.call_count == 2
     last = route.calls.last.request
     assert last.headers["Accept"] == "application/vnd.microsoft.graph.transcript+text"
+
+
+@covers("meetings transcript")
+def test_meetings_transcript_speakers_on_the_attribution_fallback(invoke, graph):
+    """The fallback yields plain text, which has no cues to merge: pass it through."""
+    content_url = f"{GRAPH}/v1.0/me/onlineMeetings/MSpk-1/transcripts/tr-1/content"
+    graph.get(content_url).mock(
+        side_effect=[
+            graph_error(403, "SpeakerAttributionNotAllowed", "not allowed"),
+            httpx.Response(200, text="Ada Example: Hello there"),
+        ]
+    )
+    r = invoke("meetings", "transcript", "MSpk-1", "tr-1", "--speakers")
+    assert r.exit_code == 0, r.stderr
+    assert r.stdout == "Ada Example: Hello there\n"
 
 
 @covers("meetings insights")

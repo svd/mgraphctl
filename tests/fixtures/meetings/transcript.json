@@ -2,9 +2,30 @@
   {
     "method": "GET",
     "path": "/v1.0/me/onlineMeetings/MSpk-1/transcripts/tr-1/content",
-    "query": {"$format": "text/vtt"},
+    "query": {
+      "$format": "text/vtt"
+    },
     "status": 200,
-    "headers": {"Content-Type": "text/vtt"},
-    "text": "WEBVTT\n\n1\n00:00:01.000 --> 00:00:04.000\n<v Ada Example>Hello there</v>\n"
+    "headers": {
+      "Content-Type": "text/vtt"
+    },
+    "text": "WEBVTT\n\n1\n00:00:01.000 --> 00:00:04.000\n<v Ada Example>Hello there</v>\n\n2\n00:00:04.000 --> 00:00:07.000\n<v Ada Example>and one more thing</v>\n\n3\n00:00:07.000 --> 00:00:10.000\n<v Bob Example>Agreed</v>\n"
+  },
+  {
+    "method": "GET",
+    "path": "/v1.0/me/onlineMeetings/MSpk-1/transcripts",
+    "status": 200,
+    "json": {
+      "value": [
+        {
+          "id": "tr-1",
+          "createdDateTime": "2026-08-31T09:05:00Z"
+        },
+        {
+          "id": "tr-2",
+          "createdDateTime": "2026-08-30T09:05:00Z"
+        }
+      ]
+    }
   }
 ]

@@ -11,8 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from mgraphctl import odata
-from mgraphctl.errors import GraphError, NotFoundError, UsageError
-from mgraphctl.html import vtt_to_text
+from mgraphctl.errors import GraphError, MsgraphError, NotFoundError, UsageError
 from mgraphctl.http import BatchRequest, DownloadResult, GraphClient, PageResult
 from mgraphctl.render import to_iso_offset
 
@@ -163,26 +162,50 @@ def list_transcripts(client: GraphClient, meeting_id: str) -> list[dict]:
     return (result or {}).get("value") or []
 
 
-def get_transcript_content(
-    client: GraphClient, meeting_id: str, transcript_id: str, *, fmt: str
-) -> str:
-    """The transcript body: WebVTT converted to `[HH:MM:SS] Speaker: line`, or raw for `fmt="vtt"`.
+def looks_like_vtt(body: str) -> bool:
+    """Whether a transcript body is WebVTT, which its required signature line says (§8.11).
+
+    What Graph returns does not always follow what was asked for: `$format=text/vtt` can come
+    back as plain text on the speaker-attribution fallback, and some meeting types answer with
+    vtt regardless. The body itself is the only honest source.
+    """
+    return body.lstrip("\ufeff").lstrip().startswith("WEBVTT")
+
+
+def get_transcript_body(client: GraphClient, meeting_id: str, transcript_id: str) -> str:
+    """The transcript exactly as Graph returned it — WebVTT, or plain text on the fallback.
 
     A 403 `SpeakerAttributionNotAllowed` is retried once with an `Accept` header that asks
     Graph for the plain-text representation directly (already speaker-scrubbed). That fallback
-    has no WebVTT form to fall back to, so it always returns plain text — `fmt` is ignored on
-    this path, by design, not by omission.
+    has no WebVTT form, so it always yields plain text; the caller sniffs the body with
+    `looks_like_vtt` rather than assuming it got what it asked for.
     """
     path = odata.p("me", "onlineMeetings", meeting_id, "transcripts", transcript_id, "content")
     try:
-        vtt = client.request("GET", path, params={"$format": "text/vtt"}, expect="text")
+        return client.request("GET", path, params={"$format": "text/vtt"}, expect="text")
     except GraphError as exc:
         if exc.status == 403 and exc.code == "SpeakerAttributionNotAllowed":
             return client.request(
                 "GET", path, headers={"Accept": TRANSCRIPT_TEXT_ACCEPT}, expect="text"
             )
         raise
-    return vtt if fmt == "vtt" else vtt_to_text(vtt)
+
+
+def transcript_created_at(client: GraphClient, meeting_id: str, transcript_id: str) -> str | None:
+    """Best-effort `createdDateTime` for one transcript, or None when the lookup fails.
+
+    Costs one extra list request, so only the `--json` path — the only one that emits the
+    field — pays it. The content fetch has already succeeded by this point, so a failure here
+    is never fatal.
+    """
+    try:
+        listed = list_transcripts(client, meeting_id)
+    except (MsgraphError, ValueError):  # ValueError covers a 200 carrying unparseable JSON
+        return None
+    for item in listed:
+        if item.get("id") == transcript_id:
+            return item.get("createdDateTime")
+    return None
 
 
 def insights(client: GraphClient, oid: str, meeting_id: str) -> tuple[list[dict], str | None]:

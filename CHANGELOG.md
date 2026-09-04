@@ -29,8 +29,17 @@
   commands that accept a time window carry `window: {after, before}` — present even when both
   bounds are unset, absent on commands with no date options. `cap`, `fetched` and `truncated`
   describe the fetch, never the filtered list. Text output is unchanged.
+- `meetings transcript --speakers` renders the transcript as speaker turns, merging each
+  speaker's consecutive cues into one `**Speaker:** …` paragraph.
+- `meetings transcript --json` now reports `createdDateTime`, looked up best-effort and left
+  `null` when the lookup fails.
 
 ### Fixed
+
+- `meetings transcript` reported the format that was asked for rather than the one it got. The
+  speaker-attribution fallback answers in plain text even to a vtt request, so `--format vtt`
+  could label plain text as `vtt`; the format is now sniffed from the body, on the `--output` path
+  too. The JSON field `text` is renamed `content`, matching the Node skill.
 
 - `chats messages --after` never actually filtered. It sent `$filter=createdDateTime gt …`
   alongside `$orderby=createdDateTime desc`, but Graph supports `gt` on chat messages only for
