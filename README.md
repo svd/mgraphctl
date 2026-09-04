@@ -78,8 +78,15 @@ prompt — a missing or expired token fails with an actionable hint instead.
 - Virtual environment: under `${CLAUDE_PLUGIN_DATA}` when Claude Code sets it, otherwise
   `~/.cache/mgraphctl/venv` (`$XDG_CACHE_HOME/mgraphctl/venv` when that variable is set).
   Persistent across plugin updates; safe to delete, it is rebuilt on the next run.
-- Token cache: `~/.mgraphctl/token_cache.json`, mode `0600`, in a `0700` directory. Plaintext
-  msal JSON — there is no keychain integration.
+- Token cache: the OS keychain (macOS Keychain, Windows Credential Locker, Linux Secret
+  Service) when one is available, as a single `mgraphctl` item whose account is the cache path.
+  Without one it is `~/.mgraphctl/token_cache.json`, mode `0600`, in a `0700` directory.
+  `token_store = auto | keyring | file` in the config file, or `MGRAPHCTL_TOKEN_STORE`, picks;
+  `status` shows which store is in use. A cache file left by an earlier version is imported into
+  the keychain on the first run and then deleted. When the keychain refuses (locked, denied,
+  no session bus), the file takes over for that run with one warning on stderr. On macOS a
+  rebuilt Python (a new venv, a `uv` upgrade) asks once for keychain access; answer
+  "Always Allow". `token_store = "file"` restores the old behaviour.
 - Config file: `~/.mgraphctl/config.toml`, optional (`--config PATH` or `MGRAPHCTL_CONFIG` to
   point elsewhere). Every `MGRAPHCTL_*` setting can go there as the name without the prefix,
   lower-cased; a flag beats an environment variable, which beats the file. `mgraphctl config init`

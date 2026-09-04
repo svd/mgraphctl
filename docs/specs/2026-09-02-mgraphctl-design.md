@@ -21,6 +21,8 @@ Inputs (read in full; this document does not restate them):
 
 Non-goals: MCP server, delta/sync state, change notifications, consumer (MSA) accounts, keychain-backed token storage, admin/tenant APIs, reuse of Node snapshots or fixtures, Windows shim (raw `uv run` documented instead).
 
+Note (2026-09-05): keychain-backed token storage was added after this spec, behind `token_store`; the §4 lines about the cache file describe the `file` store. See the CHANGELOG.
+
 ## 2. Naming, layout, packaging
 
 ### 2.1 Names

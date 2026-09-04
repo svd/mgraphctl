@@ -340,7 +340,8 @@ Errors are one stderr block: `error[<CODE>]: <message>`, an optional `request-id
 |---|---|---|
 | `MGRAPHCTL_SCOPES` | `default` | `default`, `extended`, or an explicit scope list. |
 | `MGRAPHCTL_TZ` | the detected local zone | IANA zone for Graph requests and rendering; `--tz` overrides it. |
-| `MGRAPHCTL_TOKEN_CACHE` | `~/.mgraphctl/token_cache.json` | Where the sign-in is cached. |
+| `MGRAPHCTL_TOKEN_CACHE` | `~/.mgraphctl/token_cache.json` | The file cache path, and the keychain item's account name. |
+| `MGRAPHCTL_TOKEN_STORE` | `auto` | `auto`, `keyring` (OS keychain) or `file`. |
 | `MGRAPHCTL_CLIENT_ID` | the shared public client id | Entra application to authenticate as. |
 | `MGRAPHCTL_TENANT_ID` | `common` | Authority tenant. |
 | `MGRAPHCTL_DEBUG` | unset | `1` behaves like `--debug`. |
