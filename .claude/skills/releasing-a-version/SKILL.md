@@ -154,4 +154,5 @@ entry's `source.ref` to `mgraphctl--vX.Y.Z` there and release that repo per its 
 | Passed `-f` to `claude plugin tag` | Skips the dirty-tree and tag-exists checks that stop a published tag from moving |
 | Advanced `exclude-newer` inside the release commit | Dependency changes hide in a version bump; make it its own commit |
 | Skipped `claude plugin validate .` because CI is green | CI has no Claude Code CLI; local is the only run |
-| Moved a published tag | Consumers pinned to it break — never do this |
+| Pushed to `main` directly, or merged with squash/rebase | Rejected by the `main` ruleset; the PR with a merge commit is the only path |
+| Moved a published tag | Rejected by the tag ruleset; if it were possible, consumers pinned to it would break |
