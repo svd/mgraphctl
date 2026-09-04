@@ -30,6 +30,8 @@ module-name = "mgraphctl"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Markdown under docs/ holds illustrative Python blocks; ruff must not rewrite them.
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
