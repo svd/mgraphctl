@@ -92,6 +92,108 @@ def test_mail_list_search_mode_and_unread_client_side(invoke, graph):
 
 
 @covers("mail list")
+def test_mail_list_search_mode_refilters_a_bound_with_a_time(invoke, graph):
+    """KQL compares dates only, so a bound with a time of day is re-applied client-side."""
+    route = graph.get(INBOX).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    message(id="AAMk-early", receivedDateTime="2026-08-31T08:15:00Z"),
+                    message(id="AAMk-late", receivedDateTime="2026-08-31T11:00:00Z"),
+                ]
+            },
+        )
+    )
+    result = invoke("mail", "list", "--search", "budget", "--after", "2026-08-31T12:00", "--json")
+    assert result.exit_code == 0, result.stderr
+    params = route.calls.last.request.url.params
+    assert params["$search"] == '"budget AND received>=2026-08-31"'
+    doc = json.loads(result.stdout)
+    assert [m["id"] for m in doc["items"]] == ["AAMk-late"]
+
+
+@covers("mail list")
+def test_mail_list_search_mode_refilters_an_upper_bound_with_a_time(invoke, graph):
+    graph.get(INBOX).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    message(id="AAMk-early", receivedDateTime="2026-08-31T08:15:00Z"),
+                    message(id="AAMk-late", receivedDateTime="2026-08-31T11:00:00Z"),
+                ]
+            },
+        )
+    )
+    result = invoke("mail", "list", "--search", "budget", "--before", "2026-08-31T12:00", "--json")
+    assert result.exit_code == 0, result.stderr
+    doc = json.loads(result.stdout)
+    assert [m["id"] for m in doc["items"]] == ["AAMk-early"]
+
+
+@covers("mail list")
+def test_mail_list_search_mode_leaves_a_date_only_bound_unfiltered(invoke, graph):
+    """A date-only bound already means what the KQL date means: no client-side pass at all."""
+    graph.get(INBOX).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    message(id="AAMk-early", receivedDateTime="2026-08-31T08:15:00Z"),
+                    message(id="AAMk-late", receivedDateTime="2026-08-31T11:00:00Z"),
+                ]
+            },
+        )
+    )
+    result = invoke(
+        "mail",
+        "list",
+        "--search",
+        "budget",
+        "--after",
+        "2026-08-31",
+        "--before",
+        "2026-08-31",
+        "--json",
+    )
+    assert result.exit_code == 0, result.stderr
+    doc = json.loads(result.stdout)
+    assert [m["id"] for m in doc["items"]] == ["AAMk-early", "AAMk-late"]
+
+
+@covers("mail list")
+def test_mail_list_search_post_filter_keeps_the_fetch_truncated(invoke, graph):
+    """Filtering happens after paging: a short page can still be a truncated one."""
+    graph.get(INBOX).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    message(id="AAMk-early", receivedDateTime="2026-08-31T08:15:00Z"),
+                    message(id="AAMk-late", receivedDateTime="2026-08-31T11:00:00Z"),
+                ],
+                "@odata.nextLink": f"{INBOX}?$skip=2",
+            },
+        )
+    )
+    result = invoke(
+        "mail",
+        "list",
+        "--search",
+        "budget",
+        "--after",
+        "2026-08-31T12:00",
+        "--limit",
+        "2",
+        "--json",
+    )
+    assert result.exit_code == 0, result.stderr
+    doc = json.loads(result.stdout)
+    assert doc["count"] == 1 and doc["truncated"] is True
+
+
+@covers("mail list")
 def test_mail_list_filter_mode_dates_and_unread(invoke, graph):
     route = graph.get(INBOX).mock(return_value=httpx.Response(200, json={"value": []}))
     result = invoke("mail", "list", "--after", "2026-08-01", "--before", "2026-08-31", "--unread")

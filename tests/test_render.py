@@ -241,3 +241,19 @@ def test_windows_table_anchor_entries():
     }.items():  # CLDR canonical ids
         assert render.WINDOWS_TO_IANA[win] == iana
     assert all(render.is_iana(v) for v in render.WINDOWS_TO_IANA.values())
+
+
+def test_has_time_of_day_recognises_day_boundaries():
+    tz = "Europe/Warsaw"
+    day_start = render.parse_dt("2026-08-31", tz)
+    day_end = render.parse_dt("2026-08-31", tz, end_of_day=True)
+    assert render.has_time_of_day(None, tz, end_of_day=False) is False
+    assert render.has_time_of_day(day_start, tz, end_of_day=False) is False
+    assert render.has_time_of_day(day_end, tz, end_of_day=True) is False
+    # A day's end is not a day's start, and vice versa.
+    assert render.has_time_of_day(day_end, tz, end_of_day=False) is True
+    assert render.has_time_of_day(day_start, tz, end_of_day=True) is True
+    assert render.has_time_of_day(render.parse_dt("2026-08-31T14:00", tz), tz, end_of_day=False)
+    # The boundary is the one in `tz`, not the one in the value's own offset.
+    noon_utc = render.parse_dt("2026-08-31T22:00:00Z", tz)
+    assert render.has_time_of_day(noon_utc, tz, end_of_day=False) is False

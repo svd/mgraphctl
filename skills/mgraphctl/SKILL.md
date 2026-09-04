@@ -305,6 +305,9 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl people search "Anna" --json
   Graph object as returned, never renamed. **Writes** return the created or updated object, or
   `{"status":"sent"}` / `{"status":"deleted","id":…}` / `{"status":"accepted"}` when Graph returns
   no body. A dry run returns `{"dryRun":true,"requests":[…]}`.
+- **KQL date bounds are handled for you.** In `mail list` search mode Graph compares dates only,
+  so the CLI re-filters the page on `receivedDateTime` when `--after`/`--before` carry a time of
+  day. Trust the returned items; `truncated` still describes the fetch, not the filtered list.
 - **Message order differs by mode.** `chats messages` and `teams channel messages` print oldest
   first in text, because that is how a thread reads; `--json` keeps Graph's own order, newest
   first. Do not assume one from the other.

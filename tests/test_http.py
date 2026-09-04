@@ -13,7 +13,15 @@ import pytest
 import respx
 
 from mgraphctl import errors
-from mgraphctl.http import BatchRequest, GraphClient, PlannedRequest, plan_to_json, plan_to_text
+from mgraphctl.http import (
+    BatchRequest,
+    GraphClient,
+    PageResult,
+    PlannedRequest,
+    filter_page,
+    plan_to_json,
+    plan_to_text,
+)
 
 V1 = "https://graph.microsoft.com/v1.0"
 
@@ -777,3 +785,23 @@ def test_debug_log_redacts(caplog, monkeypatch):
     assert '"uploadUrl": "https://up.example.com/s?<redacted>"' in body_lines[0]
     assert "s3cr3t-value" not in caplog.text and "t0ken" not in caplog.text
     assert "Authorization" not in caplog.text and "tok-1" not in caplog.text
+
+
+def test_filter_page_preserves_what_the_fetch_reported():
+    page = PageResult(items=[{"id": "a"}, {"id": "b"}, {"id": "c"}], truncated=True, pages=2)
+    assert page.fetched_count == 3
+    kept = filter_page(page, lambda item: item["id"] != "b")
+    assert [i["id"] for i in kept.items] == ["a", "c"]
+    assert kept.truncated is True and kept.pages == 2 and kept.fetched_count == 3
+
+
+def test_filter_page_returns_the_page_itself_when_nothing_is_dropped():
+    page = PageResult(items=[{"id": "a"}], truncated=False, pages=1)
+    assert filter_page(page, lambda item: True) is page
+
+
+def test_filter_page_chains_keep_the_original_fetch_count():
+    page = PageResult(items=[{"n": 1}, {"n": 2}, {"n": 3}], truncated=False, pages=1)
+    once = filter_page(page, lambda item: item["n"] > 1)
+    twice = filter_page(once, lambda item: item["n"] > 2)
+    assert twice.fetched_count == 3 and len(twice.items) == 1

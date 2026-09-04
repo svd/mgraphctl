@@ -13,3 +13,6 @@
   groups (`groups list`, `groups members`), unified `search`, raw `api`.
 - Every write verb supports `--dry-run`; stable exit codes (0/1/2/3/4); data commands never open
   a browser.
+- `mail list` search mode now re-filters the page on `receivedDateTime` when `--after`/`--before`
+  carry a time of day, so a bound like `--after 2026-09-02T14:00` no longer returns the whole of
+  2026-09-02. Date-only bounds are unaffected.

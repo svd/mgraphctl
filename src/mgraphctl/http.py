@@ -79,6 +79,29 @@ class PageResult:
     items: list[dict]
     truncated: bool
     pages: int
+    # Items retrieved from Graph before any client-side post-filter; None when nothing was
+    # filtered, in which case it equals len(items). Read it through `fetched_count`.
+    fetched: int | None = None
+
+    @property
+    def fetched_count(self) -> int:
+        """How many items the fetch itself returned, post-filtering included."""
+        return len(self.items) if self.fetched is None else self.fetched
+
+
+def filter_page(page: PageResult, keep: Callable[[dict], bool]) -> PageResult:
+    """Apply a client-side post-filter to `page`, preserving what the fetch reported.
+
+    `truncated` and `pages` describe the fetch and are never recomputed from the filtered
+    list: a page trimmed below `--limit` can still be truncated. `fetched` keeps the
+    pre-filter count so the JSON envelope can report both (spec §6.2).
+    """
+    kept = [item for item in page.items if keep(item)]
+    if len(kept) == len(page.items):
+        return page
+    return PageResult(
+        items=kept, truncated=page.truncated, pages=page.pages, fetched=page.fetched_count
+    )
 
 
 @dataclass

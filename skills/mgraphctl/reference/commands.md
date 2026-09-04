@@ -197,6 +197,11 @@ The escape hatch: one raw Graph request. `PATH` may be relative (`/me/messages`)
 - **Scopes:** `Mail.Read`
 - **Tier:** P0
 - **Notes:** in search mode `--unread` is applied client-side, because KQL has no `isRead` term.
+  So are `--after`/`--before` when they carry a time of day: KQL's `received` compares on the
+  calendar date only, so `--after 2026-09-02T14:00` reaches Graph as `received>=2026-09-02` and the
+  earlier part of that day is dropped here. A date-only bound needs no such pass and gets none.
+  Both passes run after paging, so a filtered page can be shorter than `--limit` while
+  `truncated` is still true.
   Columns: id, received, flags (`*` unread, `A` attachment, `!` high importance), from, subject.
   Node's `emails` mode listed the whole mailbox — pass `--folder all` for that.
 

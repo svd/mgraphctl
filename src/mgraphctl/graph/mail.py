@@ -6,6 +6,7 @@ Pure: client and parameters in, Graph dicts / `PageResult` / `Plan` out. Nothing
 from __future__ import annotations
 
 from base64 import b64encode
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import cached_property
@@ -25,8 +26,17 @@ from mgraphctl.http import (
     PageResult,
     Plan,
     PlannedRequest,
+    filter_page,
 )
-from mgraphctl.render import Column, fmt_dt, fmt_person, kql_date, truncate
+from mgraphctl.render import (
+    Column,
+    fmt_dt,
+    fmt_person,
+    has_time_of_day,
+    kql_date,
+    parse_graph_dt,
+    truncate,
+)
 
 LIST_SELECT = (
     "id,subject,from,toRecipients,ccRecipients,receivedDateTime,isRead,hasAttachments,"
@@ -138,6 +148,35 @@ def messages_path(folder_id: str | None) -> str:
     return odata.p("me", "mailFolders", folder_id, "messages")
 
 
+def _search_post_filter(
+    *, unread: bool, after: datetime | None, before: datetime | None, tz: str
+) -> Callable[[dict], bool] | None:
+    """The client-side pass a `$search` page needs, or None when the page can stand as fetched.
+
+    KQL has no `isRead` term, and its date properties compare on the calendar date only — so a
+    bound carrying a time of day has to be re-applied here against `receivedDateTime`. A
+    date-only bound already means what the KQL date means and is not re-filtered.
+    """
+    lower = after if has_time_of_day(after, tz, end_of_day=False) else None
+    upper = before if has_time_of_day(before, tz, end_of_day=True) else None
+    if not unread and lower is None and upper is None:
+        return None
+
+    def keep(message: dict) -> bool:
+        if unread and message.get("isRead"):
+            return False
+        if lower is None and upper is None:
+            return True
+        received = parse_graph_dt(message.get("receivedDateTime"))
+        if received is None:  # unparseable: keep it rather than silently drop a hit
+            return True
+        if lower is not None and received < lower:
+            return False
+        return upper is None or received <= upper
+
+    return keep
+
+
 def list_messages(
     client: GraphClient,
     *,
@@ -176,11 +215,8 @@ def list_messages(
             cap=CAP_LIST,
             page_size=PAGE_SEARCH,
         )
-        if unread:  # KQL has no isRead term, so drop the read ones here.
-            return PageResult(
-                [m for m in page.items if not m.get("isRead")], page.truncated, page.pages
-            )
-        return page
+        keep = _search_post_filter(unread=unread, after=after, before=before, tz=tz)
+        return page if keep is None else filter_page(page, keep)
     filters = []
     if after:
         filters.append(f"receivedDateTime ge {after.isoformat()}")

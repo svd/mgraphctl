@@ -465,6 +465,20 @@ def kql_date(dt: datetime, tz: str) -> str:
     return dt.astimezone(ZoneInfo(tz)).strftime("%Y-%m-%d")
 
 
+def has_time_of_day(dt: datetime | None, tz: str, *, end_of_day: bool) -> bool:
+    """Whether `dt` names a moment inside a day rather than that day's boundary in `tz`.
+
+    A bound that `parse_dt` produced from a date-only value lands exactly on the day's start
+    (or on 23:59:59 for an `end_of_day` bound), which is what a day-granular KQL date already
+    means — so callers can skip a client-side re-filter for those (spec §6.3).
+    """
+    if dt is None:
+        return False
+    local = dt.astimezone(ZoneInfo(tz))
+    boundary = (23, 59, 59) if end_of_day else (0, 0, 0)
+    return (local.hour, local.minute, local.second) != boundary or local.microsecond != 0
+
+
 def _console(natural_width: int) -> Console:
     width = max(int(os.environ.get("COLUMNS") or 200), natural_width)
     return Console(
