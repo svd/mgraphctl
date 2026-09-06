@@ -5,11 +5,16 @@ from __future__ import annotations
 
 import os
 import re
-import tomllib
+import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # tomllib is stdlib from 3.11; on 3.10 the same parser ships as tomli
+    import tomli as tomllib
 
 from mgraphctl import __version__
 

@@ -5,14 +5,14 @@ import json
 import logging
 import re
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
 import pytest
 import respx
 
-from mgraphctl import config, errors
+from mgraphctl import __version__, config, errors
 from mgraphctl.http import (
     BatchRequest,
     GraphClient,
@@ -138,7 +138,9 @@ def test_paginate_rejects_limit_below_one(client):
 
 @respx.mock
 def test_retry_after_http_date(client):
-    when = email.utils.format_datetime(datetime.now(UTC) + timedelta(seconds=90), usegmt=True)
+    when = email.utils.format_datetime(
+        datetime.now(timezone.utc) + timedelta(seconds=90), usegmt=True
+    )
     respx.get(f"{V1}/me").mock(
         side_effect=[
             httpx.Response(429, headers={"Retry-After": when}),
@@ -222,7 +224,7 @@ def test_default_headers(client):
     client.get("/me")
     headers = route.calls[0].request.headers
     assert headers["Accept"] == "application/json"
-    assert headers["User-Agent"] == "mgraphctl/0.1.0"
+    assert headers["User-Agent"] == f"mgraphctl/{__version__}"
     assert uuid.UUID(headers["client-request-id"]).version == 4
     assert headers["Authorization"] == "Bearer tok-1"
     assert "Prefer" not in headers

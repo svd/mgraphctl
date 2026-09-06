@@ -62,7 +62,7 @@ appending a paragraph per fix.
 ## Branches, CI and releases
 
 `dev` is where work lands. `main` receives merge commits from `dev` via pull request and is the
-release surface. `.github/workflows/ci.yml` runs tests on Python 3.11-3.13, ruff, `uv lock
+release surface. `.github/workflows/ci.yml` runs tests on Python 3.10-3.13, ruff, `uv lock
 --check` and the secret scan on every push and PR.
 
 | Artifact | Version source | Tag | Made with |

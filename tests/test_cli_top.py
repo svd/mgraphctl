@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from helpers import GRAPH, covers, mock_graph
-from mgraphctl import auth, config, token_store
+from mgraphctl import __version__, auth, config, token_store
 from mgraphctl.errors import AuthError
 
 WARSAW = ZoneInfo("Europe/Warsaw")
@@ -357,10 +357,11 @@ def test_version_command(invoke):
     r = invoke("version")
     assert r.exit_code == 0
     assert re.fullmatch(
-        r"mgraphctl 0\.1\.0 \(python 3\.1[123]\.\d+, msal \S+, httpx \S+\)", r.stdout.strip()
+        rf"mgraphctl {re.escape(__version__)} \(python 3\.1[0123]\.\d+, msal \S+, httpx \S+\)",
+        r.stdout.strip(),
     )
     doc = json.loads(invoke("version", "--json").stdout)
-    assert set(doc) == {"version", "python", "msal", "httpx"} and doc["version"] == "0.1.0"
+    assert set(doc) == {"version", "python", "msal", "httpx"} and doc["version"] == __version__
 
 
 @covers("me")

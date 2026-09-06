@@ -14,7 +14,7 @@ import time
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -399,7 +399,7 @@ class GraphClient:
                 return float(min(int(value), config.RETRY_AFTER_CAP))
             with contextlib.suppress(TypeError, ValueError):
                 when = email.utils.parsedate_to_datetime(value)
-                seconds = (when - datetime.now(UTC)).total_seconds()
+                seconds = (when - datetime.now(timezone.utc)).total_seconds()
                 return max(0.0, min(seconds, config.RETRY_AFTER_CAP))
         base = self.retry_base_ms / 1000
         return min(2**attempt * base, config.BACKOFF_CAP) + random.uniform(0, base)
