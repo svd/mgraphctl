@@ -72,3 +72,4 @@ summarises it.
 |-----|------|---------|
 | `mgraphctl--v0.1.0` | 2026-09-05 | Initial release: parity with `msgraph`, config file, keychain token storage, client id guard. |
 | `mgraphctl--v0.2.0` | 2026-09-06 | Python floor drops to 3.10, so the plugin runs under the Claude desktop app. |
+| `mgraphctl--v0.2.1` | 2026-09-06 | Command reference split into one file per noun. |

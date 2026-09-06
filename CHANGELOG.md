@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.1] — 2026-09-06
+
+- The skill's command reference is one file per noun. `reference/commands.md` keeps the
+  conventions every verb shares — argument resolution, the list envelope, paging defaults, exit
+  codes, environment variables — and indexes `reference/commands/<noun>.md`, so answering a
+  question about one noun reads roughly a tenth of what the single 87 KB file cost. `api` and
+  `search` move from the `config` section to `top-level.md`, where they belong.
+- SKILL.md documents the `config` verbs, which the cheat-sheet had omitted, and no longer
+  compares the CLI with the Node `msgraph` skill: the "Differences from" section is gone, as are
+  the P0/P1/P2 parity tiers. Where a verb needs more than the `default` scope set it now says so
+  in place, as `Beyond \`default\`:`; a verb without that line works with `default`.
+- The README links the skill's command documentation.
+
 ## [0.2.0] — 2026-09-06
 
 - The plugin runs under the Claude desktop app. The supported Python floor drops to 3.10

@@ -84,6 +84,22 @@ uv run --project <plugin> --frozen --no-dev mgraphctl login
 Every other command reads the cached sign-in silently and never opens a browser or a device-code
 prompt — a missing or expired token fails with an actionable hint instead.
 
+## Commands
+
+All 123 verbs are documented inside the skill, and `--help` works at every level.
+
+| Where | What |
+|---|---|
+| [`skills/mgraphctl/SKILL.md`](skills/mgraphctl/SKILL.md) | the skill itself: setup, a cheat-sheet of every noun and its verbs, recipes, guardrails, exit codes |
+| [`skills/mgraphctl/reference/commands.md`](skills/mgraphctl/reference/commands.md) | the conventions every verb shares — argument resolution, the list envelope, paging defaults, exit codes, environment variables — and the index of the files below |
+| [`skills/mgraphctl/reference/commands/`](skills/mgraphctl/reference/commands/) | one file per noun (`mail.md`, `calendar.md`, `teams.md`, …): each verb's options, the Graph call it makes and the scopes it needs |
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/mgraphctl --help
+${CLAUDE_PLUGIN_ROOT}/mgraphctl mail --help
+${CLAUDE_PLUGIN_ROOT}/mgraphctl mail list --help
+```
+
 ## Where things live
 
 - Virtual environment: under `${CLAUDE_PLUGIN_DATA}` when Claude Code sets it, otherwise

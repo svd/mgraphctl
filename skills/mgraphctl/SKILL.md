@@ -14,14 +14,15 @@ description: >
 allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/mgraphctl *)
 metadata:
   author: Sviatoslav Sviridov
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 # Microsoft Graph (Python CLI)
 
 Read the user's Microsoft 365 data and, with their confirmation, write to it. Every capability is
-one `noun verb` command. `reference/commands.md` in this skill directory has the full option table,
-Graph call, scopes and tier for all 118 verbs — open it whenever a flag is not on this page.
+one `noun verb` command. `reference/commands.md` in this skill directory holds the conventions
+they share and indexes `reference/commands/<noun>.md`, one file per noun, carrying the option
+table, Graph call and scopes for all 123 verbs. Open the one noun's file a task needs.
 
 ## Setup
 
@@ -70,12 +71,14 @@ command to run.
 
 ## Command cheat-sheet
 
-Two examples per noun. Full option tables are in `reference/commands.md`.
+Two examples per noun. Full option tables are in `reference/commands/<noun>.md`.
 
-**Top level** — `login`, `logout`, `status`, `claims`, `me`, `version`, `api`, `search`
+**Top level** — `login`, `logout`, `status`, `claims`, `me`, `version`, `api`, `search`, and
+`config path|show|init|set|unset`, which reads the user's setup — never change it unasked.
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl me --json
+${CLAUDE_PLUGIN_ROOT}/mgraphctl config show --json
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl search "quarterly plan" --type driveItem
 ```
 
@@ -240,9 +243,8 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl meetings list --start -1d --subject standup --re
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl meetings transcript MEETINGID TRANSCRIPTID --output /tmp/standup.txt
 ```
 
-Summarise the saved file. With a Microsoft 365 Copilot licence, ask Graph for the recap instead —
-this is Node's `transcripts --insights`, in two steps: resolve the meeting id with `meetings list
---subject … --resolve`, then
+Summarise the saved file. With a Microsoft 365 Copilot licence, ask Graph for the recap instead,
+in two steps: resolve the meeting id with `meetings list --subject … --resolve`, then
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl meetings insights MEETINGID --json
@@ -275,11 +277,9 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl people search "Anna" --json
    `onedrive mkdir`, `onedrive move`, `onedrive rename`, `onedrive delete`, `onedrive share`,
    `sharepoint upload`, `onenote create`, `planner create`, `planner update`, `planner complete`,
    `planner delete`, `todo create`, `todo update`, `todo complete`, `todo delete`,
-   `todo from-mail`, and any `api` call whose method is not GET. `--dry-run` withholds the
-   write; the GET lookups that turn names into ids (folder, calendar, team/channel, chat by
-   UPN, section, plan/bucket, To Do list, assignee UPN, and the message read by
-   `todo from-mail`) still run — pass ids (`id:`, GUID, `19:…`) for a fully offline dry run.
-   `chats dm --dry-run` alone makes no request.
+   `todo from-mail`, and any `api` call whose method is not GET. `--dry-run` withholds the write,
+   but the GET lookups that turn names into ids still run; pass ids (`id:`, GUID, `19:…`) for a
+   fully offline dry run. `reference/commands.md` lists which lookups those are.
 2. **Never run `login`.** Give the user the command and wait. No data command ever opens a browser.
 3. **Use `--json` when you are parsing, text when you are showing the user.** Text tables are made
    for reading; JSON is stable and complete.
@@ -353,8 +353,8 @@ Errors are one stderr block: `error[<CODE>]: <message>`, an optional `request-id
 
 Each of these (except `NO_COLOR`, `COLUMNS` and the proxies) can also live in
 `~/.mgraphctl/config.toml` as the name without `MGRAPHCTL_`, lower-cased; flag beats env beats
-file. `config show` prints every effective value and its source; `config set KEY VALUE` edits one.
-Do not set these yourself; they belong to the user's environment.
+file. `config show` prints every effective value and its source. Do not set these yourself; they
+belong to the user's environment.
 
 ## Scopes and consent
 
@@ -379,20 +379,3 @@ Three scopes are in neither set and are asked for one at a time with `login --sc
 Many tenants require an administrator to consent once before any of this works. `CONSENT_REQUIRED`
 prints the admin-consent URL — pass it to the user for their administrator. You cannot grant it,
 and retrying will not help.
-
-## Differences from the `msgraph` (Node) skill
-
-What changed:
-
-- Node's flag-driven modes became `noun verb`: `emails --read ID` is `mail read ID`,
-  `calendar --create` is `calendar create`, `teams --dm` is `chats dm`, `channels --team-id T
-  --send` is `teams channel send TEAM CHANNEL --body`.
-- `sharepoint --file-url URL` is `sharepoint url URL`; Node's `--dry-run` there is now `--info`.
-- The whole `transcripts` mode is the `meetings` noun: `transcripts --meeting M --transcript T` is
-  `meetings transcript M T`, and `transcripts --insights` is `meetings list --subject … --resolve`
-  followed by `meetings insights MEETINGID`.
-- `mail list` defaults to the Inbox, where Node listed the whole mailbox — pass `--folder all` for
-  the old behaviour.
-- Exit codes differ: auth failures are 3 and not-found is 4, where Node often exited 0 or 2. Check
-  the exit code, not just the text.
-- `org` has no summary mode; compose it from `org manager`, `org reports` and `people search`.

@@ -36,7 +36,8 @@ src/mgraphctl/
   config.py errors.py fixtures.py
 skills/mgraphctl/
   SKILL.md                     # the skill (<=400 lines; every verb via the shim)
-  reference/commands.md        # one `### noun verb` heading per registered verb
+  reference/commands.md        # shared conventions + index of the per-noun files
+  reference/commands/<noun>.md # one `### noun verb` heading per registered verb
   evals/evals.json
 tests/                         # test_cli_<noun>.py per noun; @covers ties tests to verbs
 .claude-plugin/                # plugin.json + single-entry marketplace.json
@@ -47,8 +48,9 @@ scripts/                       # stdlib-only helpers CI runs: scan_secrets.py, e
 
 ## Invariants the tests enforce
 
-- Every registered verb has a `@covers` test, a `--json` flag, and a heading in
-  `reference/commands.md` (`test_surface.py`, `test_docs.py`).
+- Every registered verb has a `@covers` test, a `--json` flag, and a heading in some
+  `reference/commands/<noun>.md`, which `reference/commands.md` links (`test_surface.py`,
+  `test_docs.py`).
 - The five version strings agree and are bare `X.Y.Z` (`test_version.py`).
 - SKILL.md frontmatter follows the Agent Skills rules: name pattern, description <= 1024 chars,
   no XML-shaped tags (`test_docs.py`).
