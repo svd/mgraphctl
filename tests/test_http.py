@@ -5,7 +5,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -138,7 +138,9 @@ def test_paginate_rejects_limit_below_one(client):
 
 @respx.mock
 def test_retry_after_http_date(client):
-    when = email.utils.format_datetime(datetime.now(UTC) + timedelta(seconds=90), usegmt=True)
+    when = email.utils.format_datetime(
+        datetime.now(timezone.utc) + timedelta(seconds=90), usegmt=True
+    )
     respx.get(f"{V1}/me").mock(
         side_effect=[
             httpx.Response(429, headers={"Retry-After": when}),

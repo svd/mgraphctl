@@ -181,7 +181,7 @@ uv run ruff format src tests
 The test suite runs entirely offline against recorded fixtures — no Microsoft 365 account or
 network access is needed to run it.
 
-CI (`.github/workflows/ci.yml`) runs the suite on Python 3.11–3.13, ruff, `uv lock --check` and a
+CI (`.github/workflows/ci.yml`) runs the suite on Python 3.10–3.13, ruff, `uv lock --check` and a
 credential scan on every push. Releases are annotated `mgraphctl--vX.Y.Z` tags on `main`, cut with
 `claude plugin tag`; the tag publishes the package to PyPI and a GitHub Release. See `VERSIONING.md`.
 

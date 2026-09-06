@@ -357,7 +357,7 @@ def test_version_command(invoke):
     r = invoke("version")
     assert r.exit_code == 0
     assert re.fullmatch(
-        r"mgraphctl 0\.1\.0 \(python 3\.1[123]\.\d+, msal \S+, httpx \S+\)", r.stdout.strip()
+        r"mgraphctl 0\.1\.0 \(python 3\.1[0123]\.\d+, msal \S+, httpx \S+\)", r.stdout.strip()
     )
     doc = json.loads(invoke("version", "--json").stdout)
     assert set(doc) == {"version", "python", "msal", "httpx"} and doc["version"] == "0.1.0"

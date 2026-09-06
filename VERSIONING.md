@@ -47,7 +47,7 @@ bind the owner too. Inspect with `gh api repos/svd/mgraphctl/rulesets`.
 
 | Ruleset | Applies to | Rules | Consequence |
 |---|---|---|---|
-| `main: PR + green CI only` | `refs/heads/main` | no deletion, no force push, pull request required, merge-commit only, required checks `test (3.11/3.12/3.13)`, `lint`, `secrets` (strict: branch must be current) | `git push origin main` is rejected for everyone; a release reaches `main` only through a PR whose CI is green; squash and rebase merges are refused |
+| `main: PR + green CI only` | `refs/heads/main` | no deletion, no force push, pull request required, merge-commit only, required checks `test (3.10/3.11/3.12/3.13)`, `lint`, `secrets` (strict: branch must be current) | `git push origin main` is rejected for everyone; a release reaches `main` only through a PR whose CI is green; squash and rebase merges are refused |
 | `release tags are immutable` | `refs/tags/mgraphctl--v*` | no deletion, no force push, no update | A published tag cannot be moved or removed, by anyone. Tag creation is unrestricted, so `claude plugin tag --push` works normally |
 
 Adding a CI job means adding its name to the required checks, or the ruleset silently stops
