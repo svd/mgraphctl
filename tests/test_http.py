@@ -12,7 +12,7 @@ import httpx
 import pytest
 import respx
 
-from mgraphctl import config, errors
+from mgraphctl import __version__, config, errors
 from mgraphctl.http import (
     BatchRequest,
     GraphClient,
@@ -224,7 +224,7 @@ def test_default_headers(client):
     client.get("/me")
     headers = route.calls[0].request.headers
     assert headers["Accept"] == "application/json"
-    assert headers["User-Agent"] == "mgraphctl/0.1.0"
+    assert headers["User-Agent"] == f"mgraphctl/{__version__}"
     assert uuid.UUID(headers["client-request-id"]).version == 4
     assert headers["Authorization"] == "Bearer tok-1"
     assert "Prefer" not in headers

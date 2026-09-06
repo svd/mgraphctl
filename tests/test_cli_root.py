@@ -6,11 +6,12 @@ import httpx
 import pytest
 
 from helpers import GRAPH
+from mgraphctl import __version__
 
 
 def test_version_flag(invoke):
     r = invoke("--version")
-    assert r.exit_code == 0 and r.stdout == "mgraphctl 0.1.0\n"
+    assert r.exit_code == 0 and r.stdout == f"mgraphctl {__version__}\n"
 
 
 def test_no_args_prints_help_exit_0(invoke):
