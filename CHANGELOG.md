@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.1] — 2026-09-06
 
 - The skill's command reference is one file per noun. `reference/commands.md` keeps the
   conventions every verb shares — argument resolution, the list envelope, paging defaults, exit
