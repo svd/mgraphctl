@@ -1,6 +1,6 @@
 """Shared drive-item operations for OneDrive and SharePoint (spec §8.11, §8.12)."""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -300,7 +300,7 @@ def test_rename_delete_share_plans(client):
         )
     ]
 
-    expires = datetime(2026, 12, 31, 23, 59, 59, tzinfo=UTC)
+    expires = datetime(2026, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
     share_plan2 = files.plan_share(
         client, "/me/drive", "id:x", link_type="edit", scope="anonymous", expires=expires
     )

@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+- The plugin runs under the Claude desktop app. The supported Python floor drops to 3.10
+  (`requires-python = ">=3.10,<3.14"`), so the shim and the PyPI package install on a 3.10
+  interpreter, which is what the desktop app offers. The two stdlib features that pinned 3.11
+  are gone: `tomllib` is imported from the `tomli` backport below 3.11, and `datetime.UTC`
+  became `datetime.timezone.utc`. CI runs the suite on 3.10 through 3.13; `main`'s required
+  checks now include `test (3.10)`.
+
 ## [0.1.0] — 2026-09-05
 
 - `login`, `status` and every silent token acquisition stop with `error[CONFIG]: client_id is

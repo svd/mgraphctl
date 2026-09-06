@@ -1,7 +1,7 @@
 """Rendering and datetime helpers (spec §6.2, §6.3)."""
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -20,9 +20,11 @@ def test_fmt_dt_converts_z_and_offsets_to_tz():
 
 
 def test_parse_graph_dt_treats_a_naive_timestamp_as_utc():
-    assert render.parse_graph_dt("2026-08-31T08:15:00") == datetime(2026, 8, 31, 8, 15, tzinfo=UTC)
+    assert render.parse_graph_dt("2026-08-31T08:15:00") == datetime(
+        2026, 8, 31, 8, 15, tzinfo=timezone.utc
+    )
     assert render.parse_graph_dt("2026-08-31T08:15:00.1234567Z") == datetime(
-        2026, 8, 31, 8, 15, 0, 123456, tzinfo=UTC
+        2026, 8, 31, 8, 15, 0, 123456, tzinfo=timezone.utc
     )
 
 
@@ -94,7 +96,7 @@ def test_parse_dt_forms(monkeypatch):
         2026, 9, 5, 14, 30, tzinfo=ZoneInfo(TZ)
     )
     assert render.parse_dt("2026-09-05T14:30:15Z", TZ) == datetime(
-        2026, 9, 5, 14, 30, 15, tzinfo=UTC
+        2026, 9, 5, 14, 30, 15, tzinfo=timezone.utc
     )
     assert render.parse_dt("2026-09-05T14:30+02:00", TZ).utcoffset() == timedelta(hours=2)
     assert render.parse_dt("now", TZ) == fixed
@@ -124,12 +126,12 @@ def test_parse_duration_and_iso():
 def test_to_graph_dtz_and_iso_offset_and_kql_date():
     dt = datetime(2026, 9, 5, 14, 30, tzinfo=ZoneInfo(TZ))
     assert render.to_graph_dtz(dt, TZ) == {"dateTime": "2026-09-05T14:30:00", "timeZone": TZ}
-    assert render.to_graph_dtz(datetime(2026, 9, 5, 12, 30, tzinfo=UTC), TZ) == {
+    assert render.to_graph_dtz(datetime(2026, 9, 5, 12, 30, tzinfo=timezone.utc), TZ) == {
         "dateTime": "2026-09-05T14:30:00",
         "timeZone": TZ,
     }
     assert render.to_iso_offset(dt) == "2026-09-05T14:30:00+02:00"
-    assert render.kql_date(datetime(2026, 9, 5, 23, 30, tzinfo=UTC), TZ) == "2026-09-06"
+    assert render.kql_date(datetime(2026, 9, 5, 23, 30, tzinfo=timezone.utc), TZ) == "2026-09-06"
 
 
 def test_fmt_size_and_person():
