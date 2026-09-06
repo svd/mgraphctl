@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] — 2026-09-06
 
 - The plugin runs under the Claude desktop app. The supported Python floor drops to 3.10
   (`requires-python = ">=3.10,<3.14"`), so the shim and the PyPI package install on a 3.10
