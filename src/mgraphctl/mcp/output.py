@@ -101,23 +101,29 @@ class OutputStore:
         return path
 
     def files(self) -> list[Path]:
-        if not self.root.exists():
+        # The resolved root, so a store reached through a symlink (`--output-dir /tmp/...` on
+        # macOS) still yields paths that `relative_to(root.resolve())` accepts.
+        root = self.root.resolve()
+        if not root.exists():
             return []
-        return sorted(p for p in self.root.rglob("*") if p.is_file())
+        return sorted(p for p in root.rglob("*") if p.is_file())
 
-    def read(self, uri: str) -> tuple[str, str]:
-        """The text of a `file://` URI this store produced, with its media type."""
-        prefix = "file://"
-        if not uri.startswith(prefix):
-            raise UsageError("USAGE", f"{uri!r} is not a file:// URI")
+    def read(self, uri: str) -> tuple[str | bytes, str]:
+        """One file this store produced, with its media type. Bytes when it is not text."""
         from urllib.parse import unquote, urlparse
 
-        path = Path(unquote(urlparse(uri).path))
+        parsed = urlparse(uri)
+        if parsed.scheme != "file":
+            raise UsageError("USAGE", f"{uri!r} is not a file:// URI")
+        if parsed.netloc not in ("", "localhost"):
+            raise UsageError("USAGE", f"{uri!r} names another host")
+        path = Path(unquote(parsed.path))
         if not self.contains(path):
             raise UsageError("USAGE", f"{uri!r} is outside the server's output directory")
         if not path.is_file():
             raise UsageError("USAGE", f"{uri!r} does not exist")
-        return path.read_text(), mime_for(path)
+        mime = mime_for(path)
+        return (path.read_text() if is_text(mime) else path.read_bytes()), mime
 
 
 def mime_for(path: Path) -> str:
@@ -125,13 +131,26 @@ def mime_for(path: Path) -> str:
     return guessed or MIME_TEXT
 
 
+def is_text(mime: str) -> bool:
+    """Whether a media type can be served as text; anything else goes back as a blob."""
+    return (
+        mime.startswith("text/")
+        or mime in {MIME_JSON, "application/xml"}
+        or (mime.startswith("application/") and mime.endswith(("+json", "+xml")))
+    )
+
+
 def link_to(store: OutputStore, path: Path) -> FileLink:
+    # Resolved on both sides: the store may be reached through a symlink, and a path built from
+    # the unresolved root would not be relative_to the resolved one.
+    resolved = Path(path).resolve()
+    root = store.root.resolve()
     return FileLink(
-        path=path,
-        uri=path.as_uri(),
-        name=str(path.relative_to(store.root.resolve())) if store.contains(path) else path.name,
-        mime=mime_for(path),
-        bytes=path.stat().st_size,
+        path=resolved,
+        uri=resolved.as_uri(),
+        name=str(resolved.relative_to(root)) if store.contains(resolved) else resolved.name,
+        mime=mime_for(resolved),
+        bytes=resolved.stat().st_size,
     )
 
 

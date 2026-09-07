@@ -1,5 +1,6 @@
 """The server end to end, over the SDK's in-memory transport (MCP spec §4, §5)."""
 
+import base64
 import json
 
 import httpx
@@ -278,6 +279,24 @@ async def test_an_omitted_destination_lands_in_the_output_directory(
     assert (settings.store().root / "report.pdf").read_bytes() == b"Hello Graph!"
     assert not (tmp_path / "report.pdf").exists()
     assert links_of(result)[0].uri.endswith("/report.pdf")
+
+
+async def test_a_downloaded_binary_reads_back_as_a_blob(app, tmp_path, graph, monkeypatch):
+    """`resources/read` on a PNG must not try to decode it as text."""
+    settings = server.Settings(capabilities=["onedrive"], output_dir=tmp_path / "out")
+    monkeypatch.chdir(server.enter_output_dir(settings.store()))
+    mock_graph(graph, "onedrive/download")
+    graph.get("https://files.contoso.example/blob", params__contains={"tempauth": "abc"}).mock(
+        return_value=httpx.Response(200, content=b"\x89PNG\r\n\x1a\n")
+    )
+    async with Client(server.build(settings, app)) as client:
+        result = await client.call_tool(
+            "onedrive_download", {"ref": "01ABCDEFGHIJKLMNOPQRSTUV", "output": "shot.png"}
+        )
+        read = await client.read_resource(links_of(result)[0].uri)
+    contents = read.contents[0]
+    assert contents.mime_type == "image/png"
+    assert base64.b64decode(contents.blob) == b"\x89PNG\r\n\x1a\n"
 
 
 async def test_output_format_reaches_a_verb_that_shapes_its_result_by_it(app, tmp_path, graph):

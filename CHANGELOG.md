@@ -22,7 +22,8 @@
     to be an OAuth resource server; `stdio` is the recommended transport. README explains why.
   - Every path a tool argument names is confined to `--output-dir`, including files a verb reads
     (`--attach`, `--body-file`) rather than writes, and the server runs from inside that directory
-    so a verb's own default destination cannot land elsewhere.
+    so a verb's own default destination cannot land elsewhere. A downloaded file that is not text
+    reads back through `resources/read` as a blob.
 - `render.emit` splits into `to_text`, `notes` and `to_json`, so a caller that does not own stdout
   can render a result. The CLI's output is unchanged.
 - `auth.app()` and `auth.save_cache()` take a lock. The CLI is single-threaded, but the MCP server

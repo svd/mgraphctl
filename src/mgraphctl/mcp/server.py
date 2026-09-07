@@ -14,6 +14,7 @@ instead of the `isError` result a model can recover from.
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import functools
 import inspect
@@ -246,10 +247,17 @@ def build(settings: Settings | None = None, app: typer.Typer | None = None) -> S
         )
 
     async def read_resource(ctx: Any, params: types.ReadResourceRequestParams) -> Any:
-        text, mime = store.read(str(params.uri))
-        return types.ReadResourceResult(
-            contents=[types.TextResourceContents(uri=str(params.uri), mime_type=mime, text=text)]
-        )
+        uri = str(params.uri)
+        data, mime = store.read(uri)
+        # A downloaded file need not be text: reading one as text would raise, and an exception
+        # out of a handler is an opaque protocol error rather than something a model can act on.
+        if isinstance(data, bytes):
+            contents = types.BlobResourceContents(
+                uri=uri, mime_type=mime, blob=base64.b64encode(data).decode()
+            )
+        else:
+            contents = types.TextResourceContents(uri=uri, mime_type=mime, text=data)
+        return types.ReadResourceResult(contents=[contents])
 
     return Server(
         "mgraphctl",

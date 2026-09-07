@@ -126,6 +126,38 @@ def test_the_store_lists_and_reads_back_what_it_holds(store):
     assert json.loads(text)["count"] == 3 and mime == "application/json"
 
 
+def test_a_binary_file_reads_back_as_bytes(store):
+    """A downloaded image is not text; reading it as text would raise."""
+    store.ensure()
+    (store.root / "shot.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    data, mime = store.read((store.root / "shot.png").as_uri())
+    assert data == b"\x89PNG\r\n\x1a\n" and mime == "image/png"
+    assert output.is_text("application/json") and output.is_text("text/csv")
+    assert not output.is_text("image/png") and not output.is_text("application/pdf")
+
+
+def test_a_store_reached_through_a_symlink_still_lists_its_files(tmp_path):
+    """`--output-dir /tmp/...` on macOS: /tmp is a symlink, so root != root.resolve()."""
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    store = output.OutputStore(link)
+    store.write("run.json", "{}")
+    files = store.files()
+    assert files and all(f.is_relative_to(store.root.resolve()) for f in files)
+    assert output.link_to(store, files[0]).name == "run.json"
+    # A verb's own destination is joined to the unresolved root; linking it must still work.
+    assert output.link_to(store, store.root / "run.json").name == "run.json"
+
+
+def test_a_file_uri_naming_another_host_is_refused(store):
+    store.ensure()
+    (store.root / "a.txt").write_text("x")
+    with pytest.raises(UsageError):
+        store.read("file://evil.example/" + str(store.root.resolve() / "a.txt").lstrip("/"))
+
+
 def test_reading_outside_the_store_is_refused(store, tmp_path):
     outsider = tmp_path / "secret.txt"
     outsider.write_text("nope")
