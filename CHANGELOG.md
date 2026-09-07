@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.0] — 2026-09-08
 
 - An MCP server, `mgraphctl mcp serve`, exposing the CLI's verbs as tools to any MCP client. The
   tool set is generated from the command tree, so a new verb is a new tool; `mcp tools` prints
