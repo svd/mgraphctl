@@ -1,6 +1,6 @@
 # mgraphctl
 
-Microsoft 365 access from Claude Code through the Microsoft Graph API: Outlook mail and
+Microsoft 365 access from Claude Code and Codex through the Microsoft Graph API: Outlook mail and
 calendar, Teams chats and channel messages, presence, meetings and transcripts, SharePoint,
 OneDrive, OneNote, Planner, Microsoft To Do, AI meeting insights, contacts, and the org chart.
 
@@ -15,12 +15,33 @@ verb supports `--dry-run`, and no data command ever opens a browser.
 
 ## Install
 
+### Claude Code
+
 ```bash
 claude plugin marketplace add svd/mgraphctl
 claude plugin install mgraphctl@mgraphctl
 ```
 
-The CLI is also on PyPI for use outside Claude Code, under the same version as the plugin:
+### Codex
+
+```bash
+codex plugin marketplace add svd/mgraphctl --ref main
+codex plugin add mgraphctl@mgraphctl
+```
+
+Start a new Codex task after installation to load the skill. For development, register this
+checkout instead with `codex plugin marketplace add /absolute/path/to/mgraphctl`, then run the
+same `codex plugin add` command. The marketplace packages the entire repository so the skill,
+launcher, Python sources and lockfile stay together.
+
+The skill resolves the launcher from its installed location. In Codex, replace
+`${CLAUDE_PLUGIN_ROOT}/mgraphctl` in the examples below with the quoted absolute launcher path
+reported by the skill. That Claude variable is not required in Codex. For login in your own
+terminal, use the actual absolute path, not the variable.
+
+### Standalone CLI
+
+The CLI is also on PyPI, under the same version as the plugin:
 
 ```bash
 uv tool install mgraphctl      # or: pipx install mgraphctl / uvx mgraphctl status
@@ -59,7 +80,7 @@ Check status first — it never opens a browser and always says what to do next:
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl status
 ```
 
-Signing in is interactive, so run it yourself in your own terminal rather than asking Claude to
+Signing in is interactive, so run it yourself in your own terminal rather than asking the agent to
 run it for you:
 
 ```bash

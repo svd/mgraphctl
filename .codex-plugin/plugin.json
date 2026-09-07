@@ -1,0 +1,26 @@
+{
+  "name": "mgraphctl",
+  "version": "0.2.1",
+  "description": "Work with Microsoft 365 through the Microsoft Graph API using a bundled Python CLI run with uv.",
+  "author": {
+    "name": "Sviatoslav Sviridov",
+    "email": "sviridov@gmail.com"
+  },
+  "repository": "https://github.com/svd/mgraphctl",
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "mgraphctl",
+    "shortDescription": "Microsoft 365 mail, meetings, files, and tasks",
+    "longDescription": "Use Outlook, Teams, SharePoint, OneDrive, OneNote, Planner, and To Do through Microsoft Graph. Requires uv and a user-configured Entra application and login.",
+    "developerName": "Sviatoslav Sviridov",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://github.com/svd/mgraphctl",
+    "defaultPrompt": [
+      "Summarize my unread emails.",
+      "Show my meetings for today.",
+      "Find my open tasks."
+    ]
+  }
+}

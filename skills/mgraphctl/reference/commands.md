@@ -14,7 +14,10 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl mail list --unread --limit 10
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel send TEAM CHANNEL --body "hi" --dry-run
 ```
 
-There is no alias and no shorter spelling: `${CLAUDE_PLUGIN_ROOT}` is the only variable that ever
+In Codex, replace `${CLAUDE_PLUGIN_ROOT}/mgraphctl` in every example with the quoted absolute
+launcher path resolved from the loaded skill, as described in [Setup](../SKILL.md#setup).
+
+In Claude Code there is no alias or shorter spelling: `${CLAUDE_PLUGIN_ROOT}` is the only variable that ever
 appears in a command line.
 
 - **Scopes** — the scopes the local gate checks before the first request. "A or B" means either

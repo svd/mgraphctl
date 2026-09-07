@@ -1,18 +1,23 @@
 # Versioning
 
-Two artifacts ship from this repo at one shared version: the `mgraphctl` Claude Code plugin,
+Three artifacts ship from this repo at one shared version: the `mgraphctl` Claude Code and Codex plugins,
 installed straight from a git ref, and the `mgraphctl` Python package on PyPI, for the CLI on
 its own. A release is a commit on `main` carrying a bare `X.Y.Z` version, plus the annotated
 tag `mgraphctl--vX.Y.Z` that `claude plugin tag` creates on it. The tag is the distribution:
-the marketplace entry points at it, and pushing it runs the workflow that publishes to PyPI.
+Claude installs that tag; Codex installs its configured ref. Pushing the tag publishes to PyPI.
 
 | Artifact | Channel | Consumer command |
 |---|---|---|
-| plugin | git tag via marketplace | `claude plugin install mgraphctl@mgraphctl` |
+| Claude Code plugin | git tag via marketplace | `claude plugin install mgraphctl@mgraphctl` |
+| Codex plugin | git ref via marketplace | `codex plugin add mgraphctl@mgraphctl` |
 | package | PyPI | `uv tool install mgraphctl` |
 
-One version, not two, because the skill calls the CLI through the shim from the same checkout:
+One shared version, because the skill calls the CLI through the shim from the same checkout:
 a skill change and a CLI change are always released together, so nothing needs to drift.
+
+Codex follows the ref configured with `codex plugin marketplace add svd/mgraphctl --ref main`.
+To pin a release, use `--ref mgraphctl--vX.Y.Z`. Its marketplace entry points at the repository
+root and has no separate version field; the Codex plugin manifest carries the version.
 
 ## Bump rules
 
@@ -28,8 +33,8 @@ Choose the highest bump the range since the last tag warrants.
 
 ## Conventions
 
-- The version is one string held in five places, all bare `X.Y.Z`: `pyproject.toml`,
-  `src/mgraphctl/__init__.py`, `.claude-plugin/plugin.json`, the `mgraphctl` entry in
+- The version is one string held in six places, all bare `X.Y.Z`: `pyproject.toml`,
+  `src/mgraphctl/__init__.py`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, the `mgraphctl` entry in
   `.claude-plugin/marketplace.json`, and `metadata.version` in `skills/mgraphctl/SKILL.md`.
   `tests/test_version.py` fails if any two disagree, and rejects `-SNAPSHOT` / `.devN` suffixes.
 - Between releases the version stays at the last released value. Pending work accumulates under

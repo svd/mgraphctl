@@ -1,7 +1,7 @@
 """Every version string in the repo must agree (spec §2.3, VERSIONING.md).
 
-Five surfaces carry the version: the package (`mgraphctl.__version__` and the installed
-metadata), the plugin manifest, the plugin's own marketplace entry, and the skill's frontmatter.
+Six surfaces carry the version: the package (`mgraphctl.__version__` and the installed
+metadata), the two plugin manifests, the Claude marketplace entry, and the skill's frontmatter.
 `claude plugin tag` checks the two manifests against each other; this test ties the rest to them.
 """
 
@@ -25,6 +25,8 @@ RELEASE_VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 def test_versions_agree():
     assert mgraphctl.__version__ == importlib.metadata.version("mgraphctl")
     assert json.loads(PLUGIN_JSON.read_text())["version"] == mgraphctl.__version__
+    codex_plugin = ROOT / ".codex-plugin" / "plugin.json"
+    assert json.loads(codex_plugin.read_text())["version"] == mgraphctl.__version__
 
 
 def test_marketplace_entry_agrees():
