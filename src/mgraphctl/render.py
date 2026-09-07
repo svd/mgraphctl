@@ -6,6 +6,7 @@ Spec §6.2, §6.3, §7.3.
 from __future__ import annotations
 
 import functools
+import io
 import json
 import os
 import re
@@ -15,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from rich.console import Console
@@ -521,10 +522,10 @@ def has_time_of_day(dt: datetime | None, tz: str, *, end_of_day: bool) -> bool:
     return (local.hour, local.minute, local.second) != boundary or local.microsecond != 0
 
 
-def _console(natural_width: int) -> Console:
+def _console(natural_width: int, file: IO[str]) -> Console:
     width = max(int(os.environ.get("COLUMNS") or 200), natural_width)
     return Console(
-        file=sys.stdout,
+        file=file,
         width=width,
         force_terminal=False,
         no_color="NO_COLOR" in os.environ,
@@ -543,33 +544,64 @@ def _cell(col: Column, item: dict) -> str:
     return str(value)
 
 
-def _emit_list(res: ListResult) -> None:
+def _write_list(res: ListResult, out: IO[str]) -> None:
     if not res.items:
-        sys.stdout.write(res.empty_text + "\n")
-    else:
-        rows = [[_cell(c, it) for c in res.columns] for it in res.items]
-        widths = [max(len(c.header), *(len(r[i]) for r in rows)) for i, c in enumerate(res.columns)]
-        table = Table(
-            box=None, show_edge=False, pad_edge=False, padding=(0, 2), header_style="bold"
-        )
-        for c in res.columns:
-            table.add_column(c.header, no_wrap=True, overflow="ignore")
-        for r in rows:
-            table.add_row(*r)
-        # padding=(0, 2) with pad_edge=False puts a 2-char pad on each side of every internal
-        # column boundary (4 chars per gap) and none at the table's outer edges.
-        natural_width = sum(widths) + 4 * (len(widths) - 1)
-        _console(natural_width).print(table)
-    if res.truncated:
-        if res.hit_cap:
-            note(f"(hit the {res.hit_cap}-item cap — narrow the query)")
-        elif res.supports_all:
-            note("(more results available — rerun with --all)")
-        else:
-            note("(more results available — raise --limit)")
+        out.write(res.empty_text + "\n")
+        return
+    rows = [[_cell(c, it) for c in res.columns] for it in res.items]
+    widths = [max(len(c.header), *(len(r[i]) for r in rows)) for i, c in enumerate(res.columns)]
+    table = Table(box=None, show_edge=False, pad_edge=False, padding=(0, 2), header_style="bold")
+    for c in res.columns:
+        table.add_column(c.header, no_wrap=True, overflow="ignore")
+    for r in rows:
+        table.add_row(*r)
+    # padding=(0, 2) with pad_edge=False puts a 2-char pad on each side of every internal
+    # column boundary (4 chars per gap) and none at the table's outer edges.
+    natural_width = sum(widths) + 4 * (len(widths) - 1)
+    _console(natural_width, out).print(table)
 
 
-def _to_json(result: Result) -> Any:
+def _write(result: Result, out: IO[str]) -> None:
+    """The body of `result`, written to `out`. Notes are `notes()`; they are not part of it."""
+    match result:
+        case ListResult():
+            _write_list(result, out)
+        case ObjectResult():
+            width = max(len(label) for label, _ in result.fields)
+            for label, path in result.fields:
+                value = path(result.obj) if callable(path) else dig(result.obj, path)
+                out.write(f"{label:<{width}} : {'' if value is None else value}\n")
+            if result.body is not None:
+                out.write("\n" + result.body.rstrip("\n") + "\n")
+        case TextResult():
+            out.write(result.text.rstrip("\n") + "\n")
+        case WriteResult() | FileResult():
+            out.write(result.message + "\n")
+        case DryRunResult():
+            from mgraphctl.http import plan_to_text
+
+            out.write(plan_to_text(result.plan))
+
+
+def to_text(result: Result) -> str:
+    """The text body `emit` writes to stdout, as a string."""
+    buffer = io.StringIO()
+    _write(result, buffer)
+    return buffer.getvalue()
+
+
+def notes(result: Result) -> list[str]:
+    """The diagnostic lines `emit` writes to stderr: how the fetch was cut short, if it was."""
+    if not isinstance(result, ListResult) or not result.truncated:
+        return []
+    if result.hit_cap:
+        return [f"(hit the {result.hit_cap}-item cap — narrow the query)"]
+    if result.supports_all:
+        return ["(more results available — rerun with --all)"]
+    return ["(more results available — raise --limit)"]
+
+
+def to_json(result: Result) -> Any:
     match result:
         case ListResult():
             envelope: dict[str, Any] = {
@@ -605,23 +637,8 @@ def _to_json(result: Result) -> Any:
 def emit(result: Result, *, json_mode: bool) -> None:
     """Render `result` to stdout: one JSON document, or the appropriate text form."""
     if json_mode:
-        sys.stdout.write(json.dumps(_to_json(result), indent=2, ensure_ascii=False) + "\n")
+        sys.stdout.write(json.dumps(to_json(result), indent=2, ensure_ascii=False) + "\n")
         return
-    match result:
-        case ListResult():
-            _emit_list(result)
-        case ObjectResult():
-            width = max(len(label) for label, _ in result.fields)
-            for label, path in result.fields:
-                value = path(result.obj) if callable(path) else dig(result.obj, path)
-                sys.stdout.write(f"{label:<{width}} : {'' if value is None else value}\n")
-            if result.body is not None:
-                sys.stdout.write("\n" + result.body.rstrip("\n") + "\n")
-        case TextResult():
-            sys.stdout.write(result.text.rstrip("\n") + "\n")
-        case WriteResult() | FileResult():
-            sys.stdout.write(result.message + "\n")
-        case DryRunResult():
-            from mgraphctl.http import plan_to_text
-
-            sys.stdout.write(plan_to_text(result.plan))
+    _write(result, sys.stdout)
+    for line in notes(result):
+        note(line)

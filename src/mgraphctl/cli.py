@@ -167,6 +167,10 @@ def graph_command(*, scopes: list[str]) -> Callable[[F], F]:
         annotations["ctx"] = typer.Context
         wrapper.__annotations__ = annotations
         wrapper.__graph_scopes__ = list(scopes)
+        # The MCP server calls the verb directly to get its `Result` back instead of printed.
+        # `__wrapped__` cannot serve: typer wraps this wrapper again, so the chain's first link
+        # is the wrapper itself. `functools.wraps` copies `__dict__`, so this attribute survives.
+        wrapper.__graph_fn__ = fn
         return wrapper  # type: ignore[return-value]
 
     return decorate
@@ -246,11 +250,12 @@ def build_app() -> typer.Typer:
         ctx.obj = Globals(debug=level, tz=zone, beta=beta, flag_keys=frozenset(flag_keys))
         _noargs_help(ctx)
 
-    from mgraphctl.commands import api, config_cmd, register_all, top
+    from mgraphctl.commands import api, config_cmd, mcp_cmd, register_all, top
 
     top.register(root)
     api.register(root)
     config_cmd.register(root)
+    mcp_cmd.register(root)
     register_all(root)
     return root
 
