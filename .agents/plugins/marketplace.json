@@ -1,0 +1,20 @@
+{
+  "name": "mgraphctl",
+  "interface": {
+    "displayName": "mgraphctl"
+  },
+  "plugins": [
+    {
+      "name": "mgraphctl",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -19,7 +19,7 @@ claude --plugin-dir ~/src/mgraphctl   # try the skill without installing the plu
 
 ## What this repo is
 
-A Claude Code plugin with one skill, `mgraphctl`, backed by a Python CLI of the same name.
+A Claude Code and Codex plugin with one shared skill, `mgraphctl`, backed by a Python CLI of the same name.
 The root `mgraphctl` shim runs `uv run --project <repo> --frozen --no-dev mgraphctl`, creating
 the venv on first use. The marketplace installs the repo at a tag; the same tag publishes the CLI to PyPI as `mgraphctl`.
 
@@ -40,7 +40,9 @@ skills/mgraphctl/
   reference/commands/<noun>.md # one `### noun verb` heading per registered verb
   evals/evals.json
 tests/                         # test_cli_<noun>.py per noun; @covers ties tests to verbs
-.claude-plugin/                # plugin.json + single-entry marketplace.json
+.claude-plugin/                # Claude plugin.json + marketplace.json
+.codex-plugin/                 # Codex plugin.json
+.agents/plugins/               # Codex marketplace.json
 .claude/skills/releasing-a-version/
 docs/{specs,plans,research}/   # design history; ruff excludes docs/
 scripts/                       # stdlib-only helpers CI runs: scan_secrets.py, extract-changelog.sh
@@ -51,7 +53,7 @@ scripts/                       # stdlib-only helpers CI runs: scan_secrets.py, e
 - Every registered verb has a `@covers` test, a `--json` flag, and a heading in some
   `reference/commands/<noun>.md`, which `reference/commands.md` links (`test_surface.py`,
   `test_docs.py`).
-- The five version strings agree and are bare `X.Y.Z` (`test_version.py`).
+- The six version strings agree and are bare `X.Y.Z` (`test_version.py`).
 - SKILL.md frontmatter follows the Agent Skills rules: name pattern, description <= 1024 chars,
   no XML-shaped tags (`test_docs.py`).
 
@@ -69,7 +71,7 @@ release surface. `.github/workflows/ci.yml` runs tests on Python 3.10-3.13, ruff
 
 | Artifact | Version source | Tag | Made with |
 |---|---|---|---|
-| mgraphctl plugin | `plugin.json` (+ four mirrors, see VERSIONING.md) | `mgraphctl--vX.Y.Z` on `main` | `claude plugin tag --push .` |
+| mgraphctl plugin | `plugin.json` (+ five mirrors, see VERSIONING.md) | `mgraphctl--vX.Y.Z` on `main` | `claude plugin tag --push .` |
 | mgraphctl on PyPI | `pyproject.toml` (same version) | same tag | the tag's Release workflow, Trusted Publishing |
 
 Pushing the tag runs `.github/workflows/release.yml`: annotated-tag and version checks, the

@@ -1,17 +1,18 @@
 ---
 name: releasing-a-version
-description: Use when releasing, cutting, tagging, or shipping a new version of the mgraphctl plugin - bumping the five version strings, rolling the CHANGELOG [Unreleased] block into a dated header, opening the dev->main pull request, and cutting the mgraphctl--vX.Y.Z tag with `claude plugin tag`. Specific to the mgraphctl repo.
+description: Use when releasing, cutting, tagging, or shipping a new version of the mgraphctl plugin - bumping the six version strings, rolling the CHANGELOG [Unreleased] block into a dated header, opening the dev->main pull request, and cutting the mgraphctl--vX.Y.Z tag with `claude plugin tag`. Specific to the mgraphctl repo.
 ---
 
 # Releasing a version
 
-Two artifacts ship from this repo at one version, from one tag: the plugin (the marketplace
-installs the repo at the tag) and the `mgraphctl` package on PyPI (published by the tag's
-workflow). Rules live in `VERSIONING.md`.
+Three artifacts ship from this repo at one version: the Claude Code and Codex plugins and the
+`mgraphctl` package on PyPI. Claude installs the release tag; Codex installs its configured Git
+ref (`main` by default, or an explicit release tag). The tag publishes the PyPI package.
+Rules live in `VERSIONING.md`.
 
 | Artifact | Version files | Tag form | Tag branch |
 |---|---|---|---|
-| mgraphctl plugin | `pyproject.toml`, `src/mgraphctl/__init__.py`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` (`plugins[name=mgraphctl].version`), `skills/mgraphctl/SKILL.md` (`metadata.version`) | `mgraphctl--vX.Y.Z` (annotated, via `claude plugin tag`) | `main` only |
+| mgraphctl plugin | `pyproject.toml`, `src/mgraphctl/__init__.py`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.claude-plugin/marketplace.json` (`plugins[name=mgraphctl].version`), `skills/mgraphctl/SKILL.md` (`metadata.version`) | `mgraphctl--vX.Y.Z` (annotated, via `claude plugin tag`) | `main` only |
 
 `marketplace.json` top-level `version` is the catalog's own version — leave it alone.
 
@@ -67,12 +68,13 @@ Skipping it is a valid choice, but say so in the release notes if a known fix is
 
 ## Step 3 - Release commit on `dev`
 
-Set the version in all five files. `uv version` handles the first and keeps `uv.lock` in step;
+Set the version in all six files. `uv version` handles the first and keeps `uv.lock` in step;
 the rest are direct edits:
 
 ```bash
 uv version X.Y.Z                                   # pyproject.toml + uv.lock
 # src/mgraphctl/__init__.py            __version__ = "X.Y.Z"
+# .codex-plugin/plugin.json            "version": "X.Y.Z"
 # .claude-plugin/plugin.json           "version": "X.Y.Z"
 # .claude-plugin/marketplace.json      plugins[0].version = "X.Y.Z"   (not the top-level one)
 # skills/mgraphctl/SKILL.md            metadata.version: "X.Y.Z"
@@ -85,8 +87,8 @@ post-release change, so the file never carries an empty section.
 `VERSIONING.md`: add a row to the version-history table.
 
 ```bash
-uv run pytest tests/test_version.py tests/test_docs.py -q     # the five strings agree
-git add pyproject.toml uv.lock src/mgraphctl/__init__.py .claude-plugin/ skills/mgraphctl/SKILL.md CHANGELOG.md VERSIONING.md
+uv run pytest tests/test_version.py tests/test_docs.py -q     # the six strings agree
+git add pyproject.toml uv.lock src/mgraphctl/__init__.py .claude-plugin/ .codex-plugin/ skills/mgraphctl/SKILL.md CHANGELOG.md VERSIONING.md
 git commit -m "$(cat <<'EOF'
 chore(release): vX.Y.Z
 
@@ -154,7 +156,7 @@ entry's `source.ref` to `mgraphctl--vX.Y.Z` there and release that repo per its 
 
 | Mistake | Effect |
 |---|---|
-| Bumped some of the five version files | `test_version.py` fails; `claude plugin tag` refuses if the two manifests disagree |
+| Bumped some of the six version files | `test_version.py` fails; `claude plugin tag` refuses if the two manifests disagree |
 | Touched `marketplace.json` top-level `version` | That is the catalog's version, unrelated to the plugin |
 | Left `[Unreleased]` undated | Release workflow fails: no CHANGELOG section for the version |
 | Ran `claude plugin tag` on `dev` | Tags HEAD wherever you are; consumers pin a commit that may never reach `main` |

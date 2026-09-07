@@ -1,8 +1,8 @@
 name: Release
 
-# Fires on the tags `claude plugin tag` creates: mgraphctl--vX.Y.Z. One tag ships two
-# things at one version: the plugin (the marketplace installs the repo at the tag) and the
-# `mgraphctl` package on PyPI (Trusted Publishing, no stored token). The GitHub Release
+# Fires on the tags `claude plugin tag` creates: mgraphctl--vX.Y.Z. One tag ships three
+# things at one version: the Claude Code and Codex plugins and the `mgraphctl` package
+# on PyPI (Trusted Publishing, no stored token). The GitHub Release
 # page comes last, with notes from CHANGELOG.md; no build artifacts are attached to it,
 # PyPI is the one place the wheel lives.
 on:
@@ -34,8 +34,9 @@ jobs:
           tag="${GITHUB_REF_NAME#mgraphctl--v}"
           plugin=$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')
           pkg=$(grep -m1 -E '^version *= *"' pyproject.toml | sed -E 's/.*"(.*)".*/\1/')
-          if [ "$tag" != "$plugin" ] || [ "$tag" != "$pkg" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match plugin.json ($plugin) / pyproject.toml ($pkg)"
+          codex=$(python3 -c 'import json; print(json.load(open(".codex-plugin/plugin.json"))["version"])')
+          if [ "$tag" != "$codex" ] || [ "$tag" != "$plugin" ] || [ "$tag" != "$pkg" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match Claude ($plugin) / Codex ($codex) / pyproject.toml ($pkg)"
             exit 1
           fi
 
@@ -68,7 +69,7 @@ jobs:
           if [ ! -s notes.md ]; then
             echo "No CHANGELOG.md section '## [$version] — <date>'"; exit 1
           fi
-          printf '\n---\n\nPlugin: `claude plugin marketplace add svd/mgraphctl` then `claude plugin install mgraphctl@mgraphctl`\n\nCLI only: `uv tool install mgraphctl==%s` · [PyPI](https://pypi.org/project/mgraphctl/%s/)\n' \
+          printf '\n---\n\nPlugin: `claude plugin marketplace add svd/mgraphctl` then `claude plugin install mgraphctl@mgraphctl`\n\nCodex: `codex plugin marketplace add svd/mgraphctl --ref main` then `codex plugin add mgraphctl@mgraphctl`\n\nCLI only: `uv tool install mgraphctl==%s` · [PyPI](https://pypi.org/project/mgraphctl/%s/)\n' \
             "$version" "$version" >> notes.md
           gh release create "$GITHUB_REF_NAME" \
             --title "mgraphctl v$version" \

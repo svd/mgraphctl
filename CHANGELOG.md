@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.0] — 2026-09-07
+
+- Add a Codex plugin manifest and repository marketplace. Claude Code and Codex share the
+  bundled CLI and skill, with host-specific command-path instructions and one release version.
+
 ## [0.2.1] — 2026-09-06
 
 - The skill's command reference is one file per noun. `reference/commands.md` keeps the

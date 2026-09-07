@@ -14,7 +14,7 @@ description: >
 allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/mgraphctl *)
 metadata:
   author: Sviatoslav Sviridov
-  version: "0.2.1"
+  version: "0.3.0"
 ---
 
 # Microsoft Graph (Python CLI)
@@ -30,17 +30,27 @@ table, Graph call and scopes for all 123 verbs. Open the one noun's file a task 
 run takes 10-40 seconds and prints a notice on stderr while it works. Every later run is fast.
 Nothing needs installing by hand, and nothing is written inside the plugin directory.
 
-Spell out the full path on every single call:
+Choose the command path for the host before running anything:
+
+- **Claude Code:** use `${CLAUDE_PLUGIN_ROOT}/mgraphctl`. The `allowed-tools` frontmatter
+  applies to Claude's Bash tool only.
+- **Codex:** take the absolute path of this loaded `SKILL.md`, go two directories above its
+  containing directory (`skills/mgraphctl/`), and append `/mgraphctl`. Replace
+  `${CLAUDE_PLUGIN_ROOT}/mgraphctl` in every example and referenced command with that quoted
+  absolute path. For example, a skill at `/cache/mgraphctl/skills/mgraphctl/SKILL.md` uses
+  `"/cache/mgraphctl/mgraphctl" status`. Do not expect a `CLAUDE_PLUGIN_ROOT` environment variable
+  or Claude's Bash preapproval in Codex. Use the installed skill path, not the task's cwd.
+
+Spell out the full path on every single call. The examples below use Claude's spelling:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl status
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl mail list --unread --limit 10
 ```
 
-Never define an alias, a shell variable, a `cd`, or any other shorthand for that path. The tool
-permission matches this literal command prefix, and each Bash call is a fresh shell — a variable
-set in one call does not exist in the next. `${CLAUDE_PLUGIN_ROOT}` is the only variable that
-belongs in one of these command lines.
+Never define an alias, a shell variable, a `cd`, or any other shorthand for that path.
+In Claude Code the permission matches this literal command prefix; in Codex write the resolved,
+quoted absolute path each time. Shell state need not persist between tool calls.
 
 ## Login and status
 
@@ -287,9 +297,9 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl people search "Anna" --json
    more results are available, tell the user rather than silently presenting a partial answer.
 5. **Microsoft 365 only.** Decline Slack, Gmail, Google Drive and other non-Microsoft requests —
    this skill cannot reach them.
-6. **Never guess today's date.** Only the `mgraphctl` prefix is pre-approved, so you cannot run
-   `date`. Prefer relative inputs the CLI resolves itself — `--days 7`, `today`, `tomorrow`,
-   `yesterday`, `+2d`, `-14d` — and read real dates off the output of `status` or
+6. **Never guess today's date.** Claude's preapproval covers only the `mgraphctl` prefix;
+   Codex uses its own tool permissions. Prefer relative inputs the CLI resolves itself —
+   `--days 7`, `today`, `tomorrow`, `yesterday`, `+2d`, `-14d` — and read real dates off the output of `status` or
    `calendar list`, which print offsets. If an absolute date is unavoidable, take it from the
    conversation or ask the user. The zone comes from `--tz` or `MGRAPHCTL_TZ`.
 7. **Ids from `mail move` change.** Moving a message gives it a new id, so re-list after moving
