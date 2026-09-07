@@ -95,6 +95,32 @@ def test_a_parameter_naming_a_local_file_is_confined(commands):
     assert "attach" in doc.path_params
 
 
+def test_every_at_file_convention_in_the_cli_is_declared():
+    """A parameter that reads a file behind a leading `@` names a path the type does not reveal.
+
+    `api --body @FILE` was such a parameter and escaped confinement; this fails if another
+    appears without being declared in AT_FILE_PARAMS.
+    """
+    import re
+    from pathlib import Path
+
+    commands_dir = Path(__file__).resolve().parents[1] / "src" / "mgraphctl" / "commands"
+    declared = {verb.split(" ")[-1] for verb in schema.AT_FILE_PARAMS}
+    found = {
+        path.stem.replace("_cmd", "")
+        for path in commands_dir.glob("*.py")
+        if re.search(r'startswith\(\s*[\'"]@[\'"]\s*\)', path.read_text())
+    }
+    assert found <= declared, f"modules using the @FILE convention but not declared: {found}"
+
+
+def test_the_api_body_is_declared_as_an_at_file_parameter(app):
+    spec = next(
+        s for s in discover.discover(app, capabilities=["api"], allow_write=True) if s.path == "api"
+    )
+    assert spec.at_file_params == {"body"}
+
+
 PATH_SHAPED = ("file", "path", "dir", "output", "photo", "attach")
 
 

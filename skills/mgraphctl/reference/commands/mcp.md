@@ -49,7 +49,8 @@ single wide fetch cannot flood the client.
 
 Every path a tool argument names — a destination like `--output`, and equally a file the verb
 *reads*, such as `--attach` or `--body-file` — resolves inside `--output-dir`; one that escapes it
-is a tool error. The server also runs from inside that directory, so a verb whose destination is
+is a tool error - including `api --body @FILE`, whose leading `@` is what makes the rest of the
+value a path. The server also runs from inside that directory, so a verb whose destination is
 optional (`onedrive download`, `mail attachments`) writes its default there rather than wherever
 the server was launched.
 

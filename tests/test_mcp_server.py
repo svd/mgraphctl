@@ -281,6 +281,36 @@ async def test_an_omitted_destination_lands_in_the_output_directory(
     assert links_of(result)[0].uri.endswith("/report.pdf")
 
 
+async def test_the_api_body_at_file_form_cannot_read_outside_the_output_directory(
+    app, tmp_path, graph
+):
+    """`api --body @FILE` reads a local file, but `body` is typed `str` and so escapes the
+    Path-based confinement unless the `@` form is resolved through the store."""
+    secret = tmp_path / "secret.json"
+    secret.write_text('{"token": "SECRET-VALUE"}')
+    settings = server.Settings(capabilities=["api"], allow_write=True, output_dir=tmp_path / "out")
+    async with Client(server.build(settings, app)) as client:
+        result = await client.call_tool(
+            "api",
+            {"method": "POST", "path": "/me/sendMail", "body": f"@{secret}", "dry_run": True},
+        )
+    assert result.is_error is True
+    assert "SECRET-VALUE" not in text_of(result)
+    assert not graph.calls
+
+
+async def test_the_api_body_at_file_form_still_works_inside_the_output_directory(app, tmp_path):
+    settings = server.Settings(capabilities=["api"], allow_write=True, output_dir=tmp_path / "out")
+    settings.store().write("payload.json", '{"comment": "hello"}')
+    async with Client(server.build(settings, app)) as client:
+        result = await client.call_tool(
+            "api",
+            {"method": "POST", "path": "/me/events", "body": "@payload.json", "dry_run": True},
+        )
+    assert result.is_error is False, text_of(result)
+    assert "hello" in text_of(result)
+
+
 async def test_a_downloaded_binary_reads_back_as_a_blob(app, tmp_path, graph, monkeypatch):
     """`resources/read` on a PNG must not try to decode it as text."""
     settings = server.Settings(capabilities=["onedrive"], output_dir=tmp_path / "out")

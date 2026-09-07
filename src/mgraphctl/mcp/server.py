@@ -93,6 +93,10 @@ def _kwargs(spec: discover.ToolSpec, arguments: dict[str, Any], store: output.Ou
                 if isinstance(value, list)
                 else store.resolve(value)
             )
+        elif name in spec.at_file_params and isinstance(value, str) and value.startswith("@"):
+            # `api --body @FILE`: the value is the body itself unless it opens with `@`, and only
+            # then does it name a file the verb will read.
+            value = f"@{store.resolve(value[1:])}"
         out[spec.params[name]] = value
     return out
 

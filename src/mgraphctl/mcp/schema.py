@@ -53,6 +53,12 @@ PATH_TYPES = {"path", "file", "filename"}
 # added without either landing here or being named in NOT_LOCAL_PATHS.
 LOCAL_PATH_NAMES = {"body_file"}
 
+# Parameters whose value names a local file only when it starts with `@`: `api --body @FILE`
+# reads the request body off disk, while any other value is the body itself. The server resolves
+# what follows the `@` inside its output directory. Keyed by verb, since the same parameter name
+# on another verb need not carry the convention.
+AT_FILE_PARAMS = {"api": {"body"}}
+
 # Parameters whose name looks like a path but which address Graph, not this machine.
 NOT_LOCAL_PATHS = {
     "api": {"path"},
