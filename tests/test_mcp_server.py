@@ -186,3 +186,48 @@ async def test_the_server_speaks_the_current_protocol_revision(app, settings):
     assert version.LATEST_PROTOCOL_VERSION == "2026-07-28"
     async with Client(server.build(settings, app)) as client:
         assert (await client.list_tools()).tools
+
+
+async def test_a_large_result_spills_to_a_file_instead_of_flooding_the_client(client, graph):
+    """The point of --max-inline-bytes: one wide fetch must not fill the conversation."""
+    many = [{"id": f"id-{i}", "subject": f"Subject {i} " + "x" * 80} for i in range(200)]
+    graph.get(f"{GRAPH}/v1.0/me/mailFolders/inbox/messages").mock(
+        return_value=httpx.Response(200, json={"value": many})
+    )
+    result = await client.call_tool("mail_list", {"all": True})
+    assert result.is_error is False
+    link = links_of(result)[0]
+    assert "too large to inline" in text_of(result)
+    assert len(text_of(result)) < 2000
+    read = await client.read_resource(link.uri)
+    assert "Subject 199" in read.contents[0].text
+
+
+async def test_a_verbs_own_file_lands_in_the_output_directory(client, graph, settings):
+    """`me --photo` names a path; it is confined like every other path argument."""
+    mock_graph(graph, "top/me_photo")
+    result = await client.call_tool("me", {"photo": "avatar.jpg"})
+    assert result.is_error is False
+    link = links_of(result)[0]
+    assert link.uri.endswith("/avatar.jpg")
+    assert (settings.store().root / "avatar.jpg").exists()
+
+
+async def test_a_verbs_own_file_cannot_escape_the_output_directory(client, graph):
+    mock_graph(graph, "top/me_photo")
+    result = await client.call_tool("me", {"photo": "/tmp/escape.jpg"})
+    assert result.is_error is True
+    assert "absolute path" in text_of(result)
+
+
+async def test_dry_run_reaches_a_write_verb(app, tmp_path, graph):
+    """A mutating tool can be asked what it would send, exactly as the CLI can."""
+    settings = server.Settings(capabilities=["mail"], allow_write=True, output_dir=tmp_path / "out")
+    async with Client(server.build(settings, app)) as client:
+        result = await client.call_tool(
+            "mail_send",
+            {"to": ["ada@example.com"], "subject": "Hi", "body": "text", "dry_run": True},
+        )
+    assert result.is_error is False
+    assert "POST" in text_of(result) and "sendMail" in text_of(result)
+    assert not graph.calls
