@@ -182,7 +182,9 @@ environment.
 ### 6.2 Streamable HTTP
 
 `--transport http [--host 127.0.0.1] [--port N]`. One POST endpoint at `/mcp`. GET and DELETE
-answer `405`. No session id is minted, no `Last-Event-ID` honoured.
+answer `405`. No session id is minted, no `Last-Event-ID` honoured. The SDK routes a request
+carrying `MCP-Protocol-Version: 2026-07-28` to the revision's own sessionless path, and
+`stateless_http=True` puts the handshake revisions it still negotiates on the same footing.
 
 Three guards, in this order:
 

@@ -180,3 +180,45 @@ async def test_a_client_without_an_origin_gets_no_cors_headers(http):
     )
     assert response.status_code == 200
     assert "access-control-allow-origin" not in response.headers
+
+
+LEGACY_INITIALIZE = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {},
+        "clientInfo": {"name": "test", "version": "1"},
+    },
+}
+
+
+async def test_a_call_needs_no_session_of_any_kind(http):
+    """`2026-07-28` has no protocol sessions: one POST carries its own envelope and is answered."""
+    response = await http.post(
+        http_app.MCP_PATH, json=POST, headers={**HEADERS, "authorization": f"Bearer {TOKEN}"}
+    )
+    assert response.status_code == 200
+    assert "mcp-session-id" not in response.headers
+
+
+async def test_an_older_client_gets_no_session_either(asgi):
+    """The handshake revisions the SDK still negotiates are served statelessly too.
+
+    Its own app, with the lifespan opened and closed inside the test: a legacy `initialize`
+    leaves the manager's task group busy, which the shared fixture's teardown cannot unwind.
+    """
+    headers = {
+        "content-type": "application/json",
+        "accept": "application/json, text/event-stream",
+        "mcp-protocol-version": "2025-11-25",
+        "authorization": f"Bearer {TOKEN}",
+    }
+    inner = asgi.app.app
+    async with inner.router.lifespan_context(inner):
+        transport = httpx.ASGITransport(app=asgi)
+        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
+            response = await client.post(http_app.MCP_PATH, json=LEGACY_INITIALIZE, headers=headers)
+    assert response.status_code == 200
+    assert "mcp-session-id" not in response.headers

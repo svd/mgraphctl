@@ -173,6 +173,13 @@ def build(server: Any, *, token: str, allow_origin: list[str] | None = None) -> 
     app = server.streamable_http_app(
         streamable_http_path=MCP_PATH,
         host="127.0.0.1",
+        # A request carrying `MCP-Protocol-Version: 2026-07-28` is routed to the revision's own
+        # sessionless path whatever this says; the flag settles the handshake revisions the SDK
+        # still negotiates for older clients, and they get the same treatment: a fresh transport
+        # per request, no `Mcp-Session-Id`, no session to expire. The server holds nothing between
+        # calls that a session could carry — one sign-in, one output directory, a tool set fixed
+        # at startup.
+        stateless_http=True,
         # `RequireOrigin` is this server's DNS-rebinding defence, and it is the one under test.
         # The SDK's own check also validates Host against a port-bearing allowlist, which rejects
         # legitimate loopback requests; running both would mean two allowlists to keep in step.

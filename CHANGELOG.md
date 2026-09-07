@@ -15,8 +15,9 @@
     Results past `--max-inline-bytes` are written and linked regardless, so one wide fetch cannot
     flood the client. Written files are readable back as MCP resources.
   - Protocol revision `2026-07-28`, plus the earlier revisions the SDK negotiates. No deprecated
-    feature is implemented: no HTTP+SSE transport, no protocol sessions, no GET stream, no
-    resumable streams.
+    feature is implemented: no HTTP+SSE transport, no GET stream, no resumable streams. No
+    `Mcp-Session-Id` is minted in either era — the revision has no protocol sessions, and the
+    handshake revisions the SDK negotiates for older clients are served statelessly as well.
   - `--transport http` binds loopback only and requires a bearer token and an allowed `Origin`.
     The server acts as one signed-in user and cannot authenticate callers, so it does not pretend
     to be an OAuth resource server; `stdio` is the recommended transport. README explains why.

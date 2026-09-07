@@ -60,8 +60,12 @@ optional (`onedrive download`, `mail attachments`) writes its default there rath
 the server was launched.
 
 **Protocol.** MCP revision `2026-07-28`, plus the earlier revisions the SDK negotiates. The
-deprecated HTTP+SSE transport, protocol sessions, the standalone GET stream and resumable streams
-are not implemented; `GET` and `DELETE` on the endpoint answer `405`.
+deprecated HTTP+SSE transport, the standalone GET stream and resumable streams are not
+implemented; `GET` and `DELETE` on the endpoint answer `405`. No request is answered with an
+`Mcp-Session-Id`, in either era: `2026-07-28` has no protocol sessions, and the handshake
+revisions are served statelessly too, one fresh transport per request. Nothing is kept between
+calls that a session could carry — the sign-in, the output directory and the tool set all belong
+to the process.
 
 **HTTP and its limits.** The server acts as exactly one user — whoever's sign-in is cached — and
 cannot tell callers apart, so any reachable port is that person's mailbox. Hence: loopback only; a
