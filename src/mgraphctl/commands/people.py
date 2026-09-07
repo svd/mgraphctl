@@ -191,7 +191,7 @@ def photo(
     else:
         claims = auth.decode_jwt(auth.get_access_token(False))
         stem = claims.get("upn") or "me"
-    dest = output or Path(f"{stem}.jpg")
+    dest = output or Path(f"{Path(stem).name}.jpg")
     got = people.download_photo(client, upn, size, dest)
     return FileResult(
         path=got.path,

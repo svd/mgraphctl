@@ -1,3 +1,3 @@
 """mgraphctl: Microsoft Graph CLI for the mgraphctl skill."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
