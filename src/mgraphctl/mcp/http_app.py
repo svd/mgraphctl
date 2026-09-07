@@ -11,6 +11,7 @@ the MCP authorization spec is deliberately not implemented.
 
 from __future__ import annotations
 
+import json
 import secrets
 from typing import Any
 
@@ -57,7 +58,11 @@ class RequireBearer:
             return
         header = _header(scope, b"authorization") or ""
         scheme, _, value = header.partition(" ")
-        if scheme.lower() != "bearer" or not secrets.compare_digest(value, self.token):
+        # Compared as bytes: a header carrying any byte above 0x7f makes the str form of
+        # compare_digest raise, which would surface as a 500 rather than a clean 401.
+        if scheme.lower() != "bearer" or not secrets.compare_digest(
+            value.encode("latin-1"), self.token.encode()
+        ):
             await _reject(
                 send,
                 401,
@@ -72,6 +77,11 @@ class RequireOrigin:
     """The DNS-rebinding defence the transport spec mandates for local servers.
 
     Without it, any page the user visits can drive this server through localhost.
+
+    An allowed origin also needs CORS, or the guard would let the request through only for the
+    browser to discard the answer: the preflight is unauthenticated, so it has to be answered
+    ahead of the bearer check, and the real response needs `Access-Control-Allow-Origin` back.
+    With no `--allow-origin` there is no preflight to answer and every browser is refused.
     """
 
     def __init__(self, app: Any, allowed: list[str]) -> None:
@@ -85,9 +95,50 @@ class RequireOrigin:
         origin = _header(scope, b"origin")
         # A browser always sends Origin; a CLI client never does. An unlisted one is refused.
         if origin is not None and origin not in self.allowed:
-            await _reject(send, 403, f"origin {origin!r} is not allowed")
+            await _reject(send, 403, f"origin {origin} is not allowed")
             return
-        await self.app(scope, receive, send)
+        if origin is None:
+            await self.app(scope, receive, send)
+            return
+        if scope["method"] == "OPTIONS":
+            await self._preflight(scope, send, origin)
+            return
+        await self.app(scope, receive, _with_cors(send, origin))
+
+    async def _preflight(self, scope: dict, send: Any, origin: str) -> None:
+        # The requested headers are echoed rather than listed: a client may mirror tool arguments
+        # into `Mcp-Param-*` headers, whose names are not known ahead of the request.
+        requested = _header(scope, b"access-control-request-headers") or "authorization"
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 204,
+                "headers": [
+                    (b"access-control-allow-origin", origin.encode("latin-1")),
+                    (b"access-control-allow-methods", b"POST, OPTIONS"),
+                    (b"access-control-allow-headers", requested.encode("latin-1")),
+                    (b"access-control-max-age", b"600"),
+                    (b"vary", b"origin"),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": b""})
+
+
+def _with_cors(send: Any, origin: str) -> Any:
+    """Add the allow-origin header to whatever the inner app answers."""
+
+    async def wrapped(message: dict) -> None:
+        if message["type"] == "http.response.start":
+            message = dict(message)
+            message["headers"] = [
+                *message.get("headers", []),
+                (b"access-control-allow-origin", origin.encode("latin-1")),
+                (b"vary", b"origin"),
+            ]
+        await send(message)
+
+    return wrapped
 
 
 def _header(scope: dict, name: bytes) -> str | None:
@@ -98,7 +149,9 @@ def _header(scope: dict, name: bytes) -> str | None:
 
 
 async def _reject(send: Any, status: int, message: str, headers: list | None = None) -> None:
-    body = f'{{"error":{message!r}}}'.replace("'", '"').encode()
+    # json.dumps, not string formatting: `message` can quote a caller-supplied Origin, and a
+    # crafted one would otherwise inject structure into the response body.
+    body = json.dumps({"error": message}).encode()
     await send(
         {
             "type": "http.response.start",

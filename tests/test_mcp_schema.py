@@ -78,3 +78,41 @@ def test_every_generated_schema_is_valid_json_schema(app):
     jsonschema = pytest.importorskip("jsonschema")
     for spec in discover.discover(app, capabilities=discover.ALL, allow_write=True):
         jsonschema.Draft202012Validator.check_schema(spec.input_schema)
+
+
+def test_int_range_bounds_survive_into_the_schema(commands):
+    """Without them `--limit 0` validates here and fails at Graph instead of as a usage error."""
+    doc, _ = built(commands, "calendar availability")
+    assert doc["properties"]["interval"]["minimum"] == 5
+    assert doc["properties"]["interval"]["maximum"] == 1440
+    assert built(commands, "mail list")[0]["properties"]["limit"]["minimum"] == 1
+
+
+def test_a_parameter_naming_a_local_file_is_confined(commands):
+    """`--body-file` is typed `str`, so the Click type alone does not reveal it is a path."""
+    doc = discover.spec_for("mail send", commands["mail send"])
+    assert "body_file" in doc.path_params
+    assert "attach" in doc.path_params
+
+
+PATH_SHAPED = ("file", "path", "dir", "output", "photo", "attach")
+
+
+def test_every_path_shaped_parameter_is_classified(app):
+    """A new parameter naming a local file must be confined, or be declared a Graph path."""
+    unclassified = []
+    for spec in discover.discover(app, capabilities=discover.ALL, allow_write=True):
+        exempt = schema.NOT_LOCAL_PATHS.get(spec.path, set())
+        for name, node in spec.input_schema["properties"].items():
+            if node.get("type") == "boolean":  # a flag names nothing
+                continue
+            if name in spec.path_params or name in exempt:
+                continue
+            if name in ("output_format", "output_file"):  # the server's own, not the verb's
+                continue
+            if any(token in name for token in PATH_SHAPED):
+                unclassified.append(f"{spec.path}:{name}")
+    assert not unclassified, (
+        "path-shaped parameters that are neither confined nor declared a Graph path: "
+        f"{sorted(unclassified)}"
+    )

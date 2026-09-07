@@ -43,14 +43,32 @@ _SCALARS = {
 }
 
 
-# Click types whose value is a filesystem path. The server resolves every one of them inside its
-# own output directory, so a tool argument cannot reach the rest of the filesystem.
+# Click types whose value is a local filesystem path. The server resolves every one of them
+# inside its own output directory, so a tool argument cannot reach the rest of the filesystem.
 PATH_TYPES = {"path", "file", "filename"}
+
+# Parameters that name a local file but are typed `str`, so the type alone does not betray them.
+# `--body-file` reads the message body off disk; unconfined, it is an arbitrary file read.
+# `test_mcp_schema.py` scans every exposed verb for path-shaped names, so a new one cannot be
+# added without either landing here or being named in NOT_LOCAL_PATHS.
+LOCAL_PATH_NAMES = {"body_file"}
+
+# Parameters whose name looks like a path but which address Graph, not this machine.
+NOT_LOCAL_PATHS = {
+    "api": {"path"},
+    "onedrive ls": {"path"},
+    "onedrive mkdir": {"path"},
+    "sharepoint ls": {"path"},
+}
 
 
 def path_params(command: Any) -> frozenset[str]:
-    """The schema property names whose value is a path."""
-    return frozenset(property_name(p) for p in command.params if p.type.name in PATH_TYPES)
+    """The schema property names whose value is a path on this machine."""
+    return frozenset(
+        property_name(p)
+        for p in command.params
+        if p.type.name in PATH_TYPES or p.name in LOCAL_PATH_NAMES
+    )
 
 
 def property_name(param: Any) -> str:
@@ -64,6 +82,13 @@ def _type_of(param: Any) -> dict[str, Any]:
     choices = getattr(param.type, "choices", None)
     if choices:
         node["enum"] = list(choices)
+    # An IntRange's bounds are part of the contract: without them `--limit 0` validates here and
+    # fails at Graph instead of producing the CLI's usage error.
+    low, high = getattr(param.type, "min", None), getattr(param.type, "max", None)
+    if low is not None:
+        node["minimum"] = low
+    if high is not None:
+        node["maximum"] = high
     if param.multiple:
         return {"type": "array", "items": node}
     return node

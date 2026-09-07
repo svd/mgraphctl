@@ -115,3 +115,68 @@ async def test_the_removed_session_endpoints_are_405(http, method):
         http_app.MCP_PATH, headers={**HEADERS, "authorization": f"Bearer {TOKEN}"}
     )
     assert response.status_code == 405
+
+
+async def test_a_malformed_authorization_header_is_401_not_a_crash(http):
+    """A byte above 0x7f makes the str form of compare_digest raise."""
+    response = await http.post(
+        http_app.MCP_PATH,
+        json=POST,
+        headers={**HEADERS, "authorization": "Bearer tok\xe9n".encode("latin-1")},
+    )
+    assert response.status_code == 401
+
+
+async def test_a_crafted_origin_cannot_inject_into_the_error_body(http):
+    response = await http.post(
+        http_app.MCP_PATH,
+        json=POST,
+        headers={**HEADERS, "origin": '"},"injected":"'},
+    )
+    assert response.status_code == 403
+    assert set(response.json()) == {"error"}
+
+
+async def test_an_allowed_origin_can_preflight_without_a_token(http):
+    """The browser sends OPTIONS with no Authorization; refusing it kills the real request."""
+    response = await http.request(
+        "OPTIONS",
+        http_app.MCP_PATH,
+        headers={
+            "origin": "http://ok",
+            "access-control-request-method": "POST",
+            "access-control-request-headers": "authorization, content-type, mcp-method",
+        },
+    )
+    assert response.status_code == 204
+    assert response.headers["access-control-allow-origin"] == "http://ok"
+    assert "authorization" in response.headers["access-control-allow-headers"]
+    assert "mcp-method" in response.headers["access-control-allow-headers"]
+
+
+async def test_an_unlisted_origin_cannot_preflight(http):
+    response = await http.request(
+        "OPTIONS",
+        http_app.MCP_PATH,
+        headers={"origin": "http://evil.example", "access-control-request-method": "POST"},
+    )
+    assert response.status_code == 403
+
+
+async def test_the_real_response_carries_the_allow_origin_header(http):
+    """Without it the browser discards an answer the guard already allowed."""
+    response = await http.post(
+        http_app.MCP_PATH,
+        json=POST,
+        headers={**HEADERS, "origin": "http://ok", "authorization": f"Bearer {TOKEN}"},
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://ok"
+
+
+async def test_a_client_without_an_origin_gets_no_cors_headers(http):
+    response = await http.post(
+        http_app.MCP_PATH, json=POST, headers={**HEADERS, "authorization": f"Bearer {TOKEN}"}
+    )
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers

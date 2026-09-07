@@ -155,8 +155,10 @@ accordingly — but the annotations are hints, and `--allow-write` is the gate.
 (`text`, the default compact table, or `json` for the full payload as structured content) and
 `output_file`, which writes the result under `--output-dir` and returns a link instead of the
 payload. Anything past `--max-inline-bytes` (25 KB) is written and linked whichever was asked, so
-one wide fetch cannot flood the client. Written files are readable back as MCP resources, and every
-path a tool argument names is confined to `--output-dir`.
+one wide fetch cannot flood the client. Written files are readable back as MCP resources. Every
+path a tool argument names is confined to `--output-dir` — destinations like `--output`, and
+equally files a verb *reads*, such as `--attach` and `--body-file` — and the server runs from
+inside that directory, so a verb's own default destination lands there too.
 
 The protocol revision is `2026-07-28`, plus the earlier ones the SDK negotiates. Deprecated
 features — the HTTP+SSE transport, protocol sessions, the standalone GET stream, resumable

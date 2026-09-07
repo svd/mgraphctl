@@ -231,3 +231,82 @@ async def test_dry_run_reaches_a_write_verb(app, tmp_path, graph):
     assert result.is_error is False
     assert "POST" in text_of(result) and "sendMail" in text_of(result)
     assert not graph.calls
+
+
+async def test_body_file_cannot_read_outside_the_output_directory(app, tmp_path, graph):
+    """`--body-file` is typed `str`; unconfined it would be an arbitrary local file read."""
+    secret = tmp_path / "id_rsa"
+    secret.write_text("PRIVATE KEY MATERIAL")
+    settings = server.Settings(capabilities=["mail"], allow_write=True, output_dir=tmp_path / "out")
+    async with Client(server.build(settings, app)) as client:
+        result = await client.call_tool(
+            "mail_send",
+            {"to": ["ada@example.com"], "body_file": str(secret), "dry_run": True},
+        )
+    assert result.is_error is True
+    assert "PRIVATE KEY MATERIAL" not in text_of(result)
+    assert not graph.calls
+
+
+async def test_body_file_still_works_inside_the_output_directory(app, tmp_path):
+    settings = server.Settings(capabilities=["mail"], allow_write=True, output_dir=tmp_path / "out")
+    settings.store().write("body.txt", "the message body")
+    async with Client(server.build(settings, app)) as client:
+        result = await client.call_tool(
+            "mail_send",
+            {"to": ["ada@example.com"], "body_file": "body.txt", "dry_run": True},
+        )
+    assert result.is_error is False
+    assert "the message body" in text_of(result)
+
+
+async def test_an_omitted_destination_lands_in_the_output_directory(
+    app, tmp_path, graph, monkeypatch
+):
+    """`onedrive download` with no --output names the file itself, relative to the working
+    directory. The server moves into the store at startup so that default cannot escape it."""
+    settings = server.Settings(capabilities=["onedrive"], output_dir=tmp_path / "out")
+    monkeypatch.chdir(tmp_path)  # a hostile default would land here
+    mock_graph(graph, "onedrive/download")
+    graph.get("https://files.contoso.example/blob", params__contains={"tempauth": "abc"}).mock(
+        return_value=httpx.Response(200, content=b"Hello Graph!")
+    )
+    monkeypatch.chdir(server.enter_output_dir(settings.store()))
+    async with Client(server.build(settings, app)) as client:
+        result = await client.call_tool("onedrive_download", {"ref": "01ABCDEFGHIJKLMNOPQRSTUV"})
+    assert result.is_error is False, text_of(result)
+    assert (settings.store().root / "report.pdf").read_bytes() == b"Hello Graph!"
+    assert not (tmp_path / "report.pdf").exists()
+    assert links_of(result)[0].uri.endswith("/report.pdf")
+
+
+async def test_output_format_reaches_a_verb_that_shapes_its_result_by_it(app, tmp_path, graph):
+    """`chats messages` keeps Graph's order for JSON and reverses it for the table."""
+    settings = server.Settings(capabilities=["chats"], output_dir=tmp_path / "out")
+    page = {
+        "value": [
+            {"id": "2", "body": {"content": "newer"}, "createdDateTime": "2026-09-02T10:00:00Z"},
+            {"id": "1", "body": {"content": "older"}, "createdDateTime": "2026-09-01T10:00:00Z"},
+        ]
+    }
+    async with Client(server.build(settings, app)) as client:
+        graph.get(f"{GRAPH}/v1.0/chats/19:abc/messages").mock(
+            return_value=httpx.Response(200, json=page)
+        )
+        as_json = await client.call_tool(
+            "chats_messages", {"chat": "id:19:abc", "output_format": "json"}
+        )
+    assert [item["id"] for item in as_json.structured_content["items"]] == ["2", "1"]
+
+
+async def test_concurrent_local_verbs_do_not_cross_their_output(client):
+    """`redirect_stdout` swaps a process-global; interleaved calls would cross or lose output —
+    and on stdio transport the stdout one of them could free is the JSON-RPC channel."""
+    import asyncio
+
+    results = await asyncio.gather(
+        *(client.call_tool("version", {"output_format": "json"}) for _ in range(8))
+    )
+    for result in results:
+        assert result.is_error is False, text_of(result)
+        assert result.structured_content["version"]

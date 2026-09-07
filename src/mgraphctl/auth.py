@@ -7,6 +7,7 @@ import contextlib
 import json
 import logging
 import sys
+import threading
 import time
 from collections.abc import Iterable
 from pathlib import Path
@@ -38,6 +39,9 @@ _store: token_store.Store | None = None
 # The plaintext file an earlier version left behind, deleted once the keychain holds its content.
 _migrate_from: Path | None = None
 _warned = False
+# Guards the lazy build of `_app`/`_cache` and every write of the cache. The CLI is
+# single-threaded; the MCP server runs its tool calls on worker threads.
+_LOCK = threading.Lock()
 
 
 # --------------------------------------------------------------------------- app and cache
@@ -50,9 +54,16 @@ def _build_app(
 
 
 def app() -> msal.PublicClientApplication:
-    """The process-wide msal application, built on first use."""
+    """The process-wide msal application, built on first use.
+
+    The lock matters to the MCP server, whose tool calls run on worker threads and can reach this
+    concurrently: two racing builds would leave one msal app bound to a cache that `save_cache`
+    never serialises, silently dropping a token it had just refreshed.
+    """
     global _app, _cache
-    if _app is None:
+    with _LOCK:
+        if _app is not None:
+            return _app
         s = config.settings()
         if s.client_id == config.CLIENT_ID_DEFAULT:
             # Entra would answer AADSTS700016 for the placeholder; say what is missing instead.
@@ -65,7 +76,7 @@ def app() -> msal.PublicClientApplication:
             )
         _cache = load_cache(s)
         _app = _build_app(s, _cache)
-    return _app
+        return _app
 
 
 def store_info() -> token_store.Store:
@@ -122,7 +133,17 @@ def load_cache(s: config.Settings) -> msal.SerializableTokenCache:
 
 
 def save_cache() -> None:
-    """Write the cache back when msal changed it. Never raises: it runs in a `finally`."""
+    """Write the cache back when msal changed it. Never raises: it runs in a `finally`.
+
+    Serialised against `app()` and against itself: concurrent callers must not interleave a
+    serialize with the flag reset, or write the same store from two threads at once.
+    """
+    global _migrate_from
+    with _LOCK:
+        _save_cache_locked()
+
+
+def _save_cache_locked() -> None:
     global _migrate_from
     cache = _cache
     if cache is None or not cache.has_state_changed:

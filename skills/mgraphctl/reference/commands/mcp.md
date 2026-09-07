@@ -29,7 +29,7 @@ needs the optional dependency: install `mgraphctl[mcp]`.
 | `--transport stdio\|http` | `stdio` | `stdio` is the recommended transport. |
 | `--host HOST` | `127.0.0.1` | Loopback only; anything else is a usage error. |
 | `--port PORT` | `8765` | Port for `--transport http`. |
-| `--allow-origin ORIGIN` | none | Browser origin allowed to call the HTTP endpoint (repeatable). |
+| `--allow-origin ORIGIN` | none | Browser origin allowed to call the HTTP endpoint (repeatable); it also gets the CORS headers a browser needs. |
 | `--output-dir DIR` | `~/.cache/mgraphctl/mcp` | Where results are written, and the only place tool paths may point. |
 | `--max-inline-bytes N` | `25000` | Larger results are written to a file and linked instead of inlined. |
 
@@ -45,8 +45,13 @@ needs the optional dependency: install `mgraphctl[mcp]`.
 returns the compact table, `json` returns the full payload as structured content, and
 `output_file` writes the result under `--output-dir` and returns a link to it instead of the
 payload. A result past `--max-inline-bytes` is written and linked whatever the caller asked, so a
-single wide fetch cannot flood the client. Every path a tool argument names resolves inside
-`--output-dir`; one that escapes it is a tool error.
+single wide fetch cannot flood the client.
+
+Every path a tool argument names — a destination like `--output`, and equally a file the verb
+*reads*, such as `--attach` or `--body-file` — resolves inside `--output-dir`; one that escapes it
+is a tool error. The server also runs from inside that directory, so a verb whose destination is
+optional (`onedrive download`, `mail attachments`) writes its default there rather than wherever
+the server was launched.
 
 **Protocol.** MCP revision `2026-07-28`, plus the earlier revisions the SDK negotiates. The
 deprecated HTTP+SSE transport, protocol sessions, the standalone GET stream and resumable streams

@@ -146,6 +146,9 @@ def serve(
         raise UsageError("USAGE", f"--transport must be stdio or http (got {transport!r})")
     settings = _settings(capabilities, allow_write, output_dir, max_inline_bytes)
     built = server.build(settings)
+    # Before serving, so a verb's own relative default lands in the store rather than wherever
+    # the operator launched from.
+    server.enter_output_dir(settings.store())
     _warn_if_signed_out()
 
     if transport == "stdio":

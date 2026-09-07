@@ -20,6 +20,8 @@ import inspect
 import io
 import json
 import logging
+import os
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -94,6 +96,26 @@ def _kwargs(spec: discover.ToolSpec, arguments: dict[str, Any], store: output.Ou
     return out
 
 
+def enter_output_dir(store: output.OutputStore) -> Path:
+    """Run the server from inside its output directory.
+
+    Confining the paths a caller supplies is not enough on its own. A verb whose destination is
+    optional builds a bare relative default from the item's own name (`onedrive download`,
+    `mail attachments`, `people photo`), and a relative path resolves against the process's working
+    directory — so an omitted argument would write wherever the operator happened to launch the
+    server. Moving the process into the store once, at startup, puts those defaults inside it too.
+    """
+    root = store.ensure()
+    os.chdir(root)
+    return root
+
+
+# `redirect_stdout` swaps a process-global. Two tool calls run on different worker threads, and
+# interleaved redirects would cross their output — or hand one thread the real stdout, which on
+# stdio transport is the JSON-RPC channel.
+_LOCAL_LOCK = threading.Lock()
+
+
 def _run_local(spec: discover.ToolSpec, kwargs: dict[str, Any], *, as_json: bool) -> render.Result:
     """A verb that answers from the local cache, run through its Click callback."""
     callback = spec.command.callback
@@ -104,7 +126,7 @@ def _run_local(spec: discover.ToolSpec, kwargs: dict[str, Any], *, as_json: bool
         root_ctx = typer.Context(group, obj=_globals())
         kwargs["ctx"] = typer.Context(spec.command, parent=root_ctx, info_name=spec.path)
     buffer = io.StringIO()
-    with contextlib.redirect_stdout(buffer):
+    with _LOCAL_LOCK, contextlib.redirect_stdout(buffer):
         callback(json_=as_json, **kwargs)
     text = buffer.getvalue()
     return render.TextResult(text=text, json_obj=json.loads(text) if as_json else None)
@@ -134,12 +156,16 @@ def invoke(
     output_file = arguments.pop("output_file", None)
     kwargs = _kwargs(spec, arguments, store)
 
+    as_json = output_format == "json"
     try:
         if spec.fn is None:
-            result = _run_local(spec, kwargs, as_json=output_format == "json")
+            result = _run_local(spec, kwargs, as_json=as_json)
         else:
             with open_client(_globals(), spec.scopes) as client:
-                result = spec.fn(client, **kwargs)
+                # A few verbs shape the result by it — `meetings transcript` fills a field only
+                # for JSON, `teams`/`chats messages` keep Graph's order — so the flag has to
+                # travel even though the rendering happens here rather than on stdout.
+                result = spec.fn(client, json_=as_json, **kwargs)
     finally:
         auth.save_cache()
 

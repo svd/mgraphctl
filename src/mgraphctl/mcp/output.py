@@ -168,9 +168,16 @@ def build(
     document = json.dumps(payload, indent=2, ensure_ascii=False) + "\n" if as_json else body
     summary = _summary(result, payload)
 
-    # A verb that wrote a file of its own (a download, a photo) is already a link.
+    # A verb that wrote a file of its own (a download, a photo) is already a link. Its path is
+    # relative when the caller named no destination and the verb built a default from the item's
+    # own name; the server runs from inside the store, so that is where it landed.
     if isinstance(result, render.FileResult) and output_file is None:
-        return ToolOutput(text=body, link=link_to(store, Path(result.path)))
+        path = Path(result.path)
+        if not path.is_absolute():
+            path = store.root / path
+        if not store.contains(path) or not path.is_file():
+            return ToolOutput(text=body)
+        return ToolOutput(text=body, link=link_to(store, path))
 
     if output_file is not None:
         path = store.write(output_file, document)
