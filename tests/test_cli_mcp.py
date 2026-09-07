@@ -1,6 +1,7 @@
 """CLI tests for the `mcp` noun (MCP spec §8)."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -65,6 +66,47 @@ def test_mcp_serve_refuses_to_bind_off_loopback(invoke, host):
     result = invoke("mcp", "serve", "--transport", "http", "--host", host)
     assert result.exit_code == 2
     assert "loopback" in result.stderr
+
+
+def _capture_settings(monkeypatch):
+    """Start `mcp serve` far enough to build its settings, then stop before it blocks."""
+    from mgraphctl.commands import mcp_cmd
+    from mgraphctl.mcp import server
+
+    # `serve` moves the process into its output directory; register the undo.
+    monkeypatch.chdir(Path.cwd())
+    captured = {}
+    real_build = server.build
+
+    def build(settings, app=None):
+        captured["settings"] = settings
+        return real_build(settings, app)
+
+    async def no_serve(built):
+        return None
+
+    monkeypatch.setattr(server, "build", build)
+    monkeypatch.setattr(mcp_cmd, "_serve_stdio", no_serve)
+    return captured
+
+
+@covers("mcp serve")
+def test_mcp_serve_carries_the_root_flags_into_every_tool_call(invoke, monkeypatch, tmp_path):
+    """`-dd` has to reach the client the server opens, or request logging is silently dead."""
+    captured = _capture_settings(monkeypatch)
+    result = invoke("-dd", "--tz", "Europe/Warsaw", "mcp", "serve", "--output-dir", str(tmp_path))
+    assert result.exit_code == 0, result.stderr
+    assert captured["settings"].env.debug == 2
+    assert captured["settings"].env.tz == "Europe/Warsaw"
+
+
+@covers("mcp serve")
+def test_mcp_serve_falls_back_to_the_config_when_no_flag_is_given(invoke, monkeypatch, tmp_path):
+    """The root callback folds config into `Globals`, so the env var still reaches the server."""
+    monkeypatch.setenv("MGRAPHCTL_DEBUG", "1")
+    captured = _capture_settings(monkeypatch)
+    assert invoke("mcp", "serve", "--output-dir", str(tmp_path)).exit_code == 0
+    assert captured["settings"].env.debug == 1
 
 
 @covers("mcp serve")

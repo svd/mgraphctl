@@ -57,6 +57,7 @@ MaxInlineOpt = Annotated[
 
 
 def _settings(
+    ctx: typer.Context,
     capabilities: str | None,
     allow_write: bool,
     output_dir: Path | None,
@@ -69,6 +70,9 @@ def _settings(
         allow_write=allow_write,
         output_dir=output_dir,
         max_inline_bytes=max_inline_bytes,
+        # The root flags apply to every tool call: `-dd` logs each request to stderr, which on
+        # stdio is the only channel free to carry it.
+        env=ctx.find_root().obj,
     )
 
 
@@ -118,6 +122,7 @@ def tools(
 
 @app.command("serve")
 def serve(
+    ctx: typer.Context,
     capabilities: CapabilitiesOpt = None,
     allow_write: AllowWriteFlag = False,
     transport: Annotated[
@@ -144,7 +149,7 @@ def serve(
     server = _require_sdk()
     if transport not in ("stdio", "http"):
         raise UsageError("USAGE", f"--transport must be stdio or http (got {transport!r})")
-    settings = _settings(capabilities, allow_write, output_dir, max_inline_bytes)
+    settings = _settings(ctx, capabilities, allow_write, output_dir, max_inline_bytes)
     built = server.build(settings)
     # Before serving, so a verb's own relative default lands in the store rather than wherever
     # the operator launched from.

@@ -74,6 +74,24 @@ async def test_a_call_reaches_graph_and_comes_back_as_a_text_table(client, graph
     assert result.structured_content is None
 
 
+async def test_the_root_debug_level_reaches_the_client_a_call_opens(app, tmp_path, graph, caplog):
+    """`-dd` is the server's verbose mode; without it plumbed through, nothing logs the request."""
+    from mgraphctl.cli import Globals
+
+    settings = server.Settings(
+        capabilities=["mail"],
+        output_dir=tmp_path / "out",
+        env=Globals(debug=2, tz="UTC", beta=False),
+    )
+    mock_graph(graph, "mail/list")
+    with caplog.at_level("DEBUG", logger="mgraphctl.http"):
+        async with Client(server.build(settings, app)) as connected:
+            await connected.call_tool("mail_list", {})
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "me/mailFolders/inbox/messages" in logged
+    assert "body:" in logged  # -dd, not -d
+
+
 async def test_json_returns_the_cli_document_as_structured_content(client, graph):
     mock_graph(graph, "mail/list")
     result = await client.call_tool("mail_list", {"output_format": "json"})

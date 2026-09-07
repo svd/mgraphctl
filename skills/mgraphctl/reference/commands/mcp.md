@@ -36,6 +36,10 @@ needs the optional dependency: install `mgraphctl[mcp]`.
 - **Graph:** none directly; each tool call runs the verb it names.
 - **Scopes:** whatever the called verb declares, checked per call as on the command line.
 - **Notes:** the only verb with no `--json` — it hands stdout to the MCP protocol and blocks.
+  It has no verbose flag of its own: the root `-d` / `-dd` applies to every tool call, logging
+  each Graph request (and at `-dd` its redacted body) to stderr, which is the channel MCP leaves
+  free. `MGRAPHCTL_DEBUG` or `debug` in the config file does the same for a server the host
+  launches without arguments of yours.
   Capabilities are command groups plus `core` (`me`, `status`, `claims`, `version`) and `api`, the
   raw Graph escape hatch, which `all` deliberately omits. `login` and this noun are never exposed
   as tools.

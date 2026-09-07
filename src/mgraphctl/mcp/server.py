@@ -46,6 +46,13 @@ log = logging.getLogger("mgraphctl.mcp")
 LOCAL_VERBS = ("status", "claims", "version")
 
 
+def _globals() -> Globals:
+    """The root callback's `Globals` rebuilt from config alone, for a server started without it."""
+    settings = config.settings()
+    zone = settings.tz or render.local_tz()
+    return Globals(debug=settings.debug, tz=zone, beta=False)
+
+
 @dataclass
 class Settings:
     """Everything `mcp serve` decided, as the server needs it."""
@@ -54,6 +61,10 @@ class Settings:
     allow_write: bool = False
     output_dir: Path | None = None
     max_inline_bytes: int = output.DEFAULT_MAX_INLINE_BYTES
+    # The root callback's own decisions, so `mgraphctl -dd mcp serve` logs requests as it does on
+    # the command line. Rebuilt from config only when the server is started without a Click
+    # context; the root callback already folds the config values into what it hands over.
+    env: Globals = field(default_factory=_globals)
 
     def store(self) -> output.OutputStore:
         root = self.output_dir if self.output_dir is not None else output.default_root()
@@ -73,12 +84,6 @@ def _tool(spec: discover.ToolSpec) -> types.Tool:
             open_world_hint=spec.annotations.get("openWorldHint"),
         ),
     )
-
-
-def _globals() -> Globals:
-    settings = config.settings()
-    zone = settings.tz or render.local_tz()
-    return Globals(debug=settings.debug, tz=zone, beta=False)
 
 
 def _kwargs(spec: discover.ToolSpec, arguments: dict[str, Any], store: output.OutputStore) -> dict:
@@ -121,14 +126,16 @@ def enter_output_dir(store: output.OutputStore) -> Path:
 _LOCAL_LOCK = threading.Lock()
 
 
-def _run_local(spec: discover.ToolSpec, kwargs: dict[str, Any], *, as_json: bool) -> render.Result:
+def _run_local(
+    spec: discover.ToolSpec, kwargs: dict[str, Any], *, as_json: bool, env: Globals
+) -> render.Result:
     """A verb that answers from the local cache, run through its Click callback."""
     callback = spec.command.callback
     # `status` and `claims` read the root context for the timezone and debug level; `version`
     # takes no context at all.
     if "ctx" in inspect.signature(callback).parameters:
         group = typer.main.get_group(_app())
-        root_ctx = typer.Context(group, obj=_globals())
+        root_ctx = typer.Context(group, obj=env)
         kwargs["ctx"] = typer.Context(spec.command, parent=root_ctx, info_name=spec.path)
     buffer = io.StringIO()
     with _LOCAL_LOCK, contextlib.redirect_stdout(buffer):
@@ -149,6 +156,7 @@ def invoke(
     arguments: dict[str, Any],
     *,
     store: output.OutputStore,
+    env: Globals,
 ) -> output.ToolOutput:
     """One tool call, start to finish. Runs on a worker thread: every Graph call is synchronous."""
     try:
@@ -164,9 +172,9 @@ def invoke(
     as_json = output_format == "json"
     try:
         if spec.fn is None:
-            result = _run_local(spec, kwargs, as_json=as_json)
+            result = _run_local(spec, kwargs, as_json=as_json, env=env)
         else:
-            with open_client(_globals(), spec.scopes) as client:
+            with open_client(env, spec.scopes) as client:
                 # A few verbs shape the result by it — `meetings transcript` fills a field only
                 # for JSON, `teams`/`chats messages` keep Graph's order — so the flag has to
                 # travel even though the rendering happens here rather than on stdout.
@@ -221,7 +229,9 @@ def build(settings: Settings | None = None, app: typer.Typer | None = None) -> S
         if spec is None:
             # A name that was never listed is a protocol error, not something to self-correct.
             raise ValueError(f"unknown tool: {params.name}")
-        call = functools.partial(invoke, spec, params.arguments or {}, store=store)
+        call = functools.partial(
+            invoke, spec, params.arguments or {}, store=store, env=settings.env
+        )
         try:
             result = await anyio.to_thread.run_sync(call)
         except MsgraphError as exc:
