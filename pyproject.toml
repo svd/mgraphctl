@@ -75,6 +75,8 @@ known-first-party = ["mgraphctl", "helpers"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# The MCP SDK's client is async-only; `auto` spares every test the explicit marker.
+asyncio_mode = "auto"
 markers = [
   "real_auth: module tests auth itself; do not install the fake token provider",
   "scopes(list): scopes carried by the synthetic token for this test",

@@ -113,6 +113,8 @@ class ToolSpec:
     annotations: dict[str, bool]
     # Schema property name -> the callback's Python parameter name (`from` -> `from_`).
     params: dict[str, str]
+    # Property names holding a filesystem path; the server confines each to its output directory.
+    path_params: frozenset[str]
     # The undecorated `fn(client, **kwargs)` of a `@graph_command`; None for a verb that answers
     # locally (`status`, `claims`, `version`) and is invoked through its Click callback instead.
     fn: Callable[..., Any] | None
@@ -221,9 +223,10 @@ def spec_for(path: str, command: Any) -> ToolSpec:
         input_schema=properties,
         annotations=_annotations(path, mutating),
         params=params,
-        fn=getattr(callback, "__wrapped__", None)
-        if hasattr(callback, "__graph_scopes__")
-        else None,
+        path_params=schema.path_params(command),
+        # `@graph_command` stashes the undecorated `fn(client, **kwargs)`; a verb that answers
+        # locally has none and is invoked through its Click callback instead.
+        fn=getattr(callback, "__graph_fn__", None),
     )
 
 

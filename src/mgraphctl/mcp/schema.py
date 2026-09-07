@@ -43,6 +43,16 @@ _SCALARS = {
 }
 
 
+# Click types whose value is a filesystem path. The server resolves every one of them inside its
+# own output directory, so a tool argument cannot reach the rest of the filesystem.
+PATH_TYPES = {"path", "file", "filename"}
+
+
+def path_params(command: Any) -> frozenset[str]:
+    """The schema property names whose value is a path."""
+    return frozenset(property_name(p) for p in command.params if p.type.name in PATH_TYPES)
+
+
 def property_name(param: Any) -> str:
     """`from_` -> `from`: the callback's name freed of the underscore Python forced on it."""
     return param.name.rstrip("_") if param.name.endswith("_") else param.name
