@@ -1,6 +1,6 @@
 {
   "name": "mgraphctl",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Work with Microsoft 365 through the Microsoft Graph API using a bundled Python CLI run with uv.",
   "author": {
     "name": "Sviatoslav Sviridov",

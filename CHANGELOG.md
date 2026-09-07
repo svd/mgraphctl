@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] — 2026-09-07
 
 - Add a Codex plugin manifest and repository marketplace. Claude Code and Codex share the
   bundled CLI and skill, with host-specific command-path instructions and one release version.
