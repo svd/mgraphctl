@@ -250,11 +250,12 @@ def build_app() -> typer.Typer:
         ctx.obj = Globals(debug=level, tz=zone, beta=beta, flag_keys=frozenset(flag_keys))
         _noargs_help(ctx)
 
-    from mgraphctl.commands import api, config_cmd, register_all, top
+    from mgraphctl.commands import api, config_cmd, mcp_cmd, register_all, top
 
     top.register(root)
     api.register(root)
     config_cmd.register(root)
+    mcp_cmd.register(root)
     register_all(root)
     return root
 

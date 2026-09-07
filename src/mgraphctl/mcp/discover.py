@@ -16,8 +16,9 @@ import typer.main
 from mgraphctl.errors import UsageError
 from mgraphctl.mcp import schema
 
-# `login` and `logout` drive a browser and a credential store; `config` edits the operator's file.
-# Both belong to the person running the server, not to the model talking to it.
+# `login` and `logout` drive a browser and a credential store; `config` edits the operator's file;
+# `mcp` runs this server. All three belong to the person running the server, not to the model
+# talking to it — a tool that could restart the server with `--allow-write` would defeat the gate.
 EXCLUDED = {
     "login",
     "logout",
@@ -26,6 +27,8 @@ EXCLUDED = {
     "config init",
     "config set",
     "config unset",
+    "mcp serve",
+    "mcp tools",
 }
 
 # Verbs that change something. Kept explicit because a scope is not a reliable signal in either
@@ -169,7 +172,7 @@ ALL = frozenset(
 def capabilities_of(app: Any) -> set[str]:
     """The capability names the registered command tree actually offers."""
     groups = {path.split(" ")[0] for path in walk(app) if " " in path}
-    return groups - {"config"} | {CORE, API}
+    return groups - {"config", "mcp"} | {CORE, API}
 
 
 def resolve(value: str | None) -> list[str]:

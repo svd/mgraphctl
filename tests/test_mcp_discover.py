@@ -40,7 +40,7 @@ def test_capability_is_the_command_group_and_top_level_verbs_are_core(specs):
 
 
 def test_interactive_and_host_local_verbs_are_never_exposed(app):
-    """`login` opens a browser; `config` edits the operator's file. Neither is the model's job."""
+    """`login` opens a browser, `config` edits the operator's file, `mcp` runs this server."""
     assert {
         "login",
         "logout",
@@ -49,8 +49,17 @@ def test_interactive_and_host_local_verbs_are_never_exposed(app):
         "config init",
         "config set",
         "config unset",
+        "mcp serve",
+        "mcp tools",
     } == discover.EXCLUDED
     assert set(discover.walk(app)) >= discover.EXCLUDED
+
+
+def test_the_server_cannot_restart_itself_with_more_privilege(app):
+    """`mcp serve --allow-write` as a tool would make the read-only default meaningless."""
+    exposed = {s.path for s in discover.discover(app, capabilities=discover.ALL, allow_write=True)}
+    assert not any(path.startswith("mcp ") for path in exposed)
+    assert "mcp" not in discover.ALL
 
 
 def test_description_comes_from_the_verbs_own_help(specs):

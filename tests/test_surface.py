@@ -17,6 +17,19 @@ def test_every_verb_is_covered(app):
     assert not missing, f"verbs without a @covers test: {missing}"
 
 
+# `mcp serve` prints nothing and returns nothing: it hands stdout to the MCP protocol and blocks.
+# It is the only verb that cannot carry --json. `mcp tools`, which does print, carries it.
+NO_JSON = {"mcp serve"}
+
+
 def test_every_verb_has_json_flag(app):
     for verb, cmd in walk(app).items():
+        if verb in NO_JSON:
+            continue
         assert any("--json" in p.opts for p in cmd.params), verb
+
+
+def test_the_json_exemption_list_stays_minimal(app):
+    """A new verb must not join it quietly."""
+    assert set(walk(app)) >= NO_JSON
+    assert len(NO_JSON) == 1

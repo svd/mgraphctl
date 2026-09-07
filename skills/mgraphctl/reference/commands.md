@@ -60,6 +60,7 @@ below apply to all of them.
 |---|---|
 | [`commands/top-level.md`](commands/top-level.md) | `login`, `logout`, `status`, `claims`, `me`, `version`, `api`, `search` |
 | [`commands/config.md`](commands/config.md) | `config path`, `config show`, `config init`, `config set`, `config unset` |
+| [`commands/mcp.md`](commands/mcp.md) | `mcp tools`, `mcp serve` |
 | [`commands/mail.md`](commands/mail.md) | `mail list`, `mail read`, `mail attachments`, `mail send`, `mail reply`, `mail forward`, `mail folders`, `mail mark`, `mail move`, `mail delete`, `mail drafts list`, `mail drafts create`, `mail drafts send`, `mail rules list`, `mail categories` |
 | [`commands/mailbox.md`](commands/mailbox.md) | `mailbox settings`, `mailbox oof get`, `mailbox oof set`, `mailbox focused` |
 | [`commands/calendar.md`](commands/calendar.md) | `calendar list`, `calendar calendars`, `calendar get`, `calendar create`, `calendar update`, `calendar delete`, `calendar respond`, `calendar availability`, `calendar find-times` |
