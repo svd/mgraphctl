@@ -121,6 +121,64 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl mail --help
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl mail list --help
 ```
 
+## MCP server
+
+The same verbs are available to any MCP client, including hosts that cannot run a Claude Code
+skill. It needs the optional dependency:
+
+```bash
+uv tool install "mgraphctl[mcp]"          # or: pip install "mgraphctl[mcp]"
+mgraphctl mcp tools --capabilities mail,calendar   # what would be exposed, before wiring it up
+mgraphctl mcp serve --capabilities mail,calendar   # stdio, the recommended transport
+```
+
+```jsonc
+// claude_desktop_config.json, or any other host's MCP config
+{ "mcpServers": { "mgraphctl": {
+    "command": "mgraphctl",
+    "args": ["mcp", "serve", "--capabilities", "mail,calendar,teams"]
+} } }
+```
+
+Three things are worth knowing before using it.
+
+**Only what you ask for.** All 123 verbs as tools would cost the client a great deal of context,
+so `--capabilities` names the command groups to expose. Omitted, it is
+`core,mail,calendar,people,chats`; `all` is accepted and covers everything except `api`, the raw
+Graph escape hatch, which is only ever exposed by naming it. `mcp tools` prints the resolved list.
+
+**Read-only until told otherwise.** Verbs that change something appear only with `--allow-write`.
+Tools also carry the MCP `readOnlyHint` / `destructiveHint` annotations, so a host can prompt
+accordingly — but the annotations are hints, and `--allow-write` is the gate.
+
+**Results stay small.** There is no `--json` tool argument. Every tool takes `output_format`
+(`text`, the default compact table, or `json` for the full payload as structured content) and
+`output_file`, which writes the result under `--output-dir` and returns a link instead of the
+payload. Anything past `--max-inline-bytes` (25 KB) is written and linked whichever was asked, so
+one wide fetch cannot flood the client. Written files are readable back as MCP resources, and every
+path a tool argument names is confined to `--output-dir`.
+
+The protocol revision is `2026-07-28`, plus the earlier ones the SDK negotiates. Deprecated
+features — the HTTP+SSE transport, protocol sessions, the standalone GET stream, resumable
+streams — are not implemented.
+
+### A word on HTTP
+
+`--transport http` exists, and it binds loopback only; anything else is a usage error rather than a
+warning. The reason is worth stating plainly: **the server acts as exactly one user** — whoever's
+sign-in is cached — and has no way to tell callers apart, so any reachable port is that person's
+mailbox, calendar and files. It therefore also requires a bearer token (`MGRAPHCTL_MCP_TOKEN`, else
+one is generated and printed at startup) and refuses any request carrying an `Origin` header that
+`--allow-origin` does not list, which is the DNS-rebinding defence the transport spec requires of
+local servers.
+
+That token is a local shared secret, **not** OAuth, and the server deliberately advertises no
+protected-resource metadata. Conforming to the MCP authorization spec means validating tokens
+issued for this server as their audience; accepting the caller's Entra token instead is exactly the
+token passthrough the spec prohibits, and doing it properly needs a second Entra app registered as
+an API plus an on-behalf-of exchange — which requires a client secret that a locally installed CLI
+cannot keep. Prefer `stdio`, where credentials come from the environment as the spec prescribes.
+
 ## Where things live
 
 - Virtual environment: under `${CLAUDE_PLUGIN_DATA}` when Claude Code sets it, otherwise

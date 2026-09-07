@@ -1,5 +1,28 @@
 # Changelog
 
+## [Unreleased]
+
+- An MCP server, `mgraphctl mcp serve`, exposing the CLI's verbs as tools to any MCP client. The
+  tool set is generated from the command tree, so a new verb is a new tool; `mcp tools` prints
+  what would be exposed. Needs the optional dependency `mgraphctl[mcp]`.
+  - `--capabilities mail,calendar,teams` picks the command groups to expose, because all 123 verbs
+    at once would cost the client a great deal of context. Default:
+    `core,mail,calendar,people,chats`. `all` covers everything but `api`.
+  - Read-only unless `--allow-write`. Tools carry the MCP behaviour annotations too, but those are
+    hints to the host, not the gate.
+  - `--json` has no tool equivalent: `output_format` chooses the compact table or the full payload
+    as structured content, and `output_file` writes the result under `--output-dir` and links it.
+    Results past `--max-inline-bytes` are written and linked regardless, so one wide fetch cannot
+    flood the client. Written files are readable back as MCP resources.
+  - Protocol revision `2026-07-28`, plus the earlier revisions the SDK negotiates. No deprecated
+    feature is implemented: no HTTP+SSE transport, no protocol sessions, no GET stream, no
+    resumable streams.
+  - `--transport http` binds loopback only and requires a bearer token and an allowed `Origin`.
+    The server acts as one signed-in user and cannot authenticate callers, so it does not pretend
+    to be an OAuth resource server; `stdio` is the recommended transport. README explains why.
+- `render.emit` splits into `to_text`, `notes` and `to_json`, so a caller that does not own stdout
+  can render a result. The CLI's output is unchanged.
+
 ## [0.3.0] — 2026-09-07
 
 - Add a Codex plugin manifest and repository marketplace. Claude Code and Codex share the
