@@ -9,4 +9,21 @@ export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-${CLAUDE_PLUGIN_DATA:-$
 export UV_NO_PROGRESS=1
 export PYTHONDONTWRITEBYTECODE=1
 [ -d "$UV_PROJECT_ENVIRONMENT" ] || echo "mgraphctl: first run, installing Python environment (10-40 s)..." >&2
-exec uv run --project "$here" --frozen --no-dev mgraphctl "$@"
+
+# The MCP SDK is an optional extra: it brings starlette, uvicorn and a second HTTP client, which
+# every other verb would pay for. Ask for it only when the `mcp` noun is the one being run.
+extra=()
+skip=0
+for arg in "$@"; do
+  if [ "$skip" = 1 ]; then skip=0; continue; fi
+  case "$arg" in
+    --tz) skip=1 ;;      # the one root option that takes a separate value
+    -*) ;;               # any other root flag: keep looking for the noun
+    mcp) extra=(--extra mcp); break ;;
+    *) break ;;          # a different noun; the extra is not needed
+  esac
+done
+
+# `${extra[@]+...}`: under `set -u`, bash 3.2 (the macOS system bash) treats an empty array as
+# unbound.
+exec uv run --project "$here" --frozen --no-dev ${extra[@]+"${extra[@]}"} mgraphctl "$@"

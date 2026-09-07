@@ -68,6 +68,45 @@ def test_mcp_serve_refuses_to_bind_off_loopback(invoke, host):
     assert "loopback" in result.stderr
 
 
+SHIM = Path(__file__).resolve().parents[1] / "mgraphctl"
+
+
+def shim_argv(tmp_path, *args: str) -> list[str]:
+    """The `uv run` line the shim would exec, with a stub `uv` standing in for the real one."""
+    import os
+    import subprocess
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(parents=True)
+    stub = bin_dir / "uv"
+    stub.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
+    stub.chmod(0o755)
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "UV_PROJECT_ENVIRONMENT": str(tmp_path / "venv"),
+    }
+    done = subprocess.run(
+        ["bash", str(SHIM), *args], capture_output=True, text=True, env=env, check=True
+    )
+    return done.stdout.split()
+
+
+@covers("mcp serve")
+def test_the_shim_asks_for_the_mcp_extra_only_for_the_mcp_noun(tmp_path):
+    """`--no-dev` hides the SDK, so without this the plugin's own `mcp serve` cannot start."""
+    assert "--extra" not in shim_argv(tmp_path / "a", "mail", "list")
+    argv = shim_argv(tmp_path / "b", "mcp", "serve")
+    assert argv[argv.index("--extra") + 1] == "mcp"
+    # The extra is an option to `uv run`, so it has to precede the command being run.
+    assert argv.index("--extra") < argv.index("mgraphctl")
+    # Root flags come before the noun, and `--tz` takes a value that must not be read as one.
+    assert "--extra" in shim_argv(tmp_path / "c", "-dd", "mcp", "serve")
+    assert "--extra" in shim_argv(tmp_path / "d", "--tz", "UTC", "mcp", "tools")
+    assert "--extra" not in shim_argv(tmp_path / "e", "--tz", "mcp", "mail", "list")
+    assert "--extra" not in shim_argv(tmp_path / "f", "--version")
+
+
 def _capture_settings(monkeypatch):
     """Start `mcp serve` far enough to build its settings, then stop before it blocks."""
     from mgraphctl.commands import mcp_cmd

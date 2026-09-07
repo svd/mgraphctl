@@ -5,7 +5,8 @@ are in [`../commands.md`](../commands.md).
 
 These two verbs are for the person configuring an MCP host, not for a task. They serve the other
 verbs in this reference to an MCP client; they read no Microsoft 365 data themselves. The server
-needs the optional dependency: install `mgraphctl[mcp]`.
+needs the optional dependency `mgraphctl[mcp]`, which the shim requests for this noun on its own;
+only a separately installed package has to be given it (`pip install 'mgraphctl[mcp]'`).
 
 ### `mcp tools`
 

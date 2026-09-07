@@ -24,6 +24,9 @@
     (`--attach`, `--body-file`) rather than writes, and the server runs from inside that directory
     so a verb's own default destination cannot land elsewhere. A downloaded file that is not text
     reads back through `resources/read` as a blob.
+  - The `mgraphctl` shim adds `--extra mcp` when the noun being run is `mcp`, so the plugin can
+    start the server without the operator installing anything; every other verb's environment is
+    unchanged.
   - The root flags carry into the server: `mgraphctl -dd mcp serve` logs every tool call's Graph
     request to stderr, and `--tz` / `--beta` apply the same way they do on the command line.
 - `render.emit` splits into `to_text`, `notes` and `to_json`, so a caller that does not own stdout

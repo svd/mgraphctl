@@ -124,7 +124,8 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl mail list --help
 ## MCP server
 
 The same verbs are available to any MCP client, including hosts that cannot run a Claude Code
-skill. It needs the optional dependency:
+skill. Installed as a package it needs the optional dependency; run through the plugin's own
+`mgraphctl` shim it does not, since the shim requests that extra for the `mcp` noun itself:
 
 ```bash
 uv tool install "mgraphctl[mcp]"          # or: pip install "mgraphctl[mcp]"
