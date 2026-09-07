@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -306,12 +307,12 @@ def test_list_envelope_takes_cap_fetched_and_truncated_from_the_page():
 def test_list_envelope_reports_fetched_above_count_after_a_post_filter():
     page = PageResult(items=[{"id": "1"}, {"id": "2"}], truncated=False, pages=1, cap=50)
     kept = filter_page(page, lambda item: item["id"] == "1")
-    doc = render._to_json(render.ListResult(items=kept.items, columns=[], page=kept))
+    doc = render.to_json(render.ListResult(items=kept.items, columns=[], page=kept))
     assert doc["count"] == 1 and doc["fetched"] == 2 and doc["cap"] == 50
 
 
 def test_list_envelope_window_is_present_with_both_bounds_unset():
-    doc = render._to_json(render.ListResult(items=[], columns=[], window=render.Window()))
+    doc = render.to_json(render.ListResult(items=[], columns=[], window=render.Window()))
     assert doc["window"] == {"after": None, "before": None}
 
 
@@ -321,7 +322,7 @@ def test_list_envelope_window_renders_iso_offsets():
         after=render.parse_dt("2026-08-01", tz),
         before=render.parse_dt("2026-08-31", tz, end_of_day=True),
     )
-    doc = render._to_json(render.ListResult(items=[], columns=[], window=window))
+    doc = render.to_json(render.ListResult(items=[], columns=[], window=window))
     assert doc["window"] == {
         "after": "2026-08-01T00:00:00+02:00",
         "before": "2026-08-31T23:59:59+02:00",
@@ -329,7 +330,7 @@ def test_list_envelope_window_renders_iso_offsets():
 
 
 def test_list_envelope_omits_window_and_query_when_the_command_has_none():
-    doc = render._to_json(render.ListResult(items=[], columns=[]))
+    doc = render.to_json(render.ListResult(items=[], columns=[]))
     assert "window" not in doc and "query" not in doc
     assert doc["fetched"] == 0 and doc["cap"] is None
 
@@ -339,3 +340,39 @@ def test_list_envelope_page_overrides_an_explicit_truncated():
     page = PageResult(items=[{"id": "1"}], truncated=False, pages=1, cap=10)
     res = render.ListResult(items=[], columns=[], page=page, truncated=True)
     assert res.truncated is False
+
+
+def test_to_text_returns_the_body_emit_writes_to_stdout(capsys):
+    """`emit` composes `to_text`; a caller that owns stdout (the MCP server) can take the string."""
+    res = render.ListResult(
+        items=[{"id": "1", "subject": "Hello"}],
+        columns=[render.Column("Id", "id"), render.Column("Subject", "subject")],
+    )
+    render.emit(res, json_mode=False)
+    assert render.to_text(res) == capsys.readouterr().out
+
+
+def test_to_text_covers_every_result_type(capsys):
+    for res in (
+        render.ListResult(items=[], columns=[], empty_text="Nothing."),
+        render.ObjectResult(obj={"a": "1"}, fields=[("Alpha", "a")], body="body text"),
+        render.TextResult(text="plain", json_obj={"k": "v"}),
+        render.WriteResult(obj=None, message="Done."),
+        render.FileResult(path=Path("/tmp/x"), bytes=3, meta={}, message="Saved."),
+    ):
+        render.emit(res, json_mode=False)
+        assert render.to_text(res) == capsys.readouterr().out
+
+
+def test_notes_returns_the_truncation_lines_emit_writes_to_stderr(capsys):
+    res = render.ListResult(
+        items=[{"id": "1"}], columns=[render.Column("Id", "id")], truncated=True
+    )
+    render.emit(res, json_mode=False)
+    assert capsys.readouterr().err.splitlines() == render.notes(res)
+    assert render.notes(res) == ["(more results available — rerun with --all)"]
+
+
+def test_notes_is_empty_when_the_fetch_was_complete():
+    assert render.notes(render.ListResult(items=[], columns=[])) == []
+    assert render.notes(render.TextResult(text="x", json_obj=None)) == []
