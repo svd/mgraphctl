@@ -34,7 +34,7 @@ def test_calendar_list_window_and_columns(invoke, graph, monkeypatch):
         "endDateTime": "2026-09-09T09:00:00+02:00",
         "$select": "id,subject,start,end,location,organizer,attendees,isOnlineMeeting,"
         "onlineMeeting,isCancelled,isAllDay,showAs,responseStatus,seriesMasterId,bodyPreview,"
-        "webLink",
+        "webLink,lastModifiedDateTime",
         "$orderby": "start/dateTime",
         "$top": "50",
     }
@@ -53,6 +53,36 @@ def test_calendar_list_window_and_columns(invoke, graph, monkeypatch):
     ]
     assert "T" in r.stdout.splitlines()[1].split()[2]
     assert "2026-09-03 (all day)" in r.stdout
+
+
+@covers("calendar list")
+def test_calendar_list_select_overrides_the_default(invoke, graph, monkeypatch):
+    _fix_now(monkeypatch)
+    route = graph.get(f"{GRAPH}/v1.0/me/calendarView").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    {
+                        "id": "ev-1",
+                        "subject": "Standup",
+                        "lastModifiedDateTime": "2026-09-01T08:00:00.4Z",
+                    }
+                ]
+            },
+        )
+    )
+    r = invoke("calendar", "list", "--select", "id,subject,lastModifiedDateTime", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert json.loads(r.stdout)["items"][0]["lastModifiedDateTime"] == "2026-09-01T08:00:00.4Z"
+    params = route.calls.last.request.url.params
+    assert params["$select"] == "id,subject,lastModifiedDateTime"
+    assert params["$orderby"] == "start/dateTime"
+    # Text mode renders the columns --select left out as N/A.
+    text = invoke("calendar", "list", "--select", "id,subject,lastModifiedDateTime")
+    assert text.exit_code == 0, text.stderr
+    row = text.stdout.splitlines()[1].split()
+    assert row[:2] == ["N/A", "N/A"] and "Standup" in row and row[-1] == "ev-1"
 
 
 @covers("calendar list")

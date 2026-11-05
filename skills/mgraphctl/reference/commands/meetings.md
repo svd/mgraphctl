@@ -14,7 +14,7 @@ All `meetings` verbs except `list` select the meeting three ways: a positional o
 | `--end DT` | end of today | End of the window. |
 | `--subject KW` | — | Case-insensitive subject substring. |
 | `--resolve` | off | Resolve each event to its online-meeting id. |
-| `--with-transcripts` | off | Also list transcript ids (implies `--resolve`). |
+| `--with-transcripts` | off | Also list each transcript's id and creation time (implies `--resolve`). |
 | `--limit N` | 50 | Maximum items. |
 | `--json` | off | Print JSON instead of text. |
 
@@ -25,6 +25,10 @@ All `meetings` verbs except `list` select the meeting three ways: a positional o
 - **Scopes:** `Calendars.Read`; `--resolve` additionally checks `OnlineMeetings.Read`, and
   `--with-transcripts` `OnlineMeetingTranscript.Read.All`.
 - **Notes:** columns: start, subject, event id, meeting id (when resolved), transcript ids.
+  In `--json`, each item carries `transcriptIds` and `transcripts`, a list of
+  `{id, createdDateTime}` as Graph returns them. Occurrences of a recurring meeting share one
+  online meeting, so every occurrence lists the same transcripts; `createdDateTime` tells which
+  one belongs to the occurrence.
 
 ### `meetings get [MEETING]`
 

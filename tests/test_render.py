@@ -29,6 +29,54 @@ def test_parse_graph_dt_treats_a_naive_timestamp_as_utc():
     )
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2026-10-22T15:53:38.4Z", datetime(2026, 10, 22, 15, 53, 38, 400000, tzinfo=timezone.utc)),
+        (
+            "2026-10-22T15:53:38.45Z",
+            datetime(2026, 10, 22, 15, 53, 38, 450000, tzinfo=timezone.utc),
+        ),
+        (
+            "2026-10-22T15:53:38.4567Z",
+            datetime(2026, 10, 22, 15, 53, 38, 456700, tzinfo=timezone.utc),
+        ),
+        (
+            "2026-10-22T15:53:38.45678Z",
+            datetime(2026, 10, 22, 15, 53, 38, 456780, tzinfo=timezone.utc),
+        ),
+        (
+            "2026-10-22T15:53:38.1234567Z",
+            datetime(2026, 10, 22, 15, 53, 38, 123456, tzinfo=timezone.utc),
+        ),
+        ("2026-10-22T15:53:38Z", datetime(2026, 10, 22, 15, 53, 38, tzinfo=timezone.utc)),
+        (
+            "2026-10-22T15:53:38.4+03:00",
+            datetime(2026, 10, 22, 12, 53, 38, 400000, tzinfo=timezone.utc),
+        ),
+        ("2026-10-22T15:53:38.4", datetime(2026, 10, 22, 15, 53, 38, 400000, tzinfo=timezone.utc)),
+    ],
+)
+def test_parse_graph_dt_accepts_any_fraction_length(value, expected):
+    """Graph trims trailing zeros from the fraction; any length from one digit up parses."""
+    assert render.parse_graph_dt(value) == expected
+
+
+def test_fraction_outside_the_seconds_is_left_alone():
+    assert render._six_digit_fraction("2026-10-22T15:53.5Z") == "2026-10-22T15:53.5Z"
+    assert (
+        render._six_digit_fraction("v1.2 2026-10-22T15:53:38.4Z")
+        == "v1.2 2026-10-22T15:53:38.400000Z"
+    )
+
+
+def test_fmt_dtz_accepts_a_short_fraction():
+    assert (
+        render.fmt_dtz({"dateTime": "2026-08-31T08:15:00.5", "timeZone": "UTC"}, "UTC")
+        == "2026-08-31T08:15+00:00"
+    )
+
+
 def test_parse_graph_dt_returns_none_for_empty_and_unparsable():
     assert render.parse_graph_dt(None) is None
     assert render.parse_graph_dt("") is None
