@@ -14,7 +14,7 @@ description: >
 allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/mgraphctl *)
 metadata:
   author: Sviatoslav Sviridov
-  version: "0.4.1"
+  version: "0.5.0"
 ---
 
 # Microsoft Graph (Python CLI)

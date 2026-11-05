@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.0] — 2026-11-05
 
 - `calendar list` selects `lastModifiedDateTime`, and takes `--select` to override the `$select`
   list as `mail list` does.
