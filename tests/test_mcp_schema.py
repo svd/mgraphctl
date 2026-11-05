@@ -34,7 +34,7 @@ def test_a_repeatable_option_becomes_an_array(commands):
     assert doc["properties"]["to"] == {
         "type": "array",
         "items": {"type": "string"},
-        "description": "Recipient address (repeatable). (--to)",
+        "description": "Recipient address or @domain; repeatable, comma-separated, ORed. (--to)",
     }
 
 
