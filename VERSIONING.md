@@ -80,3 +80,4 @@ summarises it.
 | `mgraphctl--v0.2.1` | 2026-09-06 | Command reference split into one file per noun. |
 | `mgraphctl--v0.3.0` | 2026-09-07 | Codex plugin manifest and repository marketplace added. |
 | `mgraphctl--v0.4.0` | 2026-09-08 | MCP server: `mcp serve` and `mcp tools`, with capability groups, path confinement and the loopback HTTP transport. |
+| `mgraphctl--v0.4.1` | 2026-11-05 | `mail list --from`/`--to` values match as OR; `@domain` documented. |

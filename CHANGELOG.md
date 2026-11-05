@@ -1,12 +1,14 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.1] — 2026-11-05
 
 - `mail list --from` and `--to` match any of their values. Several values, repeated or
   comma-separated, become one OR group, `(from:a OR from:b)`, where they used to be ANDed and match
   nothing. `--search`, the `--from` group, the `--to` group and the dates are still ANDed, and
   `--search` is now parenthesised when other terms join it, so `--search "a OR b" --from x` keeps
   its OR inside the search. A bare domain such as `@example.com` matches every address at it.
+- Dependencies are unchanged from 0.4.0: `[tool.uv] exclude-newer` was not advanced for this
+  release.
 
 ## [0.4.0] — 2026-09-08
 
