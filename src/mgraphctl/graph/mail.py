@@ -177,6 +177,20 @@ def _search_post_filter(
     return keep
 
 
+def _address_term(prop: str, addresses: list[str]) -> str | None:
+    """One KQL term matching any of `addresses` on `prop` (`from` or `to`).
+
+    A single address is `prop:a`; several are `(prop:a OR prop:b)`, parenthesised so the
+    surrounding ` AND ` joins treat the group as one term. Values pass through verbatim, so a
+    bare domain such as `@example.com` matches every address at it.
+    """
+    if not addresses:
+        return None
+    if len(addresses) == 1:
+        return f"{prop}:{addresses[0]}"
+    return "(" + " OR ".join(f"{prop}:{a}" for a in addresses) + ")"
+
+
 def list_messages(
     client: GraphClient,
     *,
@@ -199,12 +213,14 @@ def list_messages(
     path = messages_path(folder_id)
     params: dict[str, object] = {"$select": select or LIST_SELECT}
     if search or senders or recipients:
-        terms = [search] if search else []
-        terms += [f"from:{a}" for a in senders] + [f"to:{a}" for a in recipients]
+        terms = [t for t in (_address_term("from", senders), _address_term("to", recipients)) if t]
         if after:
             terms.append(f"received>={kql_date(after, tz)}")
         if before:
             terms.append(f"received<={kql_date(before, tz)}")
+        if search:
+            # Parenthesised beside other terms, so an OR inside the user's KQL stays inside it.
+            terms.insert(0, f"({search})" if terms else search)
         params["$search"] = odata.kql(*terms)
         page = client.paginate(
             path,

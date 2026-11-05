@@ -9,8 +9,8 @@ are in [`../commands.md`](../commands.md).
 |---|---|---|
 | `--folder NAME\|ID\|all` | `inbox` | Folder name, well-known name, id, or `all` for the whole mailbox. |
 | `--unread` | off | Only unread messages. |
-| `--from ADDR` | — | Sender address. Repeatable. |
-| `--to ADDR` | — | Recipient address. Repeatable. |
+| `--from ADDR[,ADDR]` | — | Sender address or `@domain`. Repeatable; values match as OR. |
+| `--to ADDR[,ADDR]` | — | Recipient address or `@domain`. Repeatable; values match as OR. |
 | `--search KQL` | — | KQL query. |
 | `--after DT` | — | Only messages received after this. |
 | `--before DT` | — | Only messages received before this. |
@@ -26,7 +26,15 @@ are in [`../commands.md`](../commands.md).
   `$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,isRead,hasAttachments,importance,bodyPreview,conversationId,webLink,inferenceClassification`
   and `Prefer: outlook.timezone`.
 - **Scopes:** `Mail.Read`
-- **Notes:** in search mode `--unread` is applied client-side, because KQL has no `isRead` term.
+- **Notes:** `--from` and `--to` take repeated flags, comma lists or both; segments are trimmed
+  and empty ones dropped. One value becomes `from:a`; several become `(from:a OR from:b)`. A bare
+  domain such as `@example.com` passes through as `from:@example.com` and matches every address at
+  it. `--search`, the `--from` group, the `--to` group and the dates are joined with ` AND `, in
+  that order; `--search` is parenthesised when anything else joins it, so an `OR` inside it stays
+  inside it. `--search "budget OR forecast" --from a@x.com --from @y.com --to z@w.com --after
+  2026-11-01` sends
+  `$search="(budget OR forecast) AND (from:a@x.com OR from:@y.com) AND to:z@w.com AND received>=2026-11-01"`.
+  In search mode `--unread` is applied client-side, because KQL has no `isRead` term.
   So are `--after`/`--before` when they carry a time of day: KQL's `received` compares on the
   calendar date only, so `--after 2026-09-02T14:00` reaches Graph as `received>=2026-09-02` and the
   earlier part of that day is dropped here. A date-only bound needs no such pass and gets none.

@@ -207,10 +207,16 @@ def list_(
     folder: FolderOpt = "inbox",
     unread: Annotated[bool, typer.Option("--unread", help="Only unread messages.")] = False,
     from_: Annotated[
-        list[str] | None, typer.Option("--from", help="Sender address (repeatable).")
+        list[str] | None,
+        typer.Option(
+            "--from", help="Sender address or @domain; repeatable, comma-separated, ORed."
+        ),
     ] = None,
     to: Annotated[
-        list[str] | None, typer.Option("--to", help="Recipient address (repeatable).")
+        list[str] | None,
+        typer.Option(
+            "--to", help="Recipient address or @domain; repeatable, comma-separated, ORed."
+        ),
     ] = None,
     search: Annotated[str | None, typer.Option("--search", help="KQL query.")] = None,
     after: Annotated[str | None, typer.Option("--after", help="Only messages after this.")] = None,
