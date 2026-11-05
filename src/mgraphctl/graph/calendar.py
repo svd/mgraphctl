@@ -18,7 +18,8 @@ from mgraphctl.resolve import looks_like_id, pick_unique, split_id_prefix
 
 LIST_SELECT = (
     "id,subject,start,end,location,organizer,attendees,isOnlineMeeting,onlineMeeting,"
-    "isCancelled,isAllDay,showAs,responseStatus,seriesMasterId,bodyPreview,webLink"
+    "isCancelled,isAllDay,showAs,responseStatus,seriesMasterId,bodyPreview,webLink,"
+    "lastModifiedDateTime"
 )
 PAGE_LIST, CAP_LIST = 50, 200
 

@@ -72,7 +72,10 @@ def list_(
     ] = False,
     with_transcripts: Annotated[
         bool,
-        typer.Option("--with-transcripts", help="Also list transcript ids (implies --resolve)."),
+        typer.Option(
+            "--with-transcripts",
+            help="Also list each transcript's id and creation time (implies --resolve).",
+        ),
     ] = False,
     limit: LimitOpt = None,
     json_: JsonFlag = False,
@@ -99,6 +102,7 @@ def list_(
     for event in events:
         meeting = resolved.get(event["id"])
         meeting_id = meeting.get("id") if meeting else None
+        found = transcripts.get(meeting_id, []) if with_transcripts and meeting_id else []
         items.append(
             {
                 "eventId": event.get("id"),
@@ -107,11 +111,10 @@ def list_(
                 "end": event.get("end"),
                 "organizer": event.get("organizer"),
                 "meetingId": meeting_id if do_resolve else None,
-                "transcriptIds": (
-                    [t.get("id") for t in transcripts.get(meeting_id, [])]
-                    if with_transcripts and meeting_id
-                    else []
-                ),
+                "transcriptIds": [t.get("id") for t in found],
+                "transcripts": [
+                    {"id": t.get("id"), "createdDateTime": t.get("createdDateTime")} for t in found
+                ],
             }
         )
     return ListResult(

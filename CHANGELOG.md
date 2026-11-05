@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0] — 2026-11-05
+
+- `calendar list` selects `lastModifiedDateTime`, and takes `--select` to override the `$select`
+  list as `mail list` does.
+- `meetings list --with-transcripts` adds `transcripts` to each `--json` item: the id and
+  `createdDateTime` of every transcript, so a consumer can pick the one nearest an occurrence of
+  a recurring meeting. `transcriptIds` is unchanged.
+- Graph timestamps whose seconds fraction has 1, 2, 4 or 5 digits (Graph trims trailing zeros, as
+  in `2026-10-22T15:53:38.4Z`) parse. They used to count as undatable on Python 3.10, so
+  `chats list --since` kept old chats and paged on past the window edge, the other date windows
+  kept such items, and an event time with such a fraction stopped the command with a
+  `ValueError`.
+
 ## [0.4.1] — 2026-11-05
 
 - `mail list --from` and `--to` match any of their values. Several values, repeated or

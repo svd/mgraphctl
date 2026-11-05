@@ -156,6 +156,42 @@ def test_chats_list_since_keeps_a_chat_with_no_preview_timestamp(invoke, graph):
 
 
 @covers("chats list")
+def test_chats_list_since_drops_and_stops_at_a_short_fraction_timestamp(invoke, graph):
+    """A one-digit fraction (`.4Z`) still dates the chat, so it is dropped and stops the paging."""
+    second_page = graph.get(f"{GRAPH}/v1.0/me/chats-page-2").mock(
+        return_value=httpx.Response(200, json={"value": []})
+    )
+    graph.get(f"{GRAPH}/v1.0/me/chats").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "value": [
+                    {
+                        "id": "19:new@thread.v2",
+                        "chatType": "group",
+                        "topic": "Recent",
+                        "lastMessagePreview": {"createdDateTime": "2026-10-27T09:00:00.12Z"},
+                    },
+                    {
+                        "id": "19:old@thread.v2",
+                        "chatType": "group",
+                        "topic": "Old",
+                        "lastMessagePreview": {"createdDateTime": "2026-10-22T15:53:38.4Z"},
+                    },
+                ],
+                "@odata.nextLink": f"{GRAPH}/v1.0/me/chats-page-2",
+            },
+        )
+    )
+    r = invoke("chats", "list", "--since", "2026-10-26", "--all", "--json")
+    assert r.exit_code == 0, r.stderr
+    doc = json.loads(r.stdout)
+    assert [c["id"] for c in doc["items"]] == ["19:new@thread.v2"]
+    assert doc["truncated"] is False
+    assert not second_page.called
+
+
+@covers("chats list")
 def test_chats_list_since_keeps_a_chat_exactly_on_the_bound(invoke, graph):
     graph.get(f"{GRAPH}/v1.0/me/chats").mock(
         return_value=httpx.Response(

@@ -261,7 +261,7 @@ class FileResult:
 
 Result = ListResult | ObjectResult | TextResult | WriteResult | DryRunResult | FileResult
 
-_FRACTIONAL_RE = re.compile(r"(\.\d{6})\d+")
+_FRACTIONAL_RE = re.compile(r"(?<=\d\d:\d\d:\d\d)\.(\d+)")
 _RELATIVE_RE = re.compile(r"^([+-])(\d+)([dh])$")
 _DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _SIMPLE_DURATION_RE = re.compile(r"^(\d+)([mhd])$")
@@ -333,11 +333,20 @@ def local_tz() -> str:
     return "UTC"
 
 
+def _six_digit_fraction(value: str) -> str:
+    """Pad or cut the seconds fraction to six digits.
+
+    Graph trims trailing zeros (`.4Z`) or sends seven digits, and Python 3.10's
+    `datetime.fromisoformat` accepts only three or six.
+    """
+    return _FRACTIONAL_RE.sub(lambda m: "." + m.group(1).ljust(6, "0")[:6], value)
+
+
 def parse_graph_dt(value: str | None) -> datetime | None:
     """A Graph timestamp as an aware datetime (bare ones are UTC), or None when unusable."""
     if not value:
         return None
-    text = _FRACTIONAL_RE.sub(r"\1", value)
+    text = _six_digit_fraction(value)
     if text.endswith("Z"):
         text = text[:-1] + "+00:00"
     try:
@@ -369,7 +378,7 @@ def fmt_dtz(obj: dict | None, tz: str) -> str:
     if date_time is None:
         return "N/A"
     if zone == "UTC" or is_iana(zone):
-        v = _FRACTIONAL_RE.sub(r"\1", date_time)
+        v = _six_digit_fraction(date_time)
         dt = datetime.fromisoformat(v).replace(tzinfo=ZoneInfo(zone))
         return dt.astimezone(ZoneInfo(tz)).isoformat(timespec="minutes")
     return f"{date_time} ({zone})"
@@ -377,9 +386,10 @@ def fmt_dtz(obj: dict | None, tz: str) -> str:
 
 def fmt_event_time(event: dict, key: str, tz: str) -> str:
     """Render an event's start/end: all-day events as `YYYY-MM-DD (all day)`."""
-    if event.get("isAllDay"):
-        return f"{event[key]['dateTime'][:10]} (all day)"
-    return fmt_dtz(event[key], tz)
+    value = event.get(key)
+    if event.get("isAllDay") and value and value.get("dateTime"):
+        return f"{value['dateTime'][:10]} (all day)"
+    return fmt_dtz(value, tz)
 
 
 def fmt_date(value: str | None) -> str:

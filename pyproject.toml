@@ -1,6 +1,6 @@
 [project]
 name = "mgraphctl"
-version = "0.4.1"
+version = "0.5.0"
 description = "Microsoft Graph CLI behind the mgraphctl Claude Code skill"
 readme = "README.md"
 license = "MIT"
