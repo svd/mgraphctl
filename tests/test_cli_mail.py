@@ -96,7 +96,7 @@ def test_mail_list_envelope_reports_the_window_and_the_fetch(invoke, graph):
     # The client-side unread pass dropped one, so `fetched` exceeds `count`.
     assert doc["count"] == 1 and doc["fetched"] == 2
     assert doc["cap"] == 10  # the default --limit, which is the bound the fetch ran under
-    assert doc["query"]["$search"] == '"budget AND received>=2026-08-01 AND received<=2026-08-31"'
+    assert doc["query"]["$search"] == '"(budget) AND received>=2026-08-01 AND received<=2026-08-31"'
 
 
 @covers("mail list")
@@ -121,11 +121,65 @@ def test_mail_list_search_mode_and_unread_client_side(invoke, graph):
     )
     assert result.exit_code == 0, result.stderr
     params = route.calls.last.request.url.params
-    assert params["$search"] == '"budget AND from:ada@example.com AND received>=2026-08-01"'
+    assert params["$search"] == '"(budget) AND from:ada@example.com AND received>=2026-08-01"'
     assert params["$top"] == "25" and params["$select"] == LIST_SELECT
     assert "$orderby" not in params and "$filter" not in params
     doc = json.loads(result.stdout)
     assert [m["id"] for m in doc["items"]] == ["AAMk-msg-0001"]
+
+
+@covers("mail list")
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        (["--from", "a@x.com"], "from:a@x.com"),
+        (["--from", "a@x.com", "--from", "b@x.com"], "(from:a@x.com OR from:b@x.com)"),
+        (["--from", "a@x.com,b@x.com"], "(from:a@x.com OR from:b@x.com)"),
+        (
+            ["--from", "a@x.com,b@x.com", "--from", "c@x.com"],
+            "(from:a@x.com OR from:b@x.com OR from:c@x.com)",
+        ),
+        (["--from", " a@x.com , ,", "--from", " "], "from:a@x.com"),
+        (["--from", "a@x.com,  ,b@x.com "], "(from:a@x.com OR from:b@x.com)"),
+        (["--from", "@example.com"], "from:@example.com"),
+        (
+            ["--from", "@example.com,x@partner.example"],
+            "(from:@example.com OR from:x@partner.example)",
+        ),
+        (["--to", "a@x.com,b@x.com"], "(to:a@x.com OR to:b@x.com)"),
+        (
+            ["--from", "a@x.com", "--from", "@y.com", "--to", "z@w.com"],
+            "(from:a@x.com OR from:@y.com) AND to:z@w.com",
+        ),
+        (
+            ["--from", "a@x.com,b@x.com", "--to", "c@x.com,d@x.com"],
+            "(from:a@x.com OR from:b@x.com) AND (to:c@x.com OR to:d@x.com)",
+        ),
+        (
+            ["--search", "budget", "--from", "a@x.com,@y.com"],
+            "(budget) AND (from:a@x.com OR from:@y.com)",
+        ),
+        (["--search", "budget OR forecast"], "budget OR forecast"),
+        (
+            ["--search", "budget OR forecast", "--from", "a@x.com,b@x.com"],
+            "(budget OR forecast) AND (from:a@x.com OR from:b@x.com)",
+        ),
+        (
+            ["--from", "a@x.com,@y.com", "--after", "2026-11-01", "--before", "2026-11-30"],
+            "(from:a@x.com OR from:@y.com) AND received>=2026-11-01 AND received<=2026-11-30",
+        ),
+        (
+            ["--search", "budget", "--to", "a@x.com", "--to", "b@x.com", "--after", "2026-11-01"],
+            "(budget) AND (to:a@x.com OR to:b@x.com) AND received>=2026-11-01",
+        ),
+    ],
+)
+def test_mail_list_address_values_or_within_a_flag(invoke, graph, args, expected):
+    """Values of one --from/--to flag are ORed; the flags, --search and dates are ANDed."""
+    route = graph.get(INBOX).mock(return_value=httpx.Response(200, json={"value": []}))
+    result = invoke("mail", "list", *args, "--json")
+    assert result.exit_code == 0, result.stderr
+    assert route.calls.last.request.url.params["$search"] == f'"{expected}"'
 
 
 @covers("mail list")
@@ -145,7 +199,7 @@ def test_mail_list_search_mode_refilters_a_bound_with_a_time(invoke, graph):
     result = invoke("mail", "list", "--search", "budget", "--after", "2026-08-31T12:00", "--json")
     assert result.exit_code == 0, result.stderr
     params = route.calls.last.request.url.params
-    assert params["$search"] == '"budget AND received>=2026-08-31"'
+    assert params["$search"] == '"(budget) AND received>=2026-08-31"'
     doc = json.loads(result.stdout)
     assert [m["id"] for m in doc["items"]] == ["AAMk-late"]
 
