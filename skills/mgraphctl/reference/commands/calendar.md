@@ -12,17 +12,22 @@ are in [`../commands.md`](../commands.md).
 | `--days N` | 7 | Days from `--start`, when `--end` is not given. |
 | `--calendar NAME\|ID` | the default calendar | Which calendar to read. |
 | `--search KW` | — | Client-side match on subject, organizer and attendees. |
+| `--select a,b` | — | `$select` override. |
 | `--limit N` | 50 | Maximum items. |
 | `--all` | off | Fetch every page, cap 200. |
 | `--json` | off | Print JSON instead of text. |
 
 - **Graph:** `GET /me/calendarView` (or `/me/calendars/{id}/calendarView`) with
   `startDateTime`, `endDateTime`,
-  `$select=id,subject,start,end,location,organizer,attendees,isOnlineMeeting,onlineMeeting,isCancelled,isAllDay,showAs,responseStatus,seriesMasterId,bodyPreview,webLink`,
-  `$orderby=start/dateTime`, `$top=50`, and `Prefer: outlook.timezone`.
+  `$select=id,subject,start,end,location,organizer,attendees,isOnlineMeeting,onlineMeeting,isCancelled,isAllDay,showAs,responseStatus,seriesMasterId,bodyPreview,webLink,lastModifiedDateTime`
+  (or the `--select` list), `$orderby=start/dateTime`, `$top=50`, and `Prefer: outlook.timezone`.
 - **Scopes:** `Calendars.Read`
 - **Notes:** `calendarView` expands recurring series into occurrences. Columns: start, end, markers
-  (`T` Teams meeting, `X` cancelled), subject, organizer, location, id.
+  (`T` Teams meeting, `X` cancelled), subject, organizer, location, id. `lastModifiedDateTime`
+  changes whenever the event does, so it serves as a change fingerprint. A `--select` list must
+  keep the fields the text columns read (`start`, `end`, `subject`, …) or they show `N/A`;
+  `--json` prints whatever the list names. `--search` matches only on the fields `--select`
+  returns, so a list without `subject`, `organizer` and `attendees` matches nothing.
 
 ### `calendar calendars`
 

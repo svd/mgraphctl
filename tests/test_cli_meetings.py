@@ -33,6 +33,9 @@ def test_meetings_list_default_window_resolve_and_transcripts(invoke, graph, mon
     doc = json.loads(r.stdout)
     assert doc["count"] == 2 and doc["items"][0]["meetingId"] == "MSpk-1"
     assert doc["items"][0]["transcriptIds"] == ["tr-1"]
+    assert doc["items"][0]["transcripts"] == [
+        {"id": "tr-1", "createdDateTime": "2026-08-28T10:05:00Z"}
+    ]
     text = invoke("meetings", "list", "--resolve", "--with-transcripts").stdout.splitlines()
     assert text[0].split() == ["start", "subject", "event_id", "meeting_id", "transcripts"]
 

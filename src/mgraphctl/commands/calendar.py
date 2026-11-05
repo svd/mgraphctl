@@ -81,6 +81,9 @@ def list_(
     search: Annotated[
         str | None, typer.Option("--search", help="Client-side match on subject/attendees.")
     ] = None,
+    select: Annotated[
+        str | None, typer.Option("--select", help="Comma-separated $select override.")
+    ] = None,
     limit: LimitOpt = None,
     all_: AllFlag = False,
     json_: JsonFlag = False,
@@ -101,7 +104,7 @@ def list_(
         start=start_dt,
         end=end_dt,
         calendar_id=calendar_id,
-        select=None,
+        select=select,
         limit=limit,
         all_=all_,
         tz=tz,

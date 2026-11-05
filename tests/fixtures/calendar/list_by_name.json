@@ -20,7 +20,7 @@
     "query": {
       "startDateTime": "2026-09-02T09:00:00+02:00",
       "endDateTime": "2026-09-09T09:00:00+02:00",
-      "$select": "id,subject,start,end,location,organizer,attendees,isOnlineMeeting,onlineMeeting,isCancelled,isAllDay,showAs,responseStatus,seriesMasterId,bodyPreview,webLink",
+      "$select": "id,subject,start,end,location,organizer,attendees,isOnlineMeeting,onlineMeeting,isCancelled,isAllDay,showAs,responseStatus,seriesMasterId,bodyPreview,webLink,lastModifiedDateTime",
       "$orderby": "start/dateTime",
       "$top": "50"
     },
