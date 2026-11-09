@@ -4,11 +4,13 @@ from typing import Annotated
 
 import typer
 
+from mgraphctl import resolve
 from mgraphctl.cli import (
     AllFlag,
     DryRunFlag,
     JsonFlag,
     LimitOpt,
+    gate,
     graph_command,
     make_noun_app,
     page_bounds,
@@ -30,8 +32,18 @@ from mgraphctl.render import (
 
 READ_TEAM = ["Team.ReadBasic.All|Group.Read.All"]
 READ_CHANNEL = ["Channel.ReadBasic.All|Group.Read.All"]
+# `/me/joinedTeams` rejects Group.Read.All; these are the read scopes Graph names for it. Their
+# ReadWrite forms satisfy the gate through config.SCOPE_IMPLIES: listing them here would make
+# mcp.discover.can_write count `teams list` as a write. `teams list` and every team given by
+# display name read this path; a team given by GUID never does.
+JOINED_TEAMS = ["Team.ReadBasic.All|TeamSettings.Read.All|User.Read.All|Directory.Read.All"]
 
-TeamArg = Annotated[str, typer.Argument(metavar="TEAM", help="Team GUID or display name.")]
+TeamArg = Annotated[
+    str,
+    typer.Argument(
+        metavar="TEAM", help="Team GUID, or display name (a name needs the extended sign-in)."
+    ),
+]
 ChannelArg = Annotated[
     str, typer.Argument(metavar="CHANNEL", help="Channel id (19:…) or display name.")
 ]
@@ -52,13 +64,21 @@ CHANNEL_FIELDS = [
     ("Channel id", "id"),
 ]
 
+
+def _team_id(client: GraphClient, team: str) -> str:
+    """The team's id, gating the `/me/joinedTeams` scopes first when `team` is a display name."""
+    if not resolve.looks_like_id(team, "team"):
+        gate(JOINED_TEAMS)
+    return teams.resolve_team(client, team)["id"]
+
+
 app = make_noun_app("Teams and channels.")
 channel = make_noun_app("Channels within a team.")
 app.add_typer(channel, name="channel")
 
 
 @app.command("list")
-@graph_command(scopes=READ_TEAM)
+@graph_command(scopes=JOINED_TEAMS)
 def list_(client: GraphClient, json_: JsonFlag = False):
     """List the teams you belong to."""
     page = teams.list_teams(client)
@@ -79,7 +99,7 @@ def list_(client: GraphClient, json_: JsonFlag = False):
 @graph_command(scopes=READ_TEAM)
 def get(client: GraphClient, team: TeamArg, json_: JsonFlag = False):
     """Show one team."""
-    team_id = teams.resolve_team(client, team)["id"]
+    team_id = _team_id(client, team)
     return ObjectResult(obj=teams.get_team(client, team_id), fields=list(TEAM_FIELDS))
 
 
@@ -94,7 +114,7 @@ def members(
 ):
     """List a team's members."""
     limit, all_ = page_bounds(limit, all_, default=100)
-    team_id = teams.resolve_team(client, team)["id"]
+    team_id = _team_id(client, team)
     page = teams.list_members(client, team_id, limit=limit, all_=all_)
     return ListResult(
         items=page.items,
@@ -114,7 +134,7 @@ def members(
 @graph_command(scopes=READ_CHANNEL)
 def channels(client: GraphClient, team: TeamArg, json_: JsonFlag = False):
     """List a team's channels."""
-    team_id = teams.resolve_team(client, team)["id"]
+    team_id = _team_id(client, team)
     page = teams.list_channels(client, team_id)
     return ListResult(
         items=page.items,
@@ -134,7 +154,7 @@ def channels(client: GraphClient, team: TeamArg, json_: JsonFlag = False):
 @graph_command(scopes=READ_CHANNEL)
 def channel_get(client: GraphClient, team: TeamArg, chan: ChannelArg, json_: JsonFlag = False):
     """Show one channel."""
-    team_id = teams.resolve_team(client, team)["id"]
+    team_id = _team_id(client, team)
     channel_id = teams.resolve_channel(client, team_id, chan)["id"]
     return ObjectResult(
         obj=teams.get_channel(client, team_id, channel_id), fields=list(CHANNEL_FIELDS)
@@ -179,7 +199,7 @@ def channel_messages(
     if after_dt is not None and before_dt is not None and after_dt > before_dt:
         raise UsageError("USAGE", "--after must not be later than --before")
     limit, all_ = page_bounds(limit, all_, default=20)
-    team_id = teams.resolve_team(client, team)["id"]
+    team_id = _team_id(client, team)
     channel_id = teams.resolve_channel(client, team_id, chan)["id"]
     if replies is not None:
         page = teams.channel_replies(client, team_id, channel_id, replies, limit=limit, all_=all_)
@@ -225,7 +245,7 @@ def channel_send(
 ):
     """Post a message to a channel."""
     text = read_body(body, body_file)
-    team_id = teams.resolve_team(client, team)["id"]
+    team_id = _team_id(client, team)
     channel_id = teams.resolve_channel(client, team_id, chan)["id"]
     plan = teams.plan_channel_send(
         client, team_id, channel_id, body=text, html=html, subject=subject, reply_to=reply_to

@@ -226,3 +226,5 @@ __marimo__/
 
 # codegraph index
 .codegraph/
+.claude/ctx-guard.local.json
+.ctx-guard/

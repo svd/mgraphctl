@@ -112,6 +112,12 @@ def test_a_verb_that_could_write_is_either_mutating_or_knowingly_excused(specs):
     assert set(specs) >= discover.READ_WITH_WRITE_SCOPE
 
 
+def test_teams_list_stays_read_only(specs):
+    """Its gate lists only read scopes; the ReadWrite forms are accepted via SCOPE_IMPLIES."""
+    spec = specs["teams list"]
+    assert not discover.can_write(spec.scopes) and not spec.mutating
+
+
 def test_annotations_describe_the_verb(specs):
     assert specs["mail list"].annotations == {"readOnlyHint": True, "openWorldHint": True}
     delete = specs["calendar delete"].annotations

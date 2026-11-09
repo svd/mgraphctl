@@ -87,7 +87,7 @@ as an id; a leading `/` forces a drive path.
 | Argument | Read as an id when | Otherwise looked up as |
 |---|---|---|
 | `mail --folder` | `all` (the whole mailbox), a well-known name (`inbox`, `drafts`, `sentitems`, `deleteditems`, `junkemail`, `archive`, `outbox`, `clutter`, `conversationhistory`, `msgfolderroot`), or 40+ characters with no spaces | exact `displayName` among `/me/mailFolders` and one level of child folders |
-| `TEAM` | a GUID | case-insensitive `displayName` in `/me/joinedTeams` |
+| `TEAM` | a GUID | case-insensitive `displayName` in `/me/joinedTeams`, which needs `Team.ReadBasic.All` |
 | `CHANNEL` | starts with `19:` | `displayName` in the team's channels |
 | `CHAT` | starts with `19:` | a value containing `@` finds the 1:1 chat with that user |
 | `USER` / `UPN` | a GUID, a value containing `@`, or `me` | a directory search, which needs `User.ReadBasic.All` |

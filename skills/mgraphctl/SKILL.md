@@ -14,7 +14,7 @@ description: >
 allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/mgraphctl *)
 metadata:
   author: Sviatoslav Sviridov
-  version: "0.5.0"
+  version: "0.5.1"
 ---
 
 # Microsoft Graph (Python CLI)
@@ -136,12 +136,14 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl groups list --unified --json
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl groups members "Design Guild"
 ```
 
-**teams** — `list`, `get`, `members`, `channels`, `channel get|messages|send`
+**teams** — `list`, `get`, `members`, `channels`, `channel get|messages|send`. A team given
+by display name needs `extended`; with `default`, pass the team id (GUID): the `groupId` in the
+link Teams' *Get link to team* copies.
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channels "Platform" --json
-${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel messages "Platform" "General" --limit 20
-${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel messages "Platform" "General" --after -7d --all
+${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channels 11111111-1111-4111-8111-111111111111 --json
+${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel messages 11111111-1111-4111-8111-111111111111 "General" --limit 20
+${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel messages 11111111-1111-4111-8111-111111111111 "General" --after -7d --all
 ```
 
 **chats** — `list`, `get`, `members`, `messages`, `send`, `dm`, `create`, `search`,
@@ -238,12 +240,12 @@ ${CLAUDE_PLUGIN_ROOT}/mgraphctl search "budget plan" --type driveItem --json
 ${CLAUDE_PLUGIN_ROOT}/mgraphctl chats dm anna@example.com --body "Sending the deck now." --dry-run
 ```
 
-**Post to a channel.** Resolve the team and channel by name first.
+**Post to a channel.** Get the team id from the user (the `groupId` in Teams' *Get link to
+team*) or, on an `extended` sign-in, from `teams list`; then find the channel by name.
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/mgraphctl teams list --json
-${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channels "Platform" --json
-${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel send "Platform" "General" --body "Release is out." --dry-run
+${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channels 11111111-1111-4111-8111-111111111111 --json
+${CLAUDE_PLUGIN_ROOT}/mgraphctl teams channel send 11111111-1111-4111-8111-111111111111 "General" --body "Release is out." --dry-run
 ```
 
 **Transcript to summary.** Find the meeting by date and subject, then read the transcript.
@@ -371,15 +373,15 @@ belong to the user's environment.
 `login` requests the `default` set — the 23 permissions covering mail read and send, calendars,
 files, sites, chats, channel messages, transcripts, people, contacts, notes, tasks and group
 membership. `login --scopes extended` adds mail and mailbox writes, presence, directory user
-lookup, shared calendars, chat creation, and team and channel listing.
+lookup, shared calendars, chat creation, and team listing and team lookup by name.
 
 These verbs need `extended`: `mail mark`, `mail move`, `mail delete`, `mail drafts create`,
 `mail drafts send`, `mail rules list`, `mail categories`, `mailbox settings`, `mailbox oof get`,
-`mailbox oof set`, `calendar find-times`, `people users`, `teams members`, `chats create`,
-`presence get`, `presence set`, `presence clear`. Three more need it only on one path:
-`mail send` when the attachments are large enough to take the draft path, `chats dm` when no
-1:1 chat exists yet and it has to create one, and `people photo UPN` when the photo belongs to
-someone else.
+`mailbox oof set`, `calendar find-times`, `people users`, `teams list`, `teams members`,
+`chats create`, `presence get`, `presence set`, `presence clear`. Four more need it only on one
+path: `mail send` when the attachments are large enough to take the draft path, `chats dm` when
+no 1:1 chat exists yet and it has to create one, `people photo UPN` when the photo belongs to
+someone else, and any `teams` verb given a team by display name rather than its id.
 
 Three scopes are in neither set and are asked for one at a time with `login --scope <name>`:
 `OnlineMeetingRecording.Read.All` for `meetings recordings`, `User.Read.All` for `org manager`,

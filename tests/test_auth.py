@@ -343,6 +343,9 @@ def test_expand_scopes_implication_table():
     assert {"Mail.Read", "Mail.ReadBasic"} <= auth.expand_scopes(["Mail.ReadWrite"])
     assert "ChatMessage.Send" in auth.expand_scopes(["Chat.ReadWrite"])
     assert "User.ReadBasic.All" in auth.expand_scopes(["User.Read.All"])
+    assert {"User.Read.All", "User.ReadBasic.All"} <= auth.expand_scopes(["User.ReadWrite.All"])
+    assert "Directory.Read.All" in auth.expand_scopes(["Directory.ReadWrite.All"])
+    assert "TeamSettings.Read.All" in auth.expand_scopes(["TeamSettings.ReadWrite.All"])
     assert auth.expand_scopes([]) == set()
 
 
