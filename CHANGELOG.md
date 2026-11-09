@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.1] — 2026-11-09
 
 - `teams list`, and any `teams` verb given a `TEAM` by display name, check for
   `Team.ReadBasic.All` (or another scope Graph accepts for `/me/joinedTeams`) before sending a
