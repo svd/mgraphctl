@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from helpers import GRAPH, covers, graph_error, mock_graph
+from mgraphctl import config
 
 TEAM = "11111111-1111-4111-8111-111111111111"
 CHANNEL = "19:channel-0001@thread.tacv2"
@@ -110,6 +111,117 @@ def test_teams_members_scope_gate(invoke, graph):
     r = invoke("teams", "members", TEAM)
     assert r.exit_code == 3 and graph.calls.call_count == 0
     assert r.stderr.startswith("error[MISSING_SCOPE]: this command needs TeamMember.Read.All;")
+
+
+# What `mgraphctl login` grants: Group.Read.All and ChannelMessage.Read.All, no Team.ReadBasic.All.
+DEFAULT_TOKEN = pytest.mark.scopes(config.DEFAULT_SCOPES)
+JOINED_TEAMS_REFUSED = "error[MISSING_SCOPE]: this command needs Team.ReadBasic.All or "
+
+
+@covers("teams list")
+@DEFAULT_TOKEN
+def test_teams_list_gate_refuses_a_default_token(invoke, graph):
+    r = invoke("teams", "list", "--json")
+    assert r.exit_code == 3 and graph.calls.call_count == 0
+    assert r.stderr.startswith(JOINED_TEAMS_REFUSED)
+    assert "login --scopes extended" in r.stderr
+
+
+@covers("teams list")
+@pytest.mark.scopes(["Team.ReadBasic.All"])
+def test_teams_list_passes_on_team_readbasic(invoke, graph):
+    mock_graph(graph, "teams/list")
+    r = invoke("teams", "list", "--json")
+    assert r.exit_code == 0, r.stderr
+
+
+@covers("teams get", "teams channels", "teams channel get", "teams channel messages")
+@covers("teams channel send")
+@DEFAULT_TOKEN
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["get", "Engineering"],
+        ["channels", "Engineering"],
+        ["channel", "get", "Engineering", CHANNEL],
+        ["channel", "messages", "Engineering", CHANNEL],
+        ["channel", "send", "Engineering", CHANNEL, "--body", "hi", "--dry-run"],
+    ],
+)
+def test_team_by_name_gate_refuses_a_default_token(invoke, graph, args):
+    r = invoke("teams", *args, "--json")
+    assert r.exit_code == 3 and graph.calls.call_count == 0, r.stderr
+    assert r.stderr.startswith(JOINED_TEAMS_REFUSED)
+    assert "login --scopes extended" in r.stderr
+
+
+@covers("teams members")
+@pytest.mark.scopes([*config.DEFAULT_SCOPES, "TeamMember.Read.All"])
+def test_teams_members_by_name_gate_refuses_without_joined_teams(invoke, graph):
+    r = invoke("teams", "members", "Engineering")
+    assert r.exit_code == 3 and graph.calls.call_count == 0
+    assert r.stderr.startswith(JOINED_TEAMS_REFUSED)
+
+
+@covers("teams get", "teams channels", "teams channel get", "teams channel messages")
+@DEFAULT_TOKEN
+@pytest.mark.parametrize(
+    "args,fixture",
+    [
+        (["get", TEAM], "teams/get"),
+        (["channels", TEAM], "teams/channels"),
+        (["channel", "get", TEAM, CHANNEL], "teams/channel_get"),
+    ],
+)
+def test_team_by_guid_passes_on_a_default_token(invoke, graph, args, fixture):
+    mock_graph(graph, fixture)
+    r = invoke("teams", *args, "--json")
+    assert r.exit_code == 0, r.stderr
+    assert all("joinedTeams" not in str(c.request.url) for c in graph.calls)
+
+
+@covers("teams get")
+@DEFAULT_TOKEN
+def test_team_forced_id_skips_the_joined_teams_gate(invoke, graph):
+    route = graph.get(f"{GRAPH}/v1.0/teams/not-a-guid").mock(
+        return_value=httpx.Response(200, json={"id": "not-a-guid", "displayName": "Odd"})
+    )
+    r = invoke("teams", "get", "id:not-a-guid", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert route.call_count == 1 and graph.calls.call_count == 1
+
+
+@covers("teams channels")
+@pytest.mark.parametrize(
+    "scope",
+    [
+        pytest.param(scope, marks=pytest.mark.scopes(["Group.Read.All", scope]), id=scope)
+        for scope in (
+            "Team.ReadBasic.All",
+            # Graph accepts the ReadWrite forms too; SCOPE_IMPLIES maps each to the gated read form.
+            "TeamSettings.ReadWrite.All",
+            "User.ReadWrite.All",
+            "Directory.ReadWrite.All",
+        )
+    ],
+)
+def test_team_by_name_passes_with_a_joined_teams_scope(invoke, graph, scope):
+    mock_graph(graph, "teams/list")
+    mock_graph(graph, "teams/channels")
+    r = invoke("teams", "channels", "Engineering", "--json")
+    assert r.exit_code == 0, r.stderr
+    assert [c["displayName"] for c in json.loads(r.stdout)["items"]][0] == "General"
+
+
+@covers("teams channel messages")
+@DEFAULT_TOKEN
+def test_channel_messages_by_guid_passes_on_a_default_token(invoke, graph):
+    graph.get(f"{CHANNEL_URL}/messages").mock(
+        return_value=httpx.Response(200, json={"value": [_msg("m-1", "2026-08-31T09:00:00Z")]})
+    )
+    r = invoke("teams", "channel", "messages", TEAM, CHANNEL, "--json")
+    assert r.exit_code == 0, r.stderr
+    assert [m["id"] for m in json.loads(r.stdout)["items"]] == ["m-1"]
 
 
 @covers("teams members")

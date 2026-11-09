@@ -104,6 +104,9 @@ SCOPE_IMPLIES: dict[str, tuple[str, ...]] = {
     "TeamMember.ReadWrite.All": ("TeamMember.Read.All",),
     "Group.ReadWrite.All": ("Group.Read.All",),
     "User.Read.All": ("User.ReadBasic.All",),
+    "User.ReadWrite.All": ("User.Read.All", "User.ReadBasic.All"),
+    "Directory.ReadWrite.All": ("Directory.Read.All",),
+    "TeamSettings.ReadWrite.All": ("TeamSettings.Read.All",),
 }
 
 # What `config init` writes: every key present, commented out, at its default.

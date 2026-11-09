@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+- `teams list`, and any `teams` verb given a `TEAM` by display name, check for
+  `Team.ReadBasic.All` (or another scope Graph accepts for `/me/joinedTeams`) before sending a
+  request, and stop with `error[MISSING_SCOPE]` and the `login --scopes extended` hint. They used to
+  accept `Group.Read.All`, which the `default` sign-in holds, and then fail with Graph's
+  `error[Forbidden]`. A team given by id (GUID) still works with `Group.Read.All`. The skill's
+  channel-post recipe and teams examples pass the team id, which the user copies from Teams'
+  *Get link to team* (`groupId`).
+- The scope check counts `User.ReadWrite.All`, `Directory.ReadWrite.All` and
+  `TeamSettings.ReadWrite.All` as holding their `.Read.All` forms.
+
 ## [0.5.0] — 2026-11-05
 
 - `calendar list` selects `lastModifiedDateTime`, and takes `--select` to override the `$select`

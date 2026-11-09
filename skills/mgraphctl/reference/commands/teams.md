@@ -3,6 +3,11 @@
 Conventions, argument resolution, paging defaults, exit codes and environment variables
 are in [`../commands.md`](../commands.md).
 
+A `TEAM` given by display name is looked up in `/me/joinedTeams`, which needs
+`Team.ReadBasic.All` (in the `extended` set) on top of the verb's own scopes; Graph refuses that
+path to `Group.Read.All`. A team id (GUID) needs only the verb's scopes, so with the `default` set
+pass the GUID from the team's link or from `teams list` on an `extended` sign-in.
+
 ### `teams list`
 
 | Option | Default | Meaning |
@@ -10,7 +15,9 @@ are in [`../commands.md`](../commands.md).
 | `--json` | off | Print JSON instead of text. |
 
 - **Graph:** `GET /me/joinedTeams` (Graph accepts no OData parameters on this path).
-- **Scopes:** `Team.ReadBasic.All` or `Group.Read.All`
+- **Scopes:** `Team.ReadBasic.All`, `TeamSettings.Read.All`, `User.Read.All` (*on-demand*) or
+  `Directory.Read.All`
+- **Beyond `default`:** always.
 - **Notes:** returns every team, unpaged; there is no `--limit`.
 
 ### `teams get TEAM`
@@ -21,6 +28,7 @@ are in [`../commands.md`](../commands.md).
 
 - **Graph:** `GET /teams/{t}`.
 - **Scopes:** `Team.ReadBasic.All` or `Group.Read.All`
+- **Beyond `default`:** only when TEAM is a display name.
 - **Notes:** `TEAM` may be a team id (GUID) or a display name from `teams list`.
 
 ### `teams members TEAM`
@@ -43,6 +51,7 @@ are in [`../commands.md`](../commands.md).
 
 - **Graph:** `GET /teams/{t}/channels?$select=id,displayName,description,membershipType`.
 - **Scopes:** `Channel.ReadBasic.All` or `Group.Read.All`
+- **Beyond `default`:** only when TEAM is a display name.
 
 ### `teams channel get TEAM CHANNEL`
 
@@ -52,6 +61,7 @@ are in [`../commands.md`](../commands.md).
 
 - **Graph:** `GET /teams/{t}/channels/{c}`.
 - **Scopes:** `Channel.ReadBasic.All` or `Group.Read.All`
+- **Beyond `default`:** only when TEAM is a display name.
 - **Notes:** `CHANNEL` may be a channel id (starts with `19:`) or a display name.
 
 ### `teams channel messages TEAM CHANNEL`
@@ -70,6 +80,7 @@ are in [`../commands.md`](../commands.md).
 - **Graph:** `GET /teams/{t}/channels/{c}/messages?$top=50[&$expand=replies]`;
   `--replies`: `GET …/messages/{m}/replies?$top=50`, paged and bounded by `--limit`.
 - **Scopes:** `ChannelMessage.Read.All`
+- **Beyond `default`:** only when TEAM is a display name.
 - **Notes:** deleted messages and system placeholders are dropped. Text mode prints oldest first
   with HTML bodies converted to Markdown; JSON keeps Graph's order, newest first.
   `--after`/`--before` add no query parameter: Graph documents `$top` and `$expand` as the only
@@ -101,4 +112,5 @@ are in [`../commands.md`](../commands.md).
 - **Graph:** `POST /teams/{t}/channels/{c}/messages`, or `…/messages/{m}/replies` with
   `--reply-to`, body `{subject?, body:{contentType:"text"|"html", content}}`.
 - **Scopes:** `ChannelMessage.Send`
+- **Beyond `default`:** only when TEAM is a display name.
 - **Notes:** write. Plain text is sent as `contentType:"text"`, so nothing needs escaping.

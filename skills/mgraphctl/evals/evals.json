@@ -120,7 +120,7 @@
     {
       "id": 8,
       "prompt": "Post 'Sprint planning at 2pm tomorrow' to the announcements channel in the Engineering team.",
-      "expected_output": "Resolves the team and channel by name, previews the send with --dry-run, and asks before actually posting.",
+      "expected_output": "Gets the Engineering team's id: on a default sign-in asks the user for it (the groupId in Teams' Get link to team), or runs teams list on an extended sign-in. Finds the channel by name, previews the send with --dry-run, and asks before actually posting.",
       "files": [],
       "assertions": [
         {
@@ -129,7 +129,7 @@
         },
         {
           "name": "uses-channel-send",
-          "description": "The response uses `teams channel send` with the team and channel named."
+          "description": "The response uses `teams channel send` with the team id (a GUID, or the team name on an extended sign-in) and the channel."
         }
       ]
     },

@@ -173,6 +173,8 @@ Every command declares `scopes: list[str]`; an entry `"A|B"` means any-of. `auth
 | `Chat.ReadWrite` | `Chat.Read`, `Chat.ReadBasic`, `ChatMessage.Send` |
 | `Tasks.ReadWrite`, `Notes.ReadWrite`, `Contacts.ReadWrite`, `Presence.ReadWrite`, `MailboxSettings.ReadWrite`, `TeamMember.ReadWrite.All`, `Group.ReadWrite.All` | the matching `.Read` scope |
 | `User.Read.All` | `User.ReadBasic.All` |
+| `User.ReadWrite.All` | `User.Read.All`, `User.ReadBasic.All` |
+| `Directory.ReadWrite.All`, `TeamSettings.ReadWrite.All` | the matching `.Read.All` scope |
 
 Fixture mode (§5.8) substitutes a synthetic token whose `scp` is the union of every scope declared by any command, so the gate never fires in replay.
 
@@ -364,7 +366,7 @@ Positional resource arguments accept an id or a human name; resolution is determ
 | Argument | Id detection | Name lookup |
 |---|---|---|
 | mail `--folder` | `all` → `/me/messages` (whole mailbox, Node's default); well-known name (case-insensitive: inbox, drafts, sentitems, deleteditems, junkemail, archive, outbox, clutter, conversationhistory, msgfolderroot) or `len ≥ 40 and no spaces` | exact `displayName` among `GET /me/mailFolders?$top=200` then one level of `childFolders` |
-| `TEAM` | GUID regex | case-insensitive `displayName` in `/me/joinedTeams` |
+| `TEAM` | GUID regex | case-insensitive `displayName` in `/me/joinedTeams`, gated on the `teams list` scopes (§15 item 12) |
 | `CHANNEL` | starts with `19:` | `displayName` in `/teams/{t}/channels` |
 | `CHAT` | starts with `19:` | contains `@` → the 1:1 chat with that UPN (§8 chats dm lookup) |
 | `USER`/`UPN` | GUID → `/users/{id}`; contains `@` → `/users/{upn}`; `me` → `/me` | otherwise `people users` search when `User.ReadBasic.All` is held, else exit 2 |
@@ -502,7 +504,7 @@ Legend. **Tier**: P0 = Node parity; P1 = works with the `default` scope set, new
 
 | Verb | Args | Options (default) | Graph call | Scopes | Parity | Tier | Notes |
 |---|---|---|---|---|---|---|---|
-| `list` | — | — | `GET /me/joinedTeams` (no OData params) | `Team.ReadBasic.All\|Group.Read.All` | 5.6 teams-list | P0 | |
+| `list` | — | — | `GET /me/joinedTeams` (no OData params) | `Team.ReadBasic.All\|TeamSettings.Read.All\|User.Read.All\|Directory.Read.All` | 5.6 teams-list | P0 | |
 | `get` | `TEAM` | — | `GET /teams/{t}` | `Team.ReadBasic.All\|Group.Read.All` | — | P1 | |
 | `members` | `TEAM` | `--limit 100`, `--all` | `GET /teams/{t}/members` | `TeamMember.Read.All` | — | P2 | |
 | `channels` | `TEAM` | — | `GET /teams/{t}/channels?$select=id,displayName,description,membershipType` | `Channel.ReadBasic.All\|Group.Read.All` | 5.7 list | P0 | |
@@ -757,7 +759,7 @@ Sections, in order, with the rule each must state:
 | Setup | `uv` is the only prerequisite; first run installs (10–40 s, stderr notice). Every example spells out the full `${CLAUDE_PLUGIN_ROOT}/mgraphctl <noun> <verb>` path — no shell variables or aliases, because `allowed-tools` matches the literal command prefix and environment does not persist between Bash calls |
 | Login and status | always run `${CLAUDE_PLUGIN_ROOT}/mgraphctl status` first (exit 3 = not logged in). On `NOT_LOGGED_IN`/`CONSENT_REQUIRED`: tell the user the exact command to run in **their own terminal** (`… mgraphctl login`, or `… login --scopes extended`, or the admin-consent URL), stop, and wait; never run `login` yourself, never retry in a loop; `MISSING_SCOPE` → relay the hint verbatim |
 | Command cheat-sheet | one block per noun listing verbs with the 1–2 most common flag combos; links to `reference/commands.md` for the full option tables |
-| Recipes | inbox triage (`mail list --unread` → `mail read` → `mail mark --read` / `todo from-mail`); schedule a meeting (`calendar availability --users … --start … --end …` → `calendar create --teams … --dry-run` → confirm → run); find a file (`search Q --type driveItem` or `sharepoint url URL`); DM someone (`chats dm USER --body … --dry-run` → confirm → run); transcript to summary (`meetings list --subject … --resolve --with-transcripts` → `meetings transcript MID TID --output` → summarise; `meetings insights` when Copilot-licensed); to-do from mail; post to a channel (`teams list` → `teams channels TEAM` → `teams channel send`) |
+| Recipes | inbox triage (`mail list --unread` → `mail read` → `mail mark --read` / `todo from-mail`); schedule a meeting (`calendar availability --users … --start … --end …` → `calendar create --teams … --dry-run` → confirm → run); find a file (`search Q --type driveItem` or `sharepoint url URL`); DM someone (`chats dm USER --body … --dry-run` → confirm → run); transcript to summary (`meetings list --subject … --resolve --with-transcripts` → `meetings transcript MID TID --output` → summarise; `meetings insights` when Copilot-licensed); to-do from mail; post to a channel (team GUID from the user, the `groupId` in Teams' *Get link to team*, or `teams list` on an `extended` sign-in → `teams channels TEAM` → `teams channel send … --dry-run` → confirm → run) |
 | Guardrails | (1) before **any** write (`send`, `reply`, `forward`, `create`, `update`, `complete`, `delete`, `move`, `mark`, `respond`, `upload`, `mkdir`, `rename`, `share`, `dm`, `from-mail`, `oof set`, `presence set/clear`, `drafts create/send`, non-GET `api`) run the same command with `--dry-run`, show the user the request, and get explicit confirmation before running it without `--dry-run`; (2) never run `login`; (3) prefer `--json` when parsing output, text when showing the user; (4) respect `--limit`/`--all` caps and quote `truncated`; (5) Microsoft 365 only — decline Slack/Google requests; (6) get today's date from the shell (`date`) and the zone from `--tz`/`MGRAPHCTL_TZ` before computing windows; (7) ids from `mail move` change — re-list after moving |
 | Output conventions | JSON envelope shapes; text-mode ordering (messages chronological, JSON newest first); datetimes carry offsets; `truncated` note on stderr |
 | Exit codes | the §6.5 table verbatim |
@@ -807,7 +809,7 @@ Decided without user input; each is reversible before phase 1 starts.
 9. `Prefer: IdType="ImmutableId"` is not sent; `mail move` therefore returns a new id (documented). Revisit if the skill needs to cache ids across calls.
 10. Downloads overwrite existing files and create parent directories; `--output` never prompts.
 11. `meetings insights` probes v1.0 first and falls back to `/beta` on 404, exactly as Node does; it is the only implicit beta call outside `--beta`/`api --beta`.
-12. `teams list`/`channels` declare `Team.ReadBasic.All|Group.Read.All` and `Channel.ReadBasic.All|Group.Read.All` because Node proves `Group.Read.All` suffices; `teams members` declares `TeamMember.Read.All` only (P2), to be relaxed if `Group.Read.All` is confirmed sufficient.
+12. `teams get`/`channels`/`channel get` declare `Team.ReadBasic.All|Group.Read.All` and `Channel.ReadBasic.All|Group.Read.All`: Graph serves `/teams/{t}` and `/teams/{t}/channels` to `Group.Read.All`. `/me/joinedTeams` it does not (verified 2026-11-09: 403 naming `Team.ReadBasic.All`, `TeamSettings.Read*.All`, `User.Read*.All`, `Directory.Read*.All`), so `teams list` declares the read ones of those, and every verb gates them again before resolving a `TEAM` given by display name; `teams members` declares `TeamMember.Read.All` only (P2), to be relaxed if `Group.Read.All` is confirmed sufficient.
 13. `org manager|reports` without a UPN declare `User.Read` (Node proves it works for `/me`); for other users Graph requires `User.Read.All` (admin).
 14. `people contacts --search` keeps Node's `$search` with a client-side fallback; `onenote search` passes Graph's error through for work accounts.
 15. The Node tests were never in CI, and this plugin's pytest suite is also not in `.gitlab-ci.yml` yet (runners lack `uv`); adding a `uv`-capable job is a follow-up.
